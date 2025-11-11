@@ -10,7 +10,7 @@
     "preview": "pnpm --filter spanish-assistant-frontend preview"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.0.0"
+    "@tauri-apps/cli": "^2.9.0"
   },
   "packageManager": "pnpm@10.19.0"
 }
