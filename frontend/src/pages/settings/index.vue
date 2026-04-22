@@ -31,11 +31,12 @@ import {
 defineOptions({ name: 'Settings' });
 
 // 一级导航状态：null = 列表首页
-type Section = null | 'speech-eval' | 'model-services' | 'chat'
+type Section = null | 'speech-eval' | 'rtasr' | 'model-services' | 'chat'
 const currentSection = ref<Section>(null)
 
 const sectionTitle: Record<Exclude<Section, null>, string> = {
   'speech-eval': '语音评测配置',
+  'rtasr': '实时语音转写',
   'model-services': '模型服务',
   'chat': '场景对话',
 }
@@ -77,6 +78,8 @@ const autoSave = () => {
       await settingsStore.saveSettings({
         providers: settings.value.providers,
         xfSpeechEval: settings.value.xfSpeechEval,
+        rtasrMode: settings.value.rtasrMode,
+        rtasrApiKey: settings.value.rtasrApiKey,
       });
     } catch (error) {
       console.error("自动保存失败:", error);
@@ -85,7 +88,7 @@ const autoSave = () => {
 };
 
 watch(
-  () => [settings.value.providers, settings.value.xfSpeechEval, settings.value.chatDefaultPrompt],
+  () => [settings.value.providers, settings.value.xfSpeechEval, settings.value.rtasrMode, settings.value.rtasrApiKey, settings.value.chatInputLanguage],
   () => { autoSave(); },
   { deep: true }
 );
@@ -235,6 +238,20 @@ onMounted(() => {
             <path d="M1 1L6 6L1 11" stroke="#C0C4CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
+        <button class="menu-item" @click="currentSection = 'rtasr'">
+          <span class="menu-icon rtasr-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+              <line x1="12" y1="19" x2="12" y2="23"/>
+              <line x1="8" y1="23" x2="16" y2="23"/>
+            </svg>
+          </span>
+          <span class="menu-label">实时语音转写</span>
+          <svg class="menu-chevron" width="7" height="12" viewBox="0 0 7 12" fill="none">
+            <path d="M1 1L6 6L1 11" stroke="#C0C4CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
         <button class="menu-item" @click="currentSection = 'model-services'">
           <span class="menu-icon model-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -293,6 +310,42 @@ onMounted(() => {
             show-password
             class="form-input"
           />
+        </div>
+      </div>
+    </div>
+
+    <!-- 二级页面：实时语音转写 -->
+    <div v-else-if="currentSection === 'rtasr'" class="settings-body">
+      <div class="form-group">
+        <div class="form-group-header">
+          <span class="form-group-title">转写版本</span>
+        </div>
+        <div class="form-row">
+          <label class="form-label">版本选择</label>
+          <el-select v-model="settings.rtasrMode" style="width:100%">
+            <el-option value="llm" label="大模型版" />
+            <el-option value="standard" label="标准版" />
+          </el-select>
+        </div>
+        <div v-if="settings.rtasrMode === 'llm'" class="form-hint">
+          大模型版使用语音评测配置中的 App ID 和 API Key，无需额外配置
+        </div>
+      </div>
+      <div v-if="settings.rtasrMode === 'standard'" class="form-group">
+        <div class="form-group-header">
+          <span class="form-group-title">标准版配置</span>
+        </div>
+        <div class="form-row">
+          <label class="form-label">API Key</label>
+          <el-input
+            v-model="settings.rtasrApiKey"
+            placeholder="请输入标准版 API Key"
+            show-password
+            class="form-input"
+          />
+        </div>
+        <div class="form-hint">
+          标准版使用独立的 API Key，与语音评测的 API Key 不同
         </div>
       </div>
     </div>
@@ -427,15 +480,15 @@ onMounted(() => {
     <div v-else-if="currentSection === 'chat'" class="settings-body">
       <div class="form-group">
         <div class="form-group-header">
-          <span class="form-group-title">默认系统提示语</span>
+          <span class="form-group-title">语音识别语言</span>
         </div>
-        <div class="form-row" style="flex-direction: column; align-items: stretch; gap: 4px;">
-          <el-input
-            v-model="settings.chatDefaultPrompt"
-            type="textarea"
-            :rows="6"
-            placeholder="输入系统提示语，定义AI的角色和行为"
-          />
+        <div class="form-row">
+          <label class="form-label">输入语言</label>
+          <el-select v-model="settings.chatInputLanguage" style="width:100%">
+            <el-option value="es" label="西语（Español）" />
+            <el-option value="zh" label="中文" />
+            <el-option value="en" label="英文（English）" />
+          </el-select>
         </div>
       </div>
     </div>
@@ -532,6 +585,7 @@ onMounted(() => {
 }
 
 .speech-icon { background: #fff1f0; color: #e05a4b; }
+.rtasr-icon  { background: #f0f9ff; color: #3b82f6; }
 .model-icon  { background: #f0f4ff; color: #5b7cee; }
 .chat-icon   { background: #e8f4fd; color: #2B5CE6; }
 
@@ -590,6 +644,13 @@ onMounted(() => {
 
 .form-input {
   flex: 1;
+}
+
+.form-hint {
+  font-size: 12px;
+  color: #909399;
+  padding: 8px 0 4px;
+  line-height: 1.5;
 }
 
 </style>

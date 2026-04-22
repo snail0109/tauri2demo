@@ -113,7 +113,7 @@ async function handleStart() {
   errorMsg.value = ''
   evalResult.value = null
   try {
-    await invoke('start_recording')
+    await invoke('start_recording', { appId, apiKey, apiSecret, lang: 'sp' })
     recording.value = true
   } catch (e: any) {
     errorMsg.value = e.toString()

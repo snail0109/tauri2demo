@@ -1,13 +1,5 @@
 <template>
-  <div class="input-area">
-    <div class="language-bar">
-      <button
-        v-for="lang in languages"
-        :key="lang.value"
-        :class="['lang-tag', { active: inputLanguage === lang.value }]"
-        @click="$emit('change-language', lang.value)"
-      >{{ lang.label }}</button>
-    </div>
+  <div class="input-area" :class="{ 'recording-bg': recordingState === 'recording', 'cancel-bg': recordingState === 'cancel' }">
     <template v-if="mode === 'text'">
       <div class="input-wrapper">
         <textarea ref="textareaRef" v-model="inputText" class="chat-input" :placeholder="placeholder" rows="1" @input="autoResize" @keydown="handleKeydown"></textarea>
@@ -24,41 +16,28 @@
       </div>
     </template>
     <template v-else>
-      <VoiceButton @switch-to-text="mode = 'text'" @start-recording="$emit('start-recording')" @send-recording="$emit('send-recording')" @cancel-recording="$emit('cancel-recording')" />
+      <VoiceButton @switch-to-text="mode = 'text'" @start-recording="$emit('start-recording')" @send-recording="$emit('send-recording')" @cancel-recording="$emit('cancel-recording')" @recording-state-change="(s) => recordingState = s" />
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, computed } from 'vue';
+import { ref, nextTick } from 'vue';
 import VoiceButton from './VoiceButton.vue';
-
-const props = defineProps<{
-  inputLanguage: string;
-}>();
 
 const emit = defineEmits<{
   'send-text': [text: string];
   'start-recording': [];
   'send-recording': [];
   'cancel-recording': [];
-  'change-language': [lang: string];
 }>();
 
-const languages = [
-  { value: 'es', label: '西语' },
-  { value: 'zh', label: '中文' },
-  { value: 'en', label: '英文' },
-];
-
-const placeholder = computed(() => {
-  const map: Record<string, string> = { es: 'Escribe en español', zh: '用中文输入', en: 'Type in English' };
-  return map[props.inputLanguage] || '发消息';
-});
+const placeholder = '发消息';
 
 const mode = ref<'text' | 'voice'>('text');
 const inputText = ref('');
 const textareaRef = ref<HTMLTextAreaElement | null>(null);
+const recordingState = ref<'idle' | 'recording' | 'cancel'>('idle');
 
 function autoResize() {
   const el = textareaRef.value; if (!el) return;
@@ -77,10 +56,21 @@ defineExpose({ mode, switchToVoice: () => { mode.value = 'voice'; }, switchToTex
 </script>
 
 <style scoped>
-.input-area { padding: 8px 16px 12px; background: #fff; border-top: 1px solid #ebeef5; flex-shrink: 0; }
-.language-bar { display: flex; gap: 6px; margin-bottom: 8px; }
-.lang-tag { padding: 2px 10px; border: 1px solid #dcdfe6; border-radius: 12px; background: #fff; color: #909399; font-size: 12px; cursor: pointer; transition: all 0.15s; }
-.lang-tag.active { background: #2B5CE6; color: #fff; border-color: #2B5CE6; }
+.input-area {
+  padding: 8px 16px 12px;
+  background: #fff;
+  border-top: 1px solid #ebeef5;
+  flex-shrink: 0;
+  transition: background 0.35s ease;
+}
+
+.input-area.recording-bg {
+  background: radial-gradient(ellipse at 50% 120%, #2B9EFF 0%, #90CEFF 35%, #d4eeff 65%, #ffffff 100%);
+}
+
+.input-area.cancel-bg {
+  background: radial-gradient(ellipse at 50% 120%, #FF8080 0%, #FFB0B0 35%, #FFE0E0 65%, #ffffff 100%);
+}
 .input-wrapper { display: flex; align-items: flex-end; background: #f5f5f5; border-radius: 24px; padding: 4px 4px 4px 16px; border: 1px solid #dcdfe6; }
 .chat-input { flex: 1; border: none; outline: none; background: transparent; font-size: 15px; line-height: 20px; resize: none; padding: 8px 0; max-height: 70px; font-family: inherit; color: #1a1a1a; }
 .chat-input::placeholder { color: #999; }

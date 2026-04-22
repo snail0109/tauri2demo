@@ -21,12 +21,10 @@
     />
     <InputArea
       ref="inputAreaRef"
-      :input-language="inputLanguage"
       @send-text="handleSendText"
       @start-recording="handleStartRecording"
       @send-recording="handleSendRecording"
       @cancel-recording="handleCancelRecording"
-      @change-language="handleChangeLanguage"
     />
     <HistorySidebar
       :visible="showHistory"
@@ -99,16 +97,14 @@ const currentScenario = computed<Scenario | undefined>(() => {
 });
 
 // Input language for voice recognition
-const inputLanguage = computed(() => {
-  return activeSession.value?.inputLanguage || 'es';
-});
+const inputLanguage = computed(() => settingsStore.settingsState.chatInputLanguage || 'es');
 
 onMounted(() => {
-  chatStore.ensureActiveSession(settingsStore.settingsState.chatDefaultPrompt || '');
+  chatStore.ensureActiveSession();
 });
 
 onActivated(() => {
-  chatStore.ensureActiveSession(settingsStore.settingsState.chatDefaultPrompt || '');
+  chatStore.ensureActiveSession();
 });
 
 // === Send text message ===
@@ -122,8 +118,13 @@ async function handleSendText(text: string) {
 async function handleStartRecording() {
   try {
     const { appId, apiKey, apiSecret } = settingsStore.settingsState.xfSpeechEval;
+    const rtasrMode = settingsStore.settingsState.rtasrMode;
+    const rtasrApiKey = settingsStore.settingsState.rtasrApiKey;
     const lang = inputLanguage.value;
-    await invoke('start_recording', { appId, apiKey, apiSecret, lang });
+    // 大模型版共用语音评测的 apiKey，标准版使用独立的 rtasrApiKey
+    const useLlm = rtasrMode === 'llm';
+    const effectiveApiKey = useLlm ? apiKey : (rtasrApiKey || apiKey);
+    await invoke('start_recording', { appId, apiKey: effectiveApiKey, apiSecret, lang, useLlm });
   } catch (e) {
     ElMessage.error('录音启动失败');
     console.error(e);
@@ -154,12 +155,13 @@ function handleCancelRecording() {
   }
 }
 
-// === Language change ===
-function handleChangeLanguage(lang: string) {
-  if (activeSession.value) {
-    chatStore.updateInputLanguage(lang);
-  }
+// === Session management ===
+function handleNewSession() {
+  chatStore.createSession();
+  showHistory.value = false;
 }
+function handleSelectSession(id: string) { chatStore.switchSession(id); showHistory.value = false; }
+function handleDeleteSession(id: string) { chatStore.deleteSession(id); chatStore.ensureActiveSession(); }
 
 // === AI reply ===
 async function requestAIReply() {
@@ -257,14 +259,6 @@ async function handlePlayVoice(msg: Message) {
     console.error(e);
   }
 }
-
-// === Session management ===
-function handleNewSession() {
-  chatStore.createSession(settingsStore.settingsState.chatDefaultPrompt || '');
-  showHistory.value = false;
-}
-function handleSelectSession(id: string) { chatStore.switchSession(id); showHistory.value = false; }
-function handleDeleteSession(id: string) { chatStore.deleteSession(id); chatStore.ensureActiveSession(settingsStore.settingsState.chatDefaultPrompt || ''); }
 
 // === Scenario management ===
 function handleSelectScenario(scenario: Scenario) {

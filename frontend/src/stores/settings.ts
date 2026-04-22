@@ -24,7 +24,9 @@ export const useSettingsStore = defineStore("settings", () => {
       apiKey: '',
       apiSecret: '',
     },
-    chatDefaultPrompt: '',
+    rtasrMode: 'llm' as 'llm' | 'standard', // 实时语音转写模式：大模型版 / 标准版
+    rtasrApiKey: '', // 标准版实时语音转写独立 APIKey（大模型版共用语音评测的 apiKey）
+    chatInputLanguage: 'es',
   });
 
 
@@ -103,8 +105,14 @@ export const useSettingsStore = defineStore("settings", () => {
       if (settings.xfSpeechEval) {
         Object.assign(settingsState.xfSpeechEval, settings.xfSpeechEval);
       }
-      if (settings.chatDefaultPrompt !== undefined) {
-        settingsState.chatDefaultPrompt = settings.chatDefaultPrompt;
+      if (settings.rtasrMode !== undefined) {
+        settingsState.rtasrMode = settings.rtasrMode;
+      }
+      if (settings.rtasrApiKey !== undefined) {
+        settingsState.rtasrApiKey = settings.rtasrApiKey;
+      }
+      if (settings.chatInputLanguage !== undefined) {
+        settingsState.chatInputLanguage = settings.chatInputLanguage;
       }
     }
 
@@ -121,6 +129,12 @@ export const useSettingsStore = defineStore("settings", () => {
     }
     if (data.xfSpeechEval) {
       Object.assign(settingsState.xfSpeechEval, data.xfSpeechEval);
+    }
+    if (data.rtasrMode !== undefined) {
+      settingsState.rtasrMode = data.rtasrMode;
+    }
+    if (data.rtasrApiKey !== undefined) {
+      settingsState.rtasrApiKey = data.rtasrApiKey;
     }
 
     setSettings(settingsState);
