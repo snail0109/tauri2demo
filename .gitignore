@@ -8,6 +8,7 @@ backend/src-tauri/.env.local
 .DS_Store
 *.pem
 /certs
+._*
 
 # debug
 npm-debug.log*
