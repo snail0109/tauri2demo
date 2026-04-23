@@ -26,7 +26,6 @@ tauri-plugin-http = { version = "2", features = ["unsafe-headers"] }
 tauri-plugin-fs = "2"
 tauri-plugin-log = "2"
 log = "0.4"
-dirs = "5"
 cpal = "0.15"
 shine-rs = "0.1"
 tokio = { version = "1", features = ["full"] }
