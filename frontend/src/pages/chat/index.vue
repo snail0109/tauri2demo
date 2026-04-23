@@ -211,7 +211,7 @@ async function handlePlayTts(msg: Message) {
     playingMessageId.value = msg.id;
     const { appId, apiKey, apiSecret } = settingsStore.settingsState.xfSpeechEval;
     const b64 = await invoke<string>('tts_synthesize', {
-      text: msg.content, speed: 50, vcn: 'x4_yezi', appId, apiKey, apiSecret,
+      text: msg.content, speed: 50, vcn: 'x2_spes_aurora', appId, apiKey, apiSecret,
     });
 
     const binaryStr = atob(b64);
