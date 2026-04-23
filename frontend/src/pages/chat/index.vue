@@ -121,9 +121,8 @@ async function handleSendText(text: string) {
 // === Voice recording ===
 async function handleStartRecording() {
   try {
-    const { appId, apiKey } = settingsStore.settingsState.xfRtasr;
     const lang = inputLanguage.value;
-    await invoke('start_realtime_asr_recording', { appId, apiKey, lang });
+    await invoke('start_realtime_asr_recording', { lang });
   } catch (e) {
     ElMessage.error('录音启动失败');
     console.error(e);
@@ -209,9 +208,8 @@ async function handlePlayTts(msg: Message) {
 
   try {
     playingMessageId.value = msg.id;
-    const { appId, apiKey, apiSecret } = settingsStore.settingsState.xfSpeechEval;
     const b64 = await invoke<string>('tts_synthesize', {
-      text: msg.content, speed: 50, vcn: 'x2_spes_aurora', appId, apiKey, apiSecret,
+      text: msg.content, speed: 50, vcn: 'x2_spes_aurora',
     });
 
     const binaryStr = atob(b64);

@@ -114,7 +114,7 @@ pub struct WordScore {
     pub read_type: i32,
 }
 
-// === 讯飞 API 配置（由前端通过命令参数传入） ===
+// === 讯飞 API 配置（从环境变量注入） ===
 
 pub struct XfConfig {
     pub app_id: String,
@@ -122,10 +122,40 @@ pub struct XfConfig {
     pub api_secret: String,
 }
 
+impl XfConfig {
+    /// 从环境变量加载讯飞开放平台凭证（语音评测 / TTS / 一句话识别共用）
+    pub fn from_env() -> Result<Self, String> {
+        let app_id = std::env::var("XF_APP_ID")
+            .map_err(|_| "missing env var XF_APP_ID".to_string())?;
+        let api_key = std::env::var("XF_API_KEY")
+            .map_err(|_| "missing env var XF_API_KEY".to_string())?;
+        let api_secret = std::env::var("XF_API_SECRET")
+            .map_err(|_| "missing env var XF_API_SECRET".to_string())?;
+        if app_id.is_empty() || api_key.is_empty() || api_secret.is_empty() {
+            return Err("XF_APP_ID / XF_API_KEY / XF_API_SECRET 未配置".to_string());
+        }
+        Ok(Self { app_id, api_key, api_secret })
+    }
+}
+
 /// 讯飞 RTASR（实时语音转写）配置 -- 只需要 appId + apiKey
 pub struct XfRtasrConfig {
     pub app_id: String,
     pub api_key: String,
+}
+
+impl XfRtasrConfig {
+    /// 从环境变量加载 RTASR 凭证
+    pub fn from_env() -> Result<Self, String> {
+        let app_id = std::env::var("XF_RTASR_APP_ID")
+            .map_err(|_| "missing env var XF_RTASR_APP_ID".to_string())?;
+        let api_key = std::env::var("XF_RTASR_API_KEY")
+            .map_err(|_| "missing env var XF_RTASR_API_KEY".to_string())?;
+        if app_id.is_empty() || api_key.is_empty() {
+            return Err("XF_RTASR_APP_ID / XF_RTASR_API_KEY 未配置".to_string());
+        }
+        Ok(Self { app_id, api_key })
+    }
 }
 
 // === 实时语音转写（ASR）请求/响应结构 ===

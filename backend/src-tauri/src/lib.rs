@@ -31,12 +31,16 @@ struct OcrResponse {
 
 // 百度OCR
 #[tauri::command]
-async fn baidu_ocr(
-    image_base64: String,
-    api_key: String,
-    secret_key: String,
-) -> Result<String, String> {
+async fn baidu_ocr(image_base64: String) -> Result<String, String> {
     println!("=== step 1: enter baidu_ocr ===");
+
+    let api_key = std::env::var("BAIDU_OCR_API_KEY")
+        .map_err(|_| "missing env var BAIDU_OCR_API_KEY".to_string())?;
+    let secret_key = std::env::var("BAIDU_OCR_SECRET_KEY")
+        .map_err(|_| "missing env var BAIDU_OCR_SECRET_KEY".to_string())?;
+    if api_key.is_empty() || secret_key.is_empty() {
+        return Err("BAIDU_OCR_API_KEY / BAIDU_OCR_SECRET_KEY 未配置".to_string());
+    }
 
     let client = reqwest::Client::new();
 
@@ -133,6 +137,9 @@ async fn baidu_ocr(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 加载 .env 文件中的环境变量（讯飞凭证等）。开发态读 src-tauri/.env，发布态可通过系统环境变量注入。
+    let _ = dotenvy::dotenv();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())

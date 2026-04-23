@@ -16,11 +16,8 @@ pub async fn tts_synthesize(
     text: String,
     speed: i32,
     vcn: String,
-    app_id: String,
-    api_key: String,
-    api_secret: String,
 ) -> Result<String, String> {
-    let config = XfConfig { app_id, api_key, api_secret };
+    let config = XfConfig::from_env()?;
     println!("[tts] synthesize request, text={} chars, speed={}, vcn={}", text.len(), speed, vcn);
     let mp3_data = tts::xf_tts_synthesize(&config, &text, speed, &vcn).await?;
     let b64 = BASE64.encode(&mp3_data);
@@ -62,9 +59,6 @@ pub async fn evaluate_mp3_file(
     category: String,
     ref_text: String,
     file_path: String,
-    app_id: String,
-    api_key: String,
-    api_secret: String,
 ) -> Result<EvalResult, String> {
     // 1. 解析并读取 MP3 文件
     let resolved = resolve_file_path(&file_path)?;
@@ -74,7 +68,7 @@ pub async fn evaluate_mp3_file(
     println!("[speech-eval] MP3 file loaded, {} bytes", mp3_data.len());
 
     // 2. 构建讯飞配置
-    let config = XfConfig { app_id, api_key, api_secret };
+    let config = XfConfig::from_env()?;
     println!("[speech-eval] config loaded, app_id={}", config.app_id);
 
     // 3. 发送到讯飞 API 评测
@@ -100,18 +94,9 @@ pub async fn start_recording(state: State<'_, RecordingState>) -> Result<(), Str
 pub async fn start_realtime_asr_recording(
     state: State<'_, RecordingState>,
     app_handle: tauri::AppHandle,
-    app_id: String,
-    api_key: String,
     lang: String,
 ) -> Result<(), String> {
-    if app_id.is_empty() || api_key.is_empty() {
-        return Err("missing XFyun credentials for realtime ASR (appId and apiKey required)".to_string());
-    }
-
-    let config = XfRtasrConfig {
-        app_id: app_id.clone(),
-        api_key: api_key.clone(),
-    };
+    let config = XfRtasrConfig::from_env()?;
     let result_store = state.rtasr_result.clone();
     let handle_store = state.rtasr_handle.clone();
     let tx_store = state.rtasr_tx.clone();
@@ -146,9 +131,6 @@ pub async fn stop_recording_and_evaluate(
     lang: String,
     category: String,
     ref_text: String,
-    app_id: String,
-    api_key: String,
-    api_secret: String,
 ) -> Result<EvalResult, String> {
     // 1. 停止录音，获取 PCM 数据
     println!("[speech-eval] stopping recording...");
@@ -175,7 +157,7 @@ pub async fn stop_recording_and_evaluate(
     }
 
     // 2. 构建讯飞配置
-    let config = XfConfig { app_id, api_key, api_secret };
+    let config = XfConfig::from_env()?;
     println!("[speech-eval] config loaded, app_id={}", config.app_id);
 
     // 3. PCM → MP3 编码
@@ -194,14 +176,11 @@ pub async fn stop_recording_and_evaluate(
 #[tauri::command]
 pub async fn stop_recording_and_recognize(
     state: State<'_, RecordingState>,
-    app_id: String,
-    api_key: String,
-    api_secret: String,
 ) -> Result<AsrResult, String> {
     println!("[asr] stopping recording...");
     let pcm_data = audio::stop_recording(&state)?;
     println!("[asr] recorded {} PCM samples", pcm_data.len());
-    let config = XfConfig { app_id, api_key, api_secret };
+    let config = XfConfig::from_env()?;
     println!("[asr] encoding {} PCM samples to MP3...", pcm_data.len());
     let mp3_data = audio::encode_pcm_to_mp3(&pcm_data)?;
     println!("[asr] MP3 encoded, {} bytes", mp3_data.len());

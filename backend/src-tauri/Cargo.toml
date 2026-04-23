@@ -38,3 +38,4 @@ url = "2"
 futures-util = "0.3"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 urlencoding = "2"
+dotenvy = "0.15"
