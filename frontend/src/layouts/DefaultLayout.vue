@@ -26,7 +26,8 @@ console.log(safeAreaTop.value, safeAreaBottom.value)
 
 <style scoped>
 .default-layout {
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background-color: #f5f5f5;
@@ -38,7 +39,9 @@ console.log(safeAreaTop.value, safeAreaBottom.value)
 
 .main-content {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
+  box-sizing: border-box;
   padding-bottom: calc(80px + var(--safe-area-inset-bottom)); /* 为底部导航栏+安全区留空间 */
 }
 </style>

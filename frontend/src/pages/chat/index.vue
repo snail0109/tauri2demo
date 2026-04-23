@@ -57,7 +57,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onActivated } from 'vue';
 import { storeToRefs } from 'pinia';
-import { invoke, convertFileSrc } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/core';
 import { ElMessage } from 'element-plus';
 import { useChatStore } from '@/stores/chat';
 import { useSettingsStore } from '@/stores/settings';
@@ -104,11 +104,11 @@ const inputLanguage = computed(() => {
 });
 
 onMounted(() => {
-  chatStore.ensureActiveSession();
+  chatStore.ensureActiveSession(settingsStore.settingsState.chatDefaultPrompt || '');
 });
 
 onActivated(() => {
-  chatStore.ensureActiveSession();
+  chatStore.ensureActiveSession(settingsStore.settingsState.chatDefaultPrompt || '');
 });
 
 // === Send text message ===
@@ -121,9 +121,9 @@ async function handleSendText(text: string) {
 // === Voice recording ===
 async function handleStartRecording() {
   try {
-    const { appId, apiKey } = settingsStore.settingsState.xfRtasr;
+    const { appId, apiKey, apiSecret } = settingsStore.settingsState.xfSpeechEval;
     const lang = inputLanguage.value;
-    await invoke('start_realtime_asr_recording', { appId, apiKey, lang });
+    await invoke('start_recording', { appId, apiKey, apiSecret, lang });
   } catch (e) {
     ElMessage.error('录音启动失败');
     console.error(e);
@@ -244,20 +244,9 @@ async function handlePlayVoice(msg: Message) {
     return;
   }
   stopTts();
-  const url = convertFileSrc(msg.audioPath);
-  try {
-    const head = await fetch(url, { method: 'HEAD' });
-    if (!head.ok) {
-      ElMessage.warning('该录音已被清理，无法播放');
-      return;
-    }
-  } catch {
-    ElMessage.warning('该录音已被清理，无法播放');
-    return;
-  }
   try {
     playingMessageId.value = msg.id;
-    const audio = new Audio(url);
+    const audio = new Audio(msg.audioPath);
     currentAudio.value = audio;
     audio.onended = () => { playingMessageId.value = null; currentAudio.value = null; };
     audio.onerror = () => { playingMessageId.value = null; currentAudio.value = null; ElMessage.error('播放录音失败'); };
@@ -271,11 +260,11 @@ async function handlePlayVoice(msg: Message) {
 
 // === Session management ===
 function handleNewSession() {
-  chatStore.createSession();
+  chatStore.createSession(settingsStore.settingsState.chatDefaultPrompt || '');
   showHistory.value = false;
 }
 function handleSelectSession(id: string) { chatStore.switchSession(id); showHistory.value = false; }
-function handleDeleteSession(id: string) { chatStore.deleteSession(id); chatStore.ensureActiveSession(); }
+function handleDeleteSession(id: string) { chatStore.deleteSession(id); chatStore.ensureActiveSession(settingsStore.settingsState.chatDefaultPrompt || ''); }
 
 // === Scenario management ===
 function handleSelectScenario(scenario: Scenario) {
@@ -290,5 +279,13 @@ function handleOpenSummary() {
 </script>
 
 <style scoped>
-.chat-page { height: 100%; display: flex; flex-direction: column; background: #f5f5f5; overflow: hidden; }
+.chat-page {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--app-page-bg);
+  color: var(--app-text-color);
+  overflow: hidden;
+}
 </style>

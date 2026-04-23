@@ -3,38 +3,6 @@ mod speech_eval;
 use speech_eval::audio::RecordingState;
 use speech_eval::commands;
 use serde::Deserialize;
-use std::path::PathBuf;
-use tauri_plugin_log::{Target, TargetKind};
-
-const APP_IDENTIFIER: &str = "com.spanishassistant.app";
-
-pub fn get_config_path() -> PathBuf {
-    let config_path: PathBuf = dirs::data_dir().unwrap().join(APP_IDENTIFIER);
-    ensure_dir_exists(&config_path);
-    config_path
-}
-
-fn ensure_dir_exists(path: &PathBuf) {
-    if !path.exists() {
-        std::fs::create_dir_all(path).expect(&format!("failed to create dir: {:?}", path));
-    }
-}
-
-fn custom_log_out(
-    out: tauri_plugin_log::fern::FormatCallback,
-    message: &std::fmt::Arguments,
-    record: &log::Record,
-) {
-    out.finish(format_args!(
-        "{}[{}] {}",
-        chrono::Local::now().format("[%Y-%m-%d %H:%M:%S%.3f]"),
-        record.level(),
-        message
-    ))
-}
-
-const BAIDU_API_KEY: &str = "YOUR_BAIDU_API_KEY";
-const BAIDU_SECRET_KEY: &str = "YOUR_BAIDU_SECRET_KEY";
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -61,17 +29,21 @@ struct OcrResponse {
     error_msg: Option<String>,
 }
 
-// baidu OCR command
+// 百度OCR
 #[tauri::command]
-async fn baidu_ocr(image_base64: String) -> Result<String, String> {
+async fn baidu_ocr(
+    image_base64: String,
+    api_key: String,
+    secret_key: String,
+) -> Result<String, String> {
     println!("=== step 1: enter baidu_ocr ===");
 
     let client = reqwest::Client::new();
 
     let token_url = format!(
         "https://aip.baidubce.com/oauth/2.0/token?grant_type=client_credentials&client_id={}&client_secret={}",
-        urlencoding::encode(BAIDU_API_KEY),
-        urlencoding::encode(BAIDU_SECRET_KEY)
+        urlencoding::encode(&api_key),
+        urlencoding::encode(&secret_key)
     );
 
     println!("=== step 2: request token ===");
@@ -165,43 +137,17 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_fs::init())
-        .plugin(
-            tauri_plugin_log::Builder::new()
-                .targets([
-                    Target::new(TargetKind::Stdout),
-                    Target::new(TargetKind::Folder {
-                        path: get_config_path(),
-                        file_name: None,
-                    }),
-                    Target::new(TargetKind::Webview),
-                ])
-                .level(if cfg!(debug_assertions) {
-                    log::LevelFilter::Trace
-                } else {
-                    log::LevelFilter::Info
-                })
-                .format(move |out, message, record| {
-                    custom_log_out(out, message, record);
-                })
-                .max_file_size(50000)
-                .build(),
-        )
-        // ===== 他的：录音状态管理 =====
         .manage(RecordingState::new())
         .invoke_handler(tauri::generate_handler![
             greet,
             baidu_ocr,
             commands::start_recording,
-            commands::start_realtime_asr_recording,
             commands::cancel_recording,
             commands::stop_recording_and_evaluate,
             commands::evaluate_mp3_file,
             commands::tts_synthesize,
             commands::stop_recording_and_recognize,
-            commands::stop_realtime_asr,
-            commands::list_recordings,
-            commands::delete_recording,
-            commands::clear_recordings
+            commands::stop_realtime_asr
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

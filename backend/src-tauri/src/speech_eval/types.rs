@@ -122,12 +122,6 @@ pub struct XfConfig {
     pub api_secret: String,
 }
 
-/// 讯飞 RTASR（实时语音转写）配置 -- 只需要 appId + apiKey
-pub struct XfRtasrConfig {
-    pub app_id: String,
-    pub api_key: String,
-}
-
 // === 实时语音转写（ASR）请求/响应结构 ===
 
 #[derive(Serialize)]

@@ -52,7 +52,7 @@
     <router-link
       to="/settings"
       class="nav-item"
-      :class="{ active: $route.name === 'About' }"
+      :class="{ active: $route.name === 'Settings' }"
     >
       <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"/>
@@ -68,14 +68,13 @@
 
 
 <style scoped>
-/* 底部导航栏 */
 .bottom-nav {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  background: white;
-  border-top: 0.5px solid #e5e5e5;
+  background: var(--app-nav-bg);
+  border-top: 0.5px solid var(--app-border-color);
   display: flex;
   padding: 8px 0;
   padding-bottom: calc(8px + var(--safe-area-inset-bottom));
@@ -95,32 +94,31 @@
 }
 
 .nav-item:hover {
-  background-color: #f5f5f5;
+  background-color: var(--app-page-bg);
 }
 
 .nav-icon {
   width: 24px;
   height: 24px;
   margin-bottom: 4px;
-  color: #8e8e93;
+  color: var(--app-nav-inactive-color);
   transition: color 0.2s ease;
 }
 
 .nav-item.active .nav-icon {
-  color: #007AFF;
+  color: var(--app-nav-active-color);
 }
 
 .nav-text {
   font-size: 0.8rem;
-  color: #8e8e93;
+  color: var(--app-nav-inactive-color);
   transition: color 0.2s ease;
 }
 
 .nav-item.active .nav-text {
-  color: #007AFF;
+  color: var(--app-nav-active-color);
 }
 
-/* 移动端适配 */
 @media (max-width: 768px) {
   .bottom-nav {
     padding-top: 0.25rem;
@@ -139,5 +137,4 @@
     font-size: 0.7rem;
   }
 }
-
-</style> 
+</style>

@@ -9,8 +9,8 @@ import {
   ElMessage,
   ElSelect,
   ElOption,
-  ElOptionGroup,
   ElSwitch,
+  ElColorPicker,
   FormRules,
 } from "element-plus";
 import { useSettingsStore } from "@/stores/settings";
@@ -28,17 +28,19 @@ import {
   isCacheExpired,
   clearProviderCache,
 } from "@/utils/localStorage";
-import PageHeader from "@/layouts/PageHeader.vue";
 
 defineOptions({ name: 'Settings' });
 
 // 一级导航状态：null = 列表首页
-type Section = null | 'speech-eval' | 'model-services'
+type Section = null | 'speech-eval' | 'model-services' | 'chat' | 'ocr' | 'theme'
 const currentSection = ref<Section>(null)
 
 const sectionTitle: Record<Exclude<Section, null>, string> = {
   'speech-eval': '语音评测配置',
   'model-services': '模型服务',
+  'chat': '场景对话',
+  'ocr': '图片识别配置',
+  'theme': '界面配色',
 }
 
 const openaiFormRef = ref<InstanceType<typeof ElForm>>();
@@ -62,33 +64,110 @@ const customProviderFormRules = ref<FormRules>({
 const settingsStore = useSettingsStore();
 const settings = computed(() => settingsStore.settingsState);
 
-/** Providers that are enabled and tested successfully (available === true) */
-const availableProviders = computed(() => {
-  return Object.entries(settings.value.providers)
-    .filter(([_, p]) => p.enabled && p.available === true)
-    .map(([id, p]) => ({
-      id,
-      name: p.name,
-      models: Object.keys(p.models).map(modelId => ({
-        id: modelId,
-        name: modelId,
-      })),
-      defaultModel: p.defaultModel,
-    }));
-});
+const defaultTheme = {
+  pageBg: '#f5f5f5',
+  headerBg: '#ffffff',
+  cardBg: '#ffffff',
+  titleColor: '#1a1a1a',
+  textColor: '#303133',
+  primaryColor: '#2B5CE6',
+  borderColor: '#ebeef5',
+  navBg: '#ffffff',
+  navActiveColor: '#2B5CE6',
+  navInactiveColor: '#909399',
+};
 
-/** Whether any available provider exists */
-const hasAvailableProviders = computed(() => availableProviders.value.length > 0);
+const applyThemeToDocument = (theme: typeof defaultTheme) => {
+  document.documentElement.style.setProperty('--app-page-bg', theme.pageBg);
+  document.documentElement.style.setProperty('--app-header-bg', theme.headerBg);
+  document.documentElement.style.setProperty('--app-card-bg', theme.cardBg);
+  document.documentElement.style.setProperty('--app-title-color', theme.titleColor);
+  document.documentElement.style.setProperty('--app-text-color', theme.textColor);
+  document.documentElement.style.setProperty('--app-primary-color', theme.primaryColor);
+  document.documentElement.style.setProperty('--app-border-color', theme.borderColor);
+  document.documentElement.style.setProperty('--app-nav-bg', theme.navBg);
+  document.documentElement.style.setProperty('--app-nav-active-color', theme.navActiveColor);
+  document.documentElement.style.setProperty('--app-nav-inactive-color', theme.navInactiveColor);
+};
 
-/** Current selected model display info */
-const currentModelDisplay = computed(() => {
-  const modelInfo = settings.value.defaultModelInfo;
-  if (!modelInfo) return '';
-  const [providerId, modelId] = modelInfo.split('/');
-  const provider = settings.value.providers[providerId];
-  if (!provider) return modelId;
-  return `${provider.name} / ${modelId}`;
-});
+const themeFields = [
+  { key: 'pageBg', label: '页面背景' },
+  { key: 'headerBg', label: '顶部背景' },
+  { key: 'cardBg', label: '卡片背景' },
+  { key: 'titleColor', label: '标题颜色' },
+  { key: 'textColor', label: '正文颜色' },
+  { key: 'primaryColor', label: '主色' },
+  { key: 'borderColor', label: '边框颜色' },
+  { key: 'navBg', label: '导航背景' },
+  { key: 'navActiveColor', label: '导航激活色' },
+  { key: 'navInactiveColor', label: '导航未激活色' },
+] as const;
+
+const themePresets = [
+  {
+    name: '默认蓝',
+    values: {
+      ...defaultTheme,
+    },
+  },
+  {
+    name: '薄荷绿',
+    values: {
+      pageBg: '#f3fbf8',
+      headerBg: '#e8f8f1',
+      cardBg: '#eefbf5',
+      titleColor: '#1f3b2f',
+      textColor: '#355848',
+      primaryColor: '#10b981',
+      borderColor: '#cdeee0',
+      navBg: '#eefbf5',
+      navActiveColor: '#10b981',
+      navInactiveColor: '#7a8a83',
+    },
+  },
+  {
+    name: '樱花粉',
+    values: {
+      pageBg: '#fff6fa',
+      headerBg: '#ffeef5',
+      cardBg: '#fff3f8',
+      titleColor: '#3f2d38',
+      textColor: '#5f4b57',
+      primaryColor: '#ec4899',
+      borderColor: '#f7cddd',
+      navBg: '#fff3f8',
+      navActiveColor: '#ec4899',
+      navInactiveColor: '#9b8a93',
+    },
+  },
+  {
+    name: '深色灰',
+    values: {
+      pageBg: '#18181b',
+      headerBg: '#27272a',
+      cardBg: '#27272a',
+      titleColor: '#fafafa',
+      textColor: '#e4e4e7',
+      primaryColor: '#60a5fa',
+      borderColor: '#3f3f46',
+      navBg: '#18181b',
+      navActiveColor: '#60a5fa',
+      navInactiveColor: '#a1a1aa',
+    },
+  },
+]
+
+const applyThemePreset = (values: typeof defaultTheme) => {
+  Object.assign(settings.value.theme, values);
+  applyThemeToDocument(settings.value.theme);
+  document.documentElement.style.setProperty('--el-color-primary', values.primaryColor)
+};
+
+const resetTheme = () => {
+  Object.assign(settings.value.theme, defaultTheme);
+  applyThemeToDocument(settings.value.theme);
+  document.documentElement.style.setProperty('--el-color-primary', defaultTheme.primaryColor)
+};
 
 const getAvailableModels = (providerId: string) => {
   const providerModels = providers[providerId].models;
@@ -106,7 +185,9 @@ const autoSave = () => {
       await settingsStore.saveSettings({
         providers: settings.value.providers,
         xfSpeechEval: settings.value.xfSpeechEval,
-        xfRtasr: settings.value.xfRtasr,
+        baiduOcr: settings.value.baiduOcr,
+        chatDefaultPrompt: settings.value.chatDefaultPrompt,
+        theme: settings.value.theme,
       });
     } catch (error) {
       console.error("自动保存失败:", error);
@@ -115,9 +196,23 @@ const autoSave = () => {
 };
 
 watch(
-  () => [settings.value.providers, settings.value.xfSpeechEval, settings.value.xfRtasr],
+  () => [
+    settings.value.providers,
+    settings.value.xfSpeechEval,
+    settings.value.baiduOcr,
+    settings.value.chatDefaultPrompt,
+    settings.value.theme
+  ],
   () => { autoSave(); },
   { deep: true }
+);
+
+watch(
+  () => settings.value.theme,
+  (theme) => {
+    applyThemeToDocument(theme as typeof defaultTheme);
+  },
+  { deep: true, immediate: true }
 );
 
 const queryModels = async (providerId: string, forceRefresh = false) => {
@@ -223,11 +318,6 @@ const testProvider = async (providerId: string) => {
   }
 };
 
-/** Save chat model selection when user changes it */
-const handleChatModelChange = (value: string) => {
-  settingsStore.saveCurrentModelInfo(value);
-};
-
 onMounted(() => {
   const cachedModels = getCachedModels("openai-compatible");
   if (cachedModels) {
@@ -242,15 +332,16 @@ onMounted(() => {
 <template>
   <div class="settings-page">
     <!-- 顶部标题栏 -->
-    <PageHeader :title="currentSection ? sectionTitle[currentSection] : '设置'">
-      <template v-if="currentSection" #left>
-        <button class="back-btn" @click="currentSection = null">
-          <svg width="10" height="16" viewBox="0 0 10 16" fill="none">
-            <path d="M8 2L2 8L8 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-      </template>
-    </PageHeader>
+    <div class="settings-header">
+      <button v-if="currentSection" class="back-btn" @click="currentSection = null">
+        <svg width="10" height="16" viewBox="0 0 10 16" fill="none">
+          <path d="M8 2L2 8L8 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </button>
+      <span class="header-title">
+        {{ currentSection ? sectionTitle[currentSection] : '设置' }}
+      </span>
+    </div>
 
     <!-- 一级菜单列表 -->
     <div v-if="!currentSection" class="settings-body">
@@ -281,7 +372,44 @@ onMounted(() => {
             <path d="M1 1L6 6L1 11" stroke="#C0C4CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
+        <button class="menu-item" @click="currentSection = 'chat'">
+          <span class="menu-icon chat-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </span>
+          <span class="menu-label">场景对话</span>
+          <svg class="menu-chevron" width="7" height="12" viewBox="0 0 7 12" fill="none">
+            <path d="M1 1L6 6L1 11" stroke="#C0C4CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="menu-item" @click="currentSection = 'ocr'">
+          <span class="menu-icon model-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="14" rx="2"/>
+              <circle cx="8.5" cy="8.5" r="1.5"/>
+              <path d="M21 15l-5-5L5 21"/>
+            </svg>
+          </span>
+          <span class="menu-label">图片识别配置</span>
+          <svg class="menu-chevron" width="7" height="12" viewBox="0 0 7 12" fill="none">
+            <path d="M1 1L6 6L1 11" stroke="#C0C4CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+        <button class="menu-item" @click="currentSection = 'theme'">
+          <span class="menu-icon model-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+            </svg>
+          </span>
+          <span class="menu-label">界面配色</span>
+          <svg class="menu-chevron" width="7" height="12" viewBox="0 0 7 12" fill="none">
+            <path d="M1 1L6 6L1 11" stroke="#C0C4CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </div>
+
     </div>
 
     <!-- 二级页面：语音评测配置 -->
@@ -312,28 +440,6 @@ onMounted(() => {
           <el-input
             v-model="settings.xfSpeechEval.apiSecret"
             placeholder="请输入 API Secret"
-            show-password
-            class="form-input"
-          />
-        </div>
-      </div>
-      <div class="form-group">
-        <div class="form-group-header">
-          <span class="form-group-title">实时语音转写（RTASR）</span>
-        </div>
-        <div class="form-row">
-          <label class="form-label">App ID</label>
-          <el-input
-            v-model="settings.xfRtasr.appId"
-            placeholder="请输入 RTASR App ID"
-            class="form-input"
-          />
-        </div>
-        <div class="form-row">
-          <label class="form-label">API Key</label>
-          <el-input
-            v-model="settings.xfRtasr.apiKey"
-            placeholder="请输入 RTASR API Key"
             show-password
             class="form-input"
           />
@@ -466,15 +572,152 @@ onMounted(() => {
         </template>
       </div>
     </div>
+
+    <!-- 二级页面：场景对话 -->
+    <div v-else-if="currentSection === 'chat'" class="settings-body">
+      <div class="form-group">
+        <div class="form-group-header">
+          <span class="form-group-title">默认系统提示语</span>
+        </div>
+        <div class="form-row" style="flex-direction: column; align-items: stretch; gap: 4px;">
+          <el-input
+            v-model="settings.chatDefaultPrompt"
+            type="textarea"
+            :rows="6"
+            placeholder="输入系统提示语，定义AI的角色和行为"
+          />
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="currentSection === 'ocr'" class="settings-body">
+      <div class="form-group">
+        <div class="form-group-header">
+          <span class="form-group-title">百度 OCR</span>
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">API Key</label>
+          <el-input
+            v-model="settings.baiduOcr.apiKey"
+            placeholder="请输入百度 OCR API Key"
+            show-password
+            class="form-input"
+          />
+        </div>
+
+        <div class="form-row">
+          <label class="form-label">Secret Key</label>
+          <el-input
+            v-model="settings.baiduOcr.secretKey"
+            placeholder="请输入百度 OCR Secret Key"
+            show-password
+            class="form-input"
+          />
+        </div>
+      </div>
+    </div>
+    <div v-else-if="currentSection === 'theme'" class="settings-body">
+      <div class="form-group">
+        <div class="form-group-header">
+          <span class="form-group-title">全局主题颜色</span>
+          <el-button link type="primary" @click="resetTheme">恢复默认</el-button>
+        </div>
+
+        <div class="theme-preset-list">
+          <button
+            v-for="preset in themePresets"
+            :key="preset.name"
+            class="theme-preset-btn"
+            @click="applyThemePreset(preset.values)"
+          >
+            {{ preset.name }}
+          </button>
+        </div>
+
+        <div
+          v-for="item in themeFields"
+          :key="item.key"
+          class="form-row theme-row"
+        >
+          <label class="form-label">{{ item.label }}</label>
+
+          <div class="theme-control">
+            <div
+              class="theme-color-preview"
+              :style="{ background: settings.theme[item.key] }"
+            ></div>
+
+            <el-color-picker
+              v-model="settings.theme[item.key]"
+              class="theme-picker"
+            />
+
+            <el-input
+              v-model="settings.theme[item.key]"
+              class="theme-hex-input"
+              placeholder="#ffffff"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <div class="form-group-header">
+          <span class="form-group-title">实时预览</span>
+        </div>
+
+        <div class="theme-demo" :style="{ background: settings.theme.pageBg }">
+          <div
+            class="theme-demo-header"
+            :style="{
+              background: settings.theme.headerBg,
+              color: settings.theme.titleColor,
+              borderColor: settings.theme.borderColor
+            }"
+          >
+            界面预览
+          </div>
+
+          <div
+            class="theme-demo-card"
+            :style="{
+              background: settings.theme.cardBg,
+              color: settings.theme.textColor,
+              borderColor: settings.theme.borderColor
+            }"
+          >
+            <div
+              class="theme-demo-dot"
+              :style="{ background: settings.theme.primaryColor }"
+            ></div>
+            当前主色效果预览
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .settings-page {
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #f5f5f5;
+  background: var(--app-page-bg);
+  overflow: hidden;
+}
+
+/* 标题栏 */
+.settings-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  background: var(--app-header-bg);
+  border-bottom: 1px solid var(--app-border-color);
+  flex-shrink: 0;
 }
 
 .back-btn {
@@ -486,37 +729,41 @@ onMounted(() => {
   border: none;
   background: none;
   cursor: pointer;
-  color: #e05a4b;
+  color: var(--app-primary-color);
   padding: 0;
   margin-left: -6px;
 }
 
+.header-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--app-title-color);
+}
+
 /* 滚动内容区 */
 .settings-body {
-  flex: 1;
+  flex: 1 1 auto;
+  height: 0;
+  min-height: 0;
   overflow-y: auto;
-  padding: 16px 16px 32px;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-width: 720px;
-  width: 100%;
-  margin: 0 auto;
+  padding: 16px 16px calc(120px + var(--safe-area-inset-bottom));
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
-
-@media (min-width: 600px) {
-  .settings-body {
-    padding: 24px 24px 40px;
-  }
+.settings-body > * {
+  flex-shrink: 0;
 }
-
 /* 一级菜单组 */
 .menu-group {
-  background: #fff;
+  background: var(--app-card-bg);
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-  flex-shrink: 0;
 }
 
 .menu-item {
@@ -526,10 +773,10 @@ onMounted(() => {
   width: 100%;
   padding: 14px 16px;
   border: none;
-  background: #fff;
+  background: var(--app-card-bg);
   cursor: pointer;
   text-align: left;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--app-border-color);
   transition: background 0.12s;
 }
 
@@ -553,11 +800,12 @@ onMounted(() => {
 
 .speech-icon { background: #fff1f0; color: #e05a4b; }
 .model-icon  { background: #f0f4ff; color: #5b7cee; }
+.chat-icon   { background: #e8f4fd; color: #2B5CE6; }
 
 .menu-label {
   flex: 1;
   font-size: 15px;
-  color: #303133;
+  color: var(--app-text-color);
 }
 
 .menu-chevron {
@@ -566,18 +814,11 @@ onMounted(() => {
 
 /* 二级表单 */
 .form-group {
-  background: #fff;
+  background: var(--app-card-bg);
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   padding: 0 16px;
-  flex-shrink: 0;
-}
-
-@media (min-width: 600px) {
-  .form-group {
-    padding: 0 20px;
-  }
 }
 
 .form-group-header {
@@ -585,13 +826,13 @@ onMounted(() => {
   align-items: center;
   justify-content: space-between;
   padding: 14px 0;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid var(--app-border-color);
 }
 
 .form-group-title {
   font-size: 14px;
   font-weight: 600;
-  color: #606266;
+  color: var(--app-text-color);
 }
 
 .form-row {
@@ -599,14 +840,7 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   padding: 10px 0;
-  border-bottom: 1px solid #f5f5f5;
-}
-
-@media (min-width: 600px) {
-  .form-row {
-    padding: 12px 0;
-    gap: 16px;
-  }
+  border-bottom: 1px solid var(--app-border-color);
 }
 
 .form-row:last-child {
@@ -615,34 +849,93 @@ onMounted(() => {
 
 .form-label {
   font-size: 14px;
-  color: #606266;
+  color: var(--app-text-color);
   white-space: nowrap;
   min-width: 72px;
   flex-shrink: 0;
 }
 
-@media (min-width: 600px) {
-  .form-label {
-    min-width: 90px;
-  }
-}
-
 .form-input {
   flex: 1;
-  min-width: 0;
 }
 
-.model-info-line {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
+.theme-row {
+  align-items: center;
 }
 
-.empty-model-tip {
-  text-align: center;
-  padding: 24px 16px;
-  color: #999;
-  font-size: 14px;
+.theme-control {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-color-preview {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--app-border-color);
+  flex-shrink: 0;
+}
+
+.theme-picker {
+  flex-shrink: 0;
+}
+
+.theme-hex-input {
+  flex: 1;
+}
+
+.theme-preset-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 0 4px 0;
+}
+
+.theme-preset-btn {
+  border: 1px solid var(--app-border-color);
+  background: var(--app-card-bg);
+  color: var(--app-text-color);
+  border-radius: 999px;
+  padding: 6px 14px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.theme-preset-btn:hover {
+  border-color: var(--app-primary-color);
+  color: var(--app-primary-color);
+}
+
+.theme-demo {
+  padding: 16px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+}
+
+.theme-demo-header {
+  padding: 12px 14px;
+  border: 1px solid;
+  border-radius: 10px;
+  font-weight: 600;
+  margin-bottom: 12px;
+}
+
+.theme-demo-card {
+  padding: 14px;
+  border: 1px solid;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.theme-demo-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 </style>

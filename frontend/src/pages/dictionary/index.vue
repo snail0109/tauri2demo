@@ -1,19 +1,19 @@
 <!-- 字典页 -->
 <template>
-  <div class="dictionary-container" @click="handleContainerClick">
-    <PageHeader title="翻译助手">
-      <template #right>
-        <ModelSelector
+  <el-container class="dictionary-container" @click="handleContainerClick">
+    <!-- 头部区域 -->
+    <el-header class="dictionary-header">
+      <div class="page-title">翻译助手</div>
+      <div class="header-controls">
+        <ModelSelector 
           v-model="selectedModel"
           @model-change="handleModelChange"
           class="model-selector-header"
         />
-        <button class="header-icon-btn" @click="goToSettings" title="设置">
-          <el-icon><Setting /></el-icon>
-        </button>
-      </template>
-    </PageHeader>
-
+        <el-icon @click="goToSettings"><Setting /></el-icon>
+      </div>
+    </el-header>
+    
     <!-- 输入区域（固定） -->
     <div class="input-section">
       <el-input
@@ -32,7 +32,7 @@
         <el-button v-if="isLoading" @click="abortRequest" type="danger">终止</el-button>
       </div>
     </div>
-
+    
     <!-- 结果区域（可滚动） -->
     <div class="result-section">
       <!-- 加载状态（仅在没有流式内容时显示） -->
@@ -40,7 +40,7 @@
         <div class="loading-spinner"></div>
         正在会话中...
       </div>
-
+      
       <!-- 使用Markdown渲译结果 -->
       <div
         v-if="markdownResult || (isLoading && streamingText)"
@@ -49,7 +49,7 @@
         <div v-html="markdownResult"></div>
       </div>
     </div>
-
+    
     <!-- 文本选择弹窗 -->
     <TextSelectionPopup
       :visible="textSelection.isVisible.value"
@@ -58,7 +58,7 @@
       @close="textSelection.hidePopup"
       @translate="handlePopupTranslate"
     />
-  </div>
+  </el-container>
 </template>
 
 <script setup lang="ts">
@@ -75,7 +75,6 @@ import { useShikiHighlighter } from './hooks/useShikiHighlighter';
 import { useTextSelection } from './hooks/useTextSelection';
 import TextSelectionPopup from './components/TextSelectionPopup.vue';
 import ModelSelector from './components/ModelSelector.vue';
-import PageHeader from '@/layouts/PageHeader.vue';
 import { isMobile } from '@/utils/os';
 import { findWordInPrompt } from "@/utils/handle_word";
 import { aiClientManager } from '@/services/aiClientManager';
@@ -152,6 +151,7 @@ const processHighlightedContent = async (html: string) => {
 const goToSettings = () => {
   router.push({ path: "/settings" });
 };
+// 跳转至图片识别界面
 const goToScan = () => {
   router.push({ path: "/scan" });
 };
@@ -332,47 +332,47 @@ const aiChat = async (prompt: RequestType) => {
 <style scoped>
 .dictionary-container {
   height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #f5f5f5;
+  background: var(--app-page-bg);
 }
 
-.header-icon-btn {
+.dictionary-header {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 20px 20px 0 20px;
+  z-index: 10;
+  background: var(--app-header-bg);
+  color: var(--app-title-color);
+  border-bottom: 1px solid var(--app-border-color);
+}
+
+.header-controls {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
-  background: none;
-  cursor: pointer;
-  color: #555;
-  border-radius: 8px;
-  transition: background 0.12s;
-  font-size: 18px;
+  gap: 16px;
 }
 
-.header-icon-btn:active {
-  background: #f5f5f5;
+.header-controls :deep(.el-icon) {
+  color: var(--app-primary-color);
+  cursor: pointer;
 }
 
 .model-selector-header {
-  margin-right: 4px;
+  margin-right: 8px;
 }
 
 /* 输入区域（固定不滚动） */
 .input-section {
   flex-shrink: 0;
-  padding: 16px;
-  background: #ffffff;
-  border-bottom: 0.5px solid #e5e5e5;
-}
-
-@media (min-width: 600px) {
-  .input-section {
-    padding: 20px;
-  }
+  padding: 20px;
+  z-index: 9;
+  background: var(--app-page-bg);
 }
 
 .button-container {
@@ -382,13 +382,32 @@ const aiChat = async (prompt: RequestType) => {
   gap: 8px;
 }
 
+.button-container :deep(.el-button) {
+  background: var(--app-card-bg);
+  color: var(--app-text-color);
+  border-color: var(--app-border-color);
+}
+
+.button-container :deep(.el-button:hover) {
+  color: var(--app-primary-color);
+  border-color: var(--app-primary-color);
+}
+
+.button-container :deep(.el-button--primary) {
+  background: var(--app-primary-color);
+  border-color: var(--app-primary-color);
+  color: #fff;
+}
+
 /* 结果区域（可滚动） */
 .result-section {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 0 20px 20px 20px;
-  background-color: #f5f5f5;
+  background-color: var(--app-page-bg);
+  -webkit-overflow-scrolling: touch;
 }
 
 /* 自定义滚动条样式 */
@@ -412,7 +431,9 @@ const aiChat = async (prompt: RequestType) => {
 
 .markdown-result {
   padding: 20px;
-  background-color: #ffffff;
+  background-color: var(--app-card-bg);
+  color: var(--app-text-color);
+  border: 1px solid var(--app-border-color);
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   max-width: 100%;
@@ -428,12 +449,11 @@ const aiChat = async (prompt: RequestType) => {
   box-sizing: border-box;
 }
 
-
 /* 加载状态样式 */
 .loading-state {
   padding: 20px;
   text-align: center;
-  color: #409eff;
+  color: var(--app-primary-color);
   font-size: 14px;
   display: flex;
   align-items: center;
@@ -446,7 +466,7 @@ const aiChat = async (prompt: RequestType) => {
   width: 16px;
   height: 16px;
   border: 2px solid #f3f3f3;
-  border-top: 2px solid #409eff;
+  border-top: 2px solid var(--app-primary-color);
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -460,7 +480,6 @@ const aiChat = async (prompt: RequestType) => {
   }
 }
 
-
 /* 文本选择增强样式 */
 .markdown-result {
   user-select: text;
@@ -470,26 +489,23 @@ const aiChat = async (prompt: RequestType) => {
 }
 
 .markdown-result::selection {
-  background-color: #409eff;
+  background-color: var(--app-primary-color);
   color: white;
 }
 
 .markdown-result::-moz-selection {
-  background-color: #409eff;
+  background-color: var(--app-primary-color);
   color: white;
 }
 
 /* 移动端优化文本选择的样式类 */
 .disable-context-menu {
-  /* 移动端禁用系统上下文菜单，但保持文本选择能力 */
   -webkit-touch-callout: none;
   -webkit-user-select: text;
   -moz-user-select: text;
   -ms-user-select: text;
   user-select: text;
   touch-action: manipulation;
-  
-  /* 防止长按时出现系统选择框 */
   -webkit-tap-highlight-color: transparent;
 }
 
@@ -510,8 +526,28 @@ const aiChat = async (prompt: RequestType) => {
   -ms-user-select: none !important;
 }
 
+.input-section :deep(.el-textarea__inner) {
+  background: var(--app-card-bg);
+  color: var(--app-text-color);
+  border-color: var(--app-border-color);
+}
+
+.input-section :deep(.el-textarea__inner::placeholder) {
+  color: var(--app-nav-inactive-color);
+}
+
 /* 移动端适配 */
 @media (max-width: 600px) {
+  .dictionary-header {
+    padding: 12px 16px 0px 16px;
+    flex-direction: row;
+    gap: 8px;
+  }
+
+  .page-title {
+    font-size: 16px;
+  }
+
   .input-section {
     padding: 12px 16px;
   }
