@@ -9,44 +9,43 @@ import {
   getCachedTestResult,
   isCacheExpired
 } from "@/utils/localStorage";
-import {
-  createProviderConfig,
-  Provider,
+import { 
+  createProviderConfig, 
 } from "@/utils/constant/providers";
 
 export const useSettingsStore = defineStore("settings", () => {
-  const settingsState = reactive({
-    // 使用新的provider配置结构
-    providers: createProviderConfig(),
-    isDark: false,
-    defaultModelInfo: '', // 格式: "providerId/modelId"
-    xfSpeechEval: {
-      appId: '',
-      apiKey: '',
-      apiSecret: '',
-    },
-    xfRtasr: {
-      appId: '',
-      apiKey: '',
-    },
-    chatDefaultPrompt: '',
-  });
-
-  /** Check if a "providerId/modelId" model info points to an enabled+available provider */
-  function isModelAvailable(modelInfo: string): boolean {
-    const [providerId] = modelInfo.split('/');
-    const provider = settingsState.providers[providerId];
-    return provider && provider.enabled && provider.available === true;
+const settingsState = reactive({
+  providers: createProviderConfig(),
+  isDark: false,
+  defaultModelInfo: '',
+  xfSpeechEval: {
+    appId: '',
+    apiKey: '',
+    apiSecret: '',
+  },
+  xfRtasr: {
+    appId: '',
+    apiKey: '',
+  },
+  baiduOcr: {
+    apiKey: '',
+    secretKey: '',
+  },
+  chatDefaultPrompt: '',
+  theme: {
+    pageBg: '#f5f5f5',
+    headerBg: '#ffffff',
+    cardBg: '#ffffff',
+    titleColor: '#1a1a1a',
+    textColor: '#303133',
+    primaryColor: '#2B5CE6',
+    borderColor: '#ebeef5',
+    navBg: '#ffffff',
+    navActiveColor: '#2B5CE6',
+    navInactiveColor: '#909399',
   }
+});
 
-  /** Get the first provider that is enabled and available (tested successfully) */
-  function getFirstAvailableProvider(): Provider | null {
-    const entries = Object.values(settingsState.providers);
-    for (const p of entries) {
-      if (p.enabled && p.available === true) return p;
-    }
-    return null;
-  }
 
   const loadSettings = async () => {
     // 先从本地缓存读取
@@ -58,7 +57,7 @@ export const useSettingsStore = defineStore("settings", () => {
     let settings = getSettings();
     if (settings) {
       settings = JSON.parse(settings);
-
+      
       // 加载新的多提供商配置
       if (settings.providers) {
         Object.keys(settings.providers).forEach(providerId => {
@@ -66,7 +65,7 @@ export const useSettingsStore = defineStore("settings", () => {
             // 合并保存的配置到默认配置
             const savedConfig = settings.providers[providerId];
             const currentProvider = settingsState.providers[providerId];
-
+            
             // 更新provider配置，保持默认结构
             currentProvider.enabled = savedConfig.enabled ?? currentProvider.enabled;
             if (savedConfig.options) {
@@ -91,7 +90,7 @@ export const useSettingsStore = defineStore("settings", () => {
               currentProvider.name = savedConfig.name;
               currentProvider.options = currentProvider.options || {};
             }
-
+            
             // 加载缓存的模型列表
             const cachedModels = getCachedModels(providerId);
             if (cachedModels) {
@@ -104,7 +103,7 @@ export const useSettingsStore = defineStore("settings", () => {
                 console.warn(`加载 ${providerId} 模型缓存失败:`, error);
               }
             }
-
+            
             // 加载缓存的测试结果
             const cachedTestResult = getCachedTestResult(providerId);
             if (cachedTestResult) {
@@ -125,20 +124,21 @@ export const useSettingsStore = defineStore("settings", () => {
       }
       if (settings.xfRtasr) {
         Object.assign(settingsState.xfRtasr, settings.xfRtasr);
-      } else if (settings.xfSpeechEval) {
-        // 迁移：老用户没有 xfRtasr，从 xfSpeechEval 继承 appId/apiKey
-        settingsState.xfRtasr.appId = settings.xfSpeechEval.appId || '';
-        settingsState.xfRtasr.apiKey = settings.xfSpeechEval.apiKey || '';
+      } 
+      if (settings.baiduOcr) {
+        Object.assign(settingsState.baiduOcr, settings.baiduOcr);
       }
       if (settings.chatDefaultPrompt !== undefined) {
         settingsState.chatDefaultPrompt = settings.chatDefaultPrompt;
+      }
+      if (settings.theme) {
+        Object.assign(settingsState.theme, settings.theme);
       }
     }
 
   };
 
   const saveSettings = async (data) => {
-    // 保存新的多提供商配置
     if (data.providers) {
       Object.keys(data.providers).forEach(provider => {
         if (settingsState.providers[provider]) {
@@ -146,15 +146,28 @@ export const useSettingsStore = defineStore("settings", () => {
         }
       });
     }
+
     if (data.xfSpeechEval) {
       Object.assign(settingsState.xfSpeechEval, data.xfSpeechEval);
     }
+
     if (data.xfRtasr) {
       Object.assign(settingsState.xfRtasr, data.xfRtasr);
     }
+    
+    if (data.baiduOcr) {
+      Object.assign(settingsState.baiduOcr, data.baiduOcr);
+    }
+
+    if (data.chatDefaultPrompt !== undefined) {
+      settingsState.chatDefaultPrompt = data.chatDefaultPrompt;
+    }
+
+    if (data.theme) {
+      Object.assign(settingsState.theme, data.theme);
+    }
 
     setSettings(settingsState);
-
   };
 
   const saveCurrentModelInfo = (modelInfo: any) => {

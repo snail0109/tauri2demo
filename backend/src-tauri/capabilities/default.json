@@ -6,7 +6,6 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "log:default",
     "core:webview:default",
     {
       "identifier": "http:default",

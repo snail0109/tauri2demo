@@ -42,17 +42,87 @@ function handleBubbleClick() {
 </script>
 
 <style scoped>
-.message-item { display: flex; align-items: flex-end; gap: 4px; margin-bottom: 12px; }
-.message-user { justify-content: flex-end; }
-.message-assistant { justify-content: flex-start; }
-.message-bubble { max-width: 75%; padding: 10px 14px; font-size: 15px; line-height: 1.5; word-break: break-word; }
-.bubble-user { background: #2B5CE6; color: #fff; border-radius: 12px 12px 4px 12px; }
-.bubble-user:has(.voice-icon) { cursor: pointer; }
-.bubble-assistant { background: #fff; color: #1a1a1a; border-radius: 12px 12px 12px 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
-.voice-icon { display: inline-flex; align-items: center; margin-right: 4px; opacity: 0.7; }
-.tts-btn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; background: none; cursor: pointer; color: #999; border-radius: 50%; flex-shrink: 0; transition: color 0.2s; }
-.tts-btn:active { color: #2B5CE6; }
-.tts-playing { color: #2B5CE6; animation: pulse 1s ease-in-out infinite; }
-@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-.message-text { white-space: pre-wrap; }
+.message-item {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.message-user {
+  justify-content: flex-end;
+}
+
+.message-assistant {
+  justify-content: flex-start;
+}
+
+.message-bubble {
+  max-width: 75%;
+  padding: 10px 14px;
+  font-size: 15px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.bubble-user {
+  background: var(--app-primary-color);
+  color: #fff;
+  border-radius: 12px 12px 4px 12px;
+}
+
+.bubble-user:has(.voice-icon) {
+  cursor: pointer;
+}
+
+.bubble-assistant {
+  background: var(--app-card-bg);
+  color: var(--app-text-color);
+  border-radius: 12px 12px 12px 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  border: 1px solid var(--app-border-color);
+}
+
+.voice-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+  opacity: 0.7;
+}
+
+.tts-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--app-text-color);
+  opacity: 0.7;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: color 0.2s, background 0.2s, opacity 0.2s;
+}
+
+.tts-btn:active {
+  color: var(--app-primary-color);
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.tts-playing {
+  color: var(--app-primary-color);
+  opacity: 1;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.message-text {
+  white-space: pre-wrap;
+}
 </style>

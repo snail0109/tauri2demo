@@ -81,89 +81,111 @@ defineExpose({ scrollToBottom });
 </script>
 
 <style scoped>
-.message-list { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 16px 16px 8px; }
+.message-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 16px calc(8px + 72px + var(--safe-area-inset-bottom));
+  background: var(--app-page-bg);
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
 .message-list::-webkit-scrollbar { width: 4px; }
 .message-list::-webkit-scrollbar-track { background: transparent; }
 .message-list::-webkit-scrollbar-thumb { background: #ddd; border-radius: 2px; }
-.empty-guide { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; gap: 16px; }
-.guide-text { font-size: 15px; color: #999; }
-.scenario-entry-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 20px; border: 1px solid #2B5CE6; border-radius: 20px; background: #fff; color: #2B5CE6; font-size: 14px; cursor: pointer; transition: all 0.15s; }
-.scenario-entry-btn:active { background: #2B5CE6; color: #fff; }
+.empty-guide {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 16px;
+}
+
+.guide-text {
+  font-size: 15px;
+  color: var(--app-text-color);
+  opacity: 0.7;
+}
+
+.scenario-entry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 20px;
+  border: 1px solid var(--app-primary-color);
+  border-radius: 20px;
+  background: var(--app-card-bg);
+  color: var(--app-primary-color);
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.scenario-entry-btn:active {
+  background: var(--app-primary-color);
+  color: #fff;
+}
 
 /* Scenario info card */
 .scenario-info-card {
-  background: #fff;
+  background: var(--app-card-bg);
   border-radius: 12px;
   padding: 14px;
   margin-bottom: 12px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.06);
-  border-left: 3px solid #2B5CE6;
+  border-left: 3px solid var(--app-primary-color);
 }
-.scenario-card-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 2px;
-}
+
 .scenario-card-title {
   font-size: 16px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--app-title-color);
 }
-.scenario-difficulty {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 10px;
-  font-weight: 500;
-}
-.scenario-difficulty.beginner { background: #e8f8e8; color: #52c41a; }
-.scenario-difficulty.intermediate { background: #fff7e6; color: #fa8c16; }
-.scenario-difficulty.advanced { background: #fff1f0; color: #f5222d; }
+
 .scenario-card-es {
   font-size: 13px;
-  color: #999;
+  color: var(--app-text-color);
+  opacity: 0.7;
   font-style: italic;
   margin-bottom: 10px;
 }
-.scenario-card-section {
-  margin-bottom: 10px;
-}
+
 .section-label {
   font-size: 12px;
-  color: #909399;
+  color: var(--app-text-color);
+  opacity: 0.7;
   margin-bottom: 2px;
   font-weight: 500;
 }
+
 .section-text {
   font-size: 13px;
-  color: #303133;
+  color: var(--app-text-color);
   line-height: 1.6;
 }
-.scenario-card-roles {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.role-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-}
+
 .role-label {
-  color: #909399;
+  color: var(--app-text-color);
+  opacity: 0.7;
   flex-shrink: 0;
 }
+
 .role-name {
   font-weight: 500;
-  color: #303133;
+  color: var(--app-text-color);
 }
+
 .role-desc {
-  color: #909399;
+  color: var(--app-text-color);
+  opacity: 0.7;
   font-size: 12px;
 }
+
 .role-personality {
-  color: #b0b0b0;
+  color: var(--app-text-color);
+  opacity: 0.55;
   font-size: 11px;
 }
 </style>

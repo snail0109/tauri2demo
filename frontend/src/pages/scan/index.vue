@@ -85,7 +85,7 @@
           <div class="result-item">
             <div class="result-label">结果来源</div>
             <div class="result-value">
-              {{ result.source === 'knowledge_base' ? '知识库匹配' : 'AI兜底结果' }}
+              {{ result.source === 'knowledge_base' ? '知识库匹配' : 'AI结果' }}
             </div>
           </div>
 
@@ -861,8 +861,21 @@ ${text}
 const extractSpanishText = async () => {
   if (!selectedFile.value) return ''
 
+  const settings = getSettings()
+  if (!settings) {
+    throw new Error('未找到设置，请先在设置页配置百度 OCR')
+  }
+
+  const settingsData = JSON.parse(settings)
+  const apiKey = settingsData.baiduOcr?.apiKey || ''
+  const secretKey = settingsData.baiduOcr?.secretKey || ''
+
+  if (!apiKey || !secretKey) {
+    throw new Error('请先在设置页填写百度 OCR 的 API Key 和 Secret Key')
+  }
+
   const imageBase64 = await fileToBase64WithoutPrefix(selectedFile.value)
-  const ocrResult = await recognizeImageByBaiduOcr(imageBase64)
+  const ocrResult = await recognizeImageByBaiduOcr(imageBase64, apiKey, secretKey)
   return ocrResult?.text ?? ''
 }
 
@@ -920,7 +933,7 @@ const runRecognition = async () => {
       return
     }
 
-    // 当前先用兜底函数，后面再接真 AI
+    // 当前先用函数，后面再接真 AI
     const aiResult = await translateByAI(extractedText)
     result.value = aiResult
   } catch (error) {
@@ -949,15 +962,15 @@ const resetAll = () => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  background: #f5f5f5;
+  background: var(--app-page-bg);
 }
 
 .scan-header {
   display: flex;
   align-items: center;
   padding: 20px;
-  background: #fff;
-  border-bottom: 1px solid #eee;
+  background: var(--app-header-bg);
+  border-bottom: 1px solid var(--app-border-color);
 }
 
 .header-left {
@@ -969,7 +982,7 @@ const resetAll = () => {
 .page-title {
   font-size: 20px;
   font-weight: 700;
-  color: #222;
+  color: var(--app-title-color);
 }
 
 .scan-content {
@@ -978,10 +991,12 @@ const resetAll = () => {
   overflow-y: auto;
   padding: 20px 20px 110px;
   box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
 }
 
 .scan-card {
-  background: #fff;
+  background: var(--app-card-bg);
+  border: 1px solid var(--app-border-color);
   border-radius: 12px;
   padding: 20px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
@@ -990,11 +1005,12 @@ const resetAll = () => {
 .scan-card h3 {
   margin: 0 0 12px 0;
   font-size: 18px;
+  color: var(--app-title-color);
 }
 
 .scan-card p {
   margin: 0 0 20px 0;
-  color: #666;
+  color: var(--app-text-color);
   line-height: 1.6;
 }
 
@@ -1018,46 +1034,46 @@ const resetAll = () => {
 .result-section h4 {
   margin-bottom: 12px;
   font-size: 16px;
-  color: #333;
+  color: var(--app-title-color);
 }
 
 .preview-image {
   width: 100%;
   max-width: 360px;
   border-radius: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--app-border-color);
   display: block;
   margin-bottom: 10px;
 }
 
 .file-name {
-  color: #666;
+  color: var(--app-text-color);
   font-size: 14px;
 }
 
 .result-item {
   padding: 14px 16px;
   border-radius: 10px;
-  background: #f8fafc;
+  background: var(--app-page-bg);
   margin-bottom: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--app-border-color);
 }
 
 .result-label {
   font-size: 13px;
-  color: #666;
+  color: var(--app-text-color);
   margin-bottom: 6px;
 }
 
 .result-value {
   font-size: 16px;
-  color: #222;
+  color: var(--app-text-color);
   line-height: 1.6;
 }
 
 .empty-tip {
   margin-top: 24px;
-  color: #999;
+  color: var(--app-text-color);
   font-size: 14px;
 }
 
@@ -1068,15 +1084,15 @@ const resetAll = () => {
 .ocr-text-section h4 {
   margin-bottom: 12px;
   font-size: 16px;
-  color: #333;
+  color: var(--app-title-color);
 }
 
 .ocr-text-box {
   padding: 14px 16px;
   border-radius: 10px;
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
-  color: #222;
+  background: var(--app-page-bg);
+  border: 1px solid var(--app-border-color);
+  color: var(--app-text-color);
   line-height: 1.8;
   white-space: pre-wrap;
 }

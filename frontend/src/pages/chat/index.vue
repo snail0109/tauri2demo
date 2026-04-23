@@ -290,5 +290,13 @@ function handleOpenSummary() {
 </script>
 
 <style scoped>
-.chat-page { height: 100%; display: flex; flex-direction: column; background: #f5f5f5; overflow: hidden; }
+.chat-page {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--app-page-bg);
+  color: var(--app-text-color);
+  overflow: hidden;
+}
 </style>

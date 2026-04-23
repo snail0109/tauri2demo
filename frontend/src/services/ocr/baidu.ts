@@ -1,8 +1,14 @@
 import { invoke } from '@tauri-apps/api/core'
 
-export async function recognizeImageByBaiduOcr(imageBase64: string) {
+export async function recognizeImageByBaiduOcr(
+  imageBase64: string,
+  apiKey: string,
+  secretKey: string
+) {
   const text = await invoke<string>('baidu_ocr', {
-    imageBase64
+    imageBase64,
+    apiKey,
+    secretKey
   })
 
   return { text }
