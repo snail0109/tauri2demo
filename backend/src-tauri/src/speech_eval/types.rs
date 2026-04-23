@@ -123,17 +123,20 @@ pub struct XfConfig {
 }
 
 impl XfConfig {
-    /// 从环境变量加载讯飞开放平台凭证（语音评测 / TTS / 一句话识别共用）
+    /// 加载讯飞凭证：运行时环境变量优先，回退到编译时嵌入值（env! 宏）
     pub fn from_env() -> Result<Self, String> {
         let app_id = std::env::var("XF_APP_ID")
-            .map_err(|_| "missing env var XF_APP_ID".to_string())?;
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| env!("XF_APP_ID").to_string());
         let api_key = std::env::var("XF_API_KEY")
-            .map_err(|_| "missing env var XF_API_KEY".to_string())?;
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| env!("XF_API_KEY").to_string());
         let api_secret = std::env::var("XF_API_SECRET")
-            .map_err(|_| "missing env var XF_API_SECRET".to_string())?;
-        if app_id.is_empty() || api_key.is_empty() || api_secret.is_empty() {
-            return Err("XF_APP_ID / XF_API_KEY / XF_API_SECRET 未配置".to_string());
-        }
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| env!("XF_API_SECRET").to_string());
         Ok(Self { app_id, api_key, api_secret })
     }
 }
@@ -145,15 +148,16 @@ pub struct XfRtasrConfig {
 }
 
 impl XfRtasrConfig {
-    /// 从环境变量加载 RTASR 凭证
+    /// 加载 RTASR 凭证：运行时环境变量优先，回退到编译时嵌入值
     pub fn from_env() -> Result<Self, String> {
         let app_id = std::env::var("XF_RTASR_APP_ID")
-            .map_err(|_| "missing env var XF_RTASR_APP_ID".to_string())?;
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| env!("XF_RTASR_APP_ID").to_string());
         let api_key = std::env::var("XF_RTASR_API_KEY")
-            .map_err(|_| "missing env var XF_RTASR_API_KEY".to_string())?;
-        if app_id.is_empty() || api_key.is_empty() {
-            return Err("XF_RTASR_APP_ID / XF_RTASR_API_KEY 未配置".to_string());
-        }
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| env!("XF_RTASR_API_KEY").to_string());
         Ok(Self { app_id, api_key })
     }
 }
