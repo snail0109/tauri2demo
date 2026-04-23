@@ -31,25 +31,75 @@
           </div>
           <div v-if="sessions.length === 0" class="empty-list">暂无历史会话</div>
         </div>
+
+        <!-- 录音缓存区域 -->
+        <div class="cache-section">
+          <div class="cache-header">
+            <span class="cache-title">录音缓存</span>
+            <button v-if="recordings.length > 0" class="clear-all-btn" @click="handleClearAll" title="一键清理">清理全部</button>
+          </div>
+          <div class="cache-list">
+            <div v-for="rec in recordings" :key="rec.path" class="cache-item">
+              <div class="cache-info">
+                <div class="cache-name">{{ rec.name }}</div>
+                <div class="cache-meta">{{ rec.created_at }} · {{ formatSize(rec.size) }}</div>
+              </div>
+              <button class="delete-btn" @click="handleDeleteRecording(rec.path)" title="删除录音">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                </svg>
+              </button>
+            </div>
+            <div v-if="recordings.length === 0" class="empty-list">暂无录音缓存</div>
+          </div>
+        </div>
       </div>
     </transition>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue';
-import { ElMessageBox } from 'element-plus';
+import { computed, ref, watch } from 'vue';
+import { ElMessageBox, ElMessage } from 'element-plus';
+import { invoke } from '@tauri-apps/api/core';
 import type { ChatSession } from '@/stores/chat';
+
+interface RecordingEntry {
+  name: string;
+  size: number;
+  path: string;
+  created_at: string;
+}
 
 const props = defineProps<{ visible: boolean; sessions: ChatSession[]; activeSessionId: string | null }>();
 const emit = defineEmits<{ 'close': []; 'select-session': [id: string]; 'delete-session': [id: string] }>();
 
 const currentActiveId = computed(() => props.activeSessionId || '');
+const recordings = ref<RecordingEntry[]>([]);
 
 function formatDate(timestamp: number): string {
   const d = new Date(timestamp);
   return `${d.getMonth() + 1}/${d.getDate()} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
 }
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function loadRecordings() {
+  try {
+    recordings.value = await invoke<RecordingEntry[]>('list_recordings');
+  } catch (e) {
+    console.warn('加载录音列表失败:', e);
+  }
+}
+
+// 每次侧边栏打开时重新加载录音列表
+watch(() => props.visible, (v) => {
+  if (v) loadRecordings();
+});
 
 async function handleDelete(id: string, e: Event) {
   e.stopPropagation();
@@ -63,6 +113,31 @@ async function handleDelete(id: string, e: Event) {
     emit('delete-session', id);
   } catch {
     // User cancelled
+  }
+}
+
+async function handleDeleteRecording(path: string) {
+  try {
+    await invoke('delete_recording', { path });
+    await loadRecordings();
+  } catch (e) {
+    ElMessage.error('删除录音失败');
+    console.error(e);
+  }
+}
+
+async function handleClearAll() {
+  try {
+    await ElMessageBox.confirm('确定清理全部录音？此操作不可恢复。', '清理录音', {
+      confirmButtonText: '清理',
+      cancelButtonText: '取消',
+      type: 'warning',
+    });
+    const count = await invoke<number>('clear_recordings');
+    ElMessage.success(`已清理 ${count} 个录音文件`);
+    await loadRecordings();
+  } catch {
+    // User cancelled or error
   }
 }
 </script>
@@ -87,4 +162,16 @@ async function handleDelete(id: string, e: Event) {
 .delete-btn { display: flex; align-items: center; justify-content: center; width: 28px; height: 28px; border: none; background: none; cursor: pointer; color: #c0c4cc; border-radius: 4px; flex-shrink: 0; z-index: 1; }
 .delete-btn:active { color: #f56c6c; background: #fef0f0; }
 .empty-list { padding: 32px 16px; text-align: center; color: #999; font-size: 14px; }
+
+/* 录音缓存区域 */
+.cache-section { border-top: 1px solid #ebeef5; flex-shrink: 0; max-height: 40%; overflow-y: auto; }
+.cache-header { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; }
+.cache-title { font-size: 15px; font-weight: 600; color: #606266; }
+.clear-all-btn { font-size: 13px; color: #f56c6c; border: none; background: none; cursor: pointer; padding: 2px 8px; }
+.clear-all-btn:active { color: #e05a4b; background: #fef0f0; border-radius: 4px; }
+.cache-list { padding: 0 0 8px; }
+.cache-item { display: flex; align-items: center; padding: 10px 16px; border-bottom: 1px solid #f5f5f5; }
+.cache-info { flex: 1; min-width: 0; }
+.cache-name { font-size: 14px; color: #303133; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cache-meta { font-size: 12px; color: #999; margin-top: 2px; }
 </style>

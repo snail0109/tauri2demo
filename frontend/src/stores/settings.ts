@@ -18,15 +18,6 @@ const settingsState = reactive({
   providers: createProviderConfig(),
   isDark: false,
   defaultModelInfo: '',
-  xfSpeechEval: {
-    appId: '',
-    apiKey: '',
-    apiSecret: '',
-  },
-  baiduOcr: {
-    apiKey: '',
-    secretKey: '',
-  },
   chatDefaultPrompt: '',
   theme: {
     pageBg: '#f5f5f5',
@@ -115,12 +106,6 @@ const settingsState = reactive({
           }
         });
       }
-      if (settings.xfSpeechEval) {
-        Object.assign(settingsState.xfSpeechEval, settings.xfSpeechEval);
-      }
-      if (settings.baiduOcr) {
-        Object.assign(settingsState.baiduOcr, settings.baiduOcr);
-      }
       if (settings.chatDefaultPrompt !== undefined) {
         settingsState.chatDefaultPrompt = settings.chatDefaultPrompt;
       }
@@ -138,14 +123,6 @@ const settingsState = reactive({
           Object.assign(settingsState.providers[provider], data.providers[provider]);
         }
       });
-    }
-
-    if (data.xfSpeechEval) {
-      Object.assign(settingsState.xfSpeechEval, data.xfSpeechEval);
-    }
-
-    if (data.baiduOcr) {
-      Object.assign(settingsState.baiduOcr, data.baiduOcr);
     }
 
     if (data.chatDefaultPrompt !== undefined) {

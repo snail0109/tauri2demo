@@ -114,12 +114,52 @@ pub struct WordScore {
     pub read_type: i32,
 }
 
-// === 讯飞 API 配置（由前端通过命令参数传入） ===
+// === 讯飞 API 配置（从环境变量注入） ===
 
 pub struct XfConfig {
     pub app_id: String,
     pub api_key: String,
     pub api_secret: String,
+}
+
+impl XfConfig {
+    /// 加载讯飞凭证：运行时环境变量优先，回退到编译时嵌入值（env! 宏）
+    pub fn from_env() -> Result<Self, String> {
+        let app_id = std::env::var("XF_APP_ID")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| env!("XF_APP_ID").to_string());
+        let api_key = std::env::var("XF_API_KEY")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| env!("XF_API_KEY").to_string());
+        let api_secret = std::env::var("XF_API_SECRET")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| env!("XF_API_SECRET").to_string());
+        Ok(Self { app_id, api_key, api_secret })
+    }
+}
+
+/// 讯飞 RTASR（实时语音转写）配置 -- 只需要 appId + apiKey
+pub struct XfRtasrConfig {
+    pub app_id: String,
+    pub api_key: String,
+}
+
+impl XfRtasrConfig {
+    /// 加载 RTASR 凭证：运行时环境变量优先，回退到编译时嵌入值
+    pub fn from_env() -> Result<Self, String> {
+        let app_id = std::env::var("XF_RTASR_APP_ID")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| env!("XF_RTASR_APP_ID").to_string());
+        let api_key = std::env::var("XF_RTASR_API_KEY")
+            .ok()
+            .filter(|v| !v.is_empty())
+            .unwrap_or_else(|| env!("XF_RTASR_API_KEY").to_string());
+        Ok(Self { app_id, api_key })
+    }
 }
 
 // === 实时语音转写（ASR）请求/响应结构 ===

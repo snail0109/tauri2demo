@@ -31,12 +31,20 @@ struct OcrResponse {
 
 // 百度OCR
 #[tauri::command]
-async fn baidu_ocr(
-    image_base64: String,
-    api_key: String,
-    secret_key: String,
-) -> Result<String, String> {
+async fn baidu_ocr(image_base64: String) -> Result<String, String> {
     println!("=== step 1: enter baidu_ocr ===");
+
+    let api_key = std::env::var("BAIDU_OCR_API_KEY")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| env!("BAIDU_OCR_API_KEY").to_string());
+    let secret_key = std::env::var("BAIDU_OCR_SECRET_KEY")
+        .ok()
+        .filter(|v| !v.is_empty())
+        .unwrap_or_else(|| env!("BAIDU_OCR_SECRET_KEY").to_string());
+    if api_key.is_empty() || secret_key.is_empty() {
+        return Err("BAIDU_OCR_API_KEY / BAIDU_OCR_SECRET_KEY 未配置".to_string());
+    }
 
     let client = reqwest::Client::new();
 
@@ -133,6 +141,7 @@ async fn baidu_ocr(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_http::init())
@@ -142,12 +151,17 @@ pub fn run() {
             greet,
             baidu_ocr,
             commands::start_recording,
+            commands::start_realtime_asr_recording,
             commands::cancel_recording,
             commands::stop_recording_and_evaluate,
             commands::evaluate_mp3_file,
             commands::tts_synthesize,
             commands::stop_recording_and_recognize,
-            commands::stop_realtime_asr
+            commands::stop_realtime_asr,
+            commands::list_recordings,
+            commands::delete_recording,
+            commands::clear_recordings
+
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

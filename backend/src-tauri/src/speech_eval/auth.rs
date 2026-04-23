@@ -2,10 +2,12 @@ use base64::Engine;
 use base64::engine::general_purpose::STANDARD as BASE64;
 use chrono::Utc;
 use hmac::{Hmac, Mac};
+use sha1::Sha1;
 use sha2::Sha256;
 use url::form_urlencoded;
 
 type HmacSha256 = Hmac<Sha256>;
+type HmacSha1 = Hmac<Sha1>;
 
 /// 生成讯飞 WebSocket 鉴权 URL
 pub fn build_auth_url(host: &str, path: &str, api_key: &str, api_secret: &str) -> String {
@@ -45,16 +47,19 @@ pub fn build_auth_url(host: &str, path: &str, api_key: &str, api_secret: &str) -
     )
 }
 
-/// 生成讯飞 RTASR (实时语音转写) 鉴权 URL
-/// 鉴权方式：appid + ts → HMAC-SHA256(apiKey, baseString) → base64 → signa
-/// 大模型版与标准版共用同一端点，通过 use_llm 参数控制是否附加大模型特有参数
-pub fn build_rtasr_url(app_id: &str, api_key: &str, lang: &str, use_llm: bool) -> String {
+/// 生成讯飞 RTASR (实时语音转写标准版) 鉴权 URL
+/// 鉴权方式：appid + ts → MD5(appid+ts) → HMAC-SHA1(apiKey, md5_result) → Base64 → signa
+pub fn build_rtasr_url(app_id: &str, api_key: &str, lang: &str) -> String {
     let ts = chrono::Utc::now().timestamp().to_string();
     let base_string = format!("{}{}", app_id, ts);
 
-    let mut mac = HmacSha256::new_from_slice(api_key.as_bytes())
+    // Step 2: MD5 hash of base_string (lowercase hex)
+    let md5_result = format!("{:x}", md5::compute(base_string.as_bytes()));
+
+    // Step 3: HMAC-SHA1 with apiKey, then Base64 encode
+    let mut mac = HmacSha1::new_from_slice(api_key.as_bytes())
         .expect("HMAC key length is always valid");
-    mac.update(base_string.as_bytes());
+    mac.update(md5_result.as_bytes());
     let signa = BASE64.encode(mac.finalize().into_bytes());
 
     let signa_encoded: String = form_urlencoded::Serializer::new(String::new())
@@ -62,17 +67,10 @@ pub fn build_rtasr_url(app_id: &str, api_key: &str, lang: &str, use_llm: bool) -
         .finish();
     let signa_encoded = &signa_encoded["signa=".len()..];
 
-    let mut url = format!(
+    format!(
         "wss://rtasr.xfyun.cn/v1/ws?appid={}&ts={}&signa={}&lang={}&vad_eos=2000",
         app_id, ts, signa_encoded, lang
-    );
-
-    if use_llm {
-        // 大模型版特有参数
-        url.push_str("&pd=edu");
-    }
-
-    url
+    )
 }
 
 #[cfg(test)]
@@ -109,5 +107,29 @@ mod tests {
         assert!(decoded_str.contains("algorithm=\"hmac-sha256\""));
         assert!(decoded_str.contains("headers=\"host date request-line\""));
         assert!(decoded_str.contains("signature=\""));
+    }
+
+    #[test]
+    fn test_build_rtasr_url_contains_required_params() {
+        let url = build_rtasr_url("test_appid", "test_apikey", "cn");
+        assert!(url.starts_with("wss://rtasr.xfyun.cn/v1/ws?"));
+        assert!(url.contains("appid=test_appid"));
+        assert!(url.contains("lang=cn"));
+        assert!(url.contains("ts="));
+        assert!(url.contains("signa="));
+        assert!(url.contains("vad_eos=2000"));
+    }
+
+    #[test]
+    fn test_build_rtasr_url_signa_is_hmac_sha1_base64() {
+        let url = build_rtasr_url("test_appid", "test_apikey", "cn");
+        let signa_part = url.split("signa=").nth(1).unwrap();
+        // signa is the first query param after signa=, so split on '&' to isolate it
+        let signa_value = signa_part.split('&').next().unwrap();
+        let signa_decoded = urlencoding::decode(signa_value).unwrap();
+        let decoded = BASE64.decode(signa_decoded.as_ref());
+        assert!(decoded.is_ok(), "signa should be valid base64");
+        // HMAC-SHA1 produces 20 bytes
+        assert_eq!(decoded.unwrap().len(), 20);
     }
 }

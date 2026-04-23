@@ -7,16 +7,25 @@ use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::Message;
 
 use super::auth::build_rtasr_url;
-use super::types::XfConfig;
+use super::types::XfRtasrConfig;
 
 /// 每次发送的 PCM 字节数（40ms @ 16kHz 16bit mono = 1280 bytes）
 const CHUNK_BYTES: usize = 1280;
 
 /// 从 RTASR 响应的 data 字段中提取识别文本
-fn extract_text_from_data(data: &str) -> Option<String> {
-    // data 是 base64 编码的 JSON
-    let decoded = BASE64.decode(data).ok()?;
-    let json: serde_json::Value = serde_json::from_slice(&decoded).ok()?;
+/// data 可能是 base64 编码的 JSON（标准版文档），也可能是原始 JSON 字符串（实际观察）
+fn extract_text_from_data(data: &str) -> Option<(String, bool)> {
+    // 先尝试直接解析为 JSON（实际响应格式）
+    let json: serde_json::Value = if let Ok(v) = serde_json::from_str(data) {
+        v
+    } else {
+        // 再尝试 base64 解码后解析
+        let decoded = BASE64.decode(data).ok()?;
+        serde_json::from_slice(&decoded).ok()?
+    };
+
+    // 提取 ls 字段（是否为最终结果）
+    let is_final = json.get("ls").and_then(|v| v.as_bool()).unwrap_or(false);
 
     // 遍历 cn.st.rt[].ws[].cw[].w 拼接文本
     let cn = json.get("cn")?;
@@ -41,7 +50,7 @@ fn extract_text_from_data(data: &str) -> Option<String> {
     if text.is_empty() {
         None
     } else {
-        Some(text)
+        Some((text, is_final))
     }
 }
 
@@ -53,47 +62,40 @@ fn extract_text_from_data(data: &str) -> Option<String> {
 /// 优先使用大模型版，如果连接/鉴权失败则降级到标准版。
 pub async fn start_realtime_asr(
     app_handle: tauri::AppHandle,
-    config: &XfConfig,
+    config: &XfRtasrConfig,
     lang: &str,
     mut pcm_rx: tokio::sync::mpsc::Receiver<Vec<i16>>,
     result_store: Arc<Mutex<Option<String>>>,
 ) -> Result<(), String> {
     // Map frontend language codes to RTASR language codes
     let rtasr_lang = match lang {
-        "es" => "en", // RTASR doesn't have "es", use "en" for non-Chinese
         "zh" => "cn",
-        "en" => "en",
-        _ => "en",
+        _ => lang, // es, en, etc. — RTASR supports these directly
     };
 
-    // Try LLM version first, then fall back to standard version
+    // 使用标准版端点（大模型版端点不同，暂不尝试）
     let urls = [
-        build_rtasr_url(&config.app_id, &config.api_key, rtasr_lang, true),
-        build_rtasr_url(&config.app_id, &config.api_key, rtasr_lang, false),
+        build_rtasr_url(&config.app_id, &config.api_key, rtasr_lang),
     ];
 
     let mut ws_stream = None;
-    for (attempt, url) in urls.iter().enumerate() {
-        let version = if attempt == 0 { "LLM" } else { "standard" };
+    for url in urls.iter() {
         let url_preview = if url.len() > 100 {
             format!("{}...{}", &url[..60], &url[url.len() - 20..])
         } else {
             url.clone()
         };
-        println!("[rtasr] attempt {} ({}): {}", attempt + 1, version, url_preview);
+        println!("[rtasr] connecting: {}", url_preview);
 
         match connect_async(url.as_str()).await {
             Ok((stream, _)) => {
-                println!("[rtasr] connected using {} version", version);
+                println!("[rtasr] connected (standard)");
                 ws_stream = Some(stream);
                 break;
             }
             Err(e) => {
-                println!("[rtasr] {} version connect failed: {}", version, e);
-                if attempt == urls.len() - 1 {
-                    return Err(format!("RTASR WebSocket connect failed (tried both versions): {}", e));
-                }
-                continue;
+                println!("[rtasr] connect failed: {}", e);
+                return Err(format!("RTASR WebSocket connect failed: {}", e));
             }
         }
     }
@@ -184,26 +186,15 @@ pub async fn start_realtime_asr(
 
         match msg {
             Message::Text(text) => {
+                let text_preview = if text.len() > 300 { format!("{}...", &text[..300]) } else { text.to_string() };
+                println!("[rtasr] recv: {}", text_preview);
                 if let Ok(resp) = serde_json::from_str::<serde_json::Value>(&text) {
                     let action = resp.get("action").and_then(|a| a.as_str()).unwrap_or("");
 
                     match action {
                         "result" => {
                             if let Some(data) = resp.get("data").and_then(|d| d.as_str()) {
-                                if let Some(recognized_text) = extract_text_from_data(data) {
-                                    // Check if this is a final result (ls = true)
-                                    let is_final = {
-                                        if let Ok(decoded) = BASE64.decode(data) {
-                                            if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&decoded) {
-                                                json.get("ls").and_then(|v| v.as_bool()).unwrap_or(false)
-                                            } else {
-                                                false
-                                            }
-                                        } else {
-                                            false
-                                        }
-                                    };
-
+                                if let Some((recognized_text, is_final)) = extract_text_from_data(data) {
                                     if is_final {
                                         final_text = recognized_text.clone();
                                     }

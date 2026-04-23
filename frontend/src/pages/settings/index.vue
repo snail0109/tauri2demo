@@ -32,37 +32,18 @@ import {
 defineOptions({ name: 'Settings' });
 
 // 一级导航状态：null = 列表首页
-type Section = null | 'speech-eval' | 'model-services' | 'chat' | 'ocr' | 'theme'
+type Section = null | 'model-services' | 'theme'
 const currentSection = ref<Section>(null)
 
 const sectionTitle: Record<Exclude<Section, null>, string> = {
-  'speech-eval': '语音评测配置',
   'model-services': '模型服务',
-  'chat': '场景对话',
-  'ocr': '图片识别配置',
   'theme': '界面配色',
 }
 
-const openaiFormRef = ref<InstanceType<typeof ElForm>>();
-const doubaoFormRef = ref<InstanceType<typeof ElForm>>();
-const deepseekFormRef = ref<InstanceType<typeof ElForm>>();
-const customFormRef = ref<InstanceType<typeof ElForm>>();
-
-const providerFormRules = ref<FormRules>({
-  "options.baseURL": [{ required: true, message: "请输入 API Base URL" }],
-  "options.apiKey": [{ required: true, message: "请输入 API Key" }],
-  defaultModel: [{ required: true, message: "请选择模型" }],
-});
-
-const customProviderFormRules = ref<FormRules>({
-  name: [{ required: true, message: "请输入提供商名称" }],
-  "options.baseURL": [{ required: true, message: "请输入 API Base URL" }],
-  "options.apiKey": [{ required: true, message: "请输入 API Key" }],
-  defaultModel: [{ required: true, message: "请选择模型" }],
-});
 
 const settingsStore = useSettingsStore();
 const settings = computed(() => settingsStore.settingsState);
+
 
 const defaultTheme = {
   pageBg: '#f5f5f5',
@@ -184,8 +165,6 @@ const autoSave = () => {
     try {
       await settingsStore.saveSettings({
         providers: settings.value.providers,
-        xfSpeechEval: settings.value.xfSpeechEval,
-        baiduOcr: settings.value.baiduOcr,
         chatDefaultPrompt: settings.value.chatDefaultPrompt,
         theme: settings.value.theme,
       });
@@ -198,10 +177,8 @@ const autoSave = () => {
 watch(
   () => [
     settings.value.providers,
-    settings.value.xfSpeechEval,
-    settings.value.baiduOcr,
     settings.value.chatDefaultPrompt,
-    settings.value.theme
+    settings.value.theme,
   ],
   () => { autoSave(); },
   { deep: true }
@@ -346,20 +323,6 @@ onMounted(() => {
     <!-- 一级菜单列表 -->
     <div v-if="!currentSection" class="settings-body">
       <div class="menu-group">
-        <button class="menu-item" @click="currentSection = 'speech-eval'">
-          <span class="menu-icon speech-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" y1="19" x2="12" y2="23"/>
-              <line x1="8" y1="23" x2="16" y2="23"/>
-            </svg>
-          </span>
-          <span class="menu-label">语音评测配置</span>
-          <svg class="menu-chevron" width="7" height="12" viewBox="0 0 7 12" fill="none">
-            <path d="M1 1L6 6L1 11" stroke="#C0C4CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
         <button class="menu-item" @click="currentSection = 'model-services'">
           <span class="menu-icon model-icon">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -368,30 +331,6 @@ onMounted(() => {
             </svg>
           </span>
           <span class="menu-label">模型服务</span>
-          <svg class="menu-chevron" width="7" height="12" viewBox="0 0 7 12" fill="none">
-            <path d="M1 1L6 6L1 11" stroke="#C0C4CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <button class="menu-item" @click="currentSection = 'chat'">
-          <span class="menu-icon chat-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
-          </span>
-          <span class="menu-label">场景对话</span>
-          <svg class="menu-chevron" width="7" height="12" viewBox="0 0 7 12" fill="none">
-            <path d="M1 1L6 6L1 11" stroke="#C0C4CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-        <button class="menu-item" @click="currentSection = 'ocr'">
-          <span class="menu-icon model-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="3" y="3" width="18" height="14" rx="2"/>
-              <circle cx="8.5" cy="8.5" r="1.5"/>
-              <path d="M21 15l-5-5L5 21"/>
-            </svg>
-          </span>
-          <span class="menu-label">图片识别配置</span>
           <svg class="menu-chevron" width="7" height="12" viewBox="0 0 7 12" fill="none">
             <path d="M1 1L6 6L1 11" stroke="#C0C4CC" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
@@ -410,41 +349,6 @@ onMounted(() => {
         </button>
       </div>
 
-    </div>
-
-    <!-- 二级页面：语音评测配置 -->
-    <div v-else-if="currentSection === 'speech-eval'" class="settings-body">
-      <div class="form-group">
-        <div class="form-group-header">
-          <span class="form-group-title">讯飞开放平台</span>
-        </div>
-        <div class="form-row">
-          <label class="form-label">App ID</label>
-          <el-input
-            v-model="settings.xfSpeechEval.appId"
-            placeholder="请输入 App ID"
-            class="form-input"
-          />
-        </div>
-        <div class="form-row">
-          <label class="form-label">API Key</label>
-          <el-input
-            v-model="settings.xfSpeechEval.apiKey"
-            placeholder="请输入 API Key"
-            show-password
-            class="form-input"
-          />
-        </div>
-        <div class="form-row">
-          <label class="form-label">API Secret</label>
-          <el-input
-            v-model="settings.xfSpeechEval.apiSecret"
-            placeholder="请输入 API Secret"
-            show-password
-            class="form-input"
-          />
-        </div>
-      </div>
     </div>
 
     <!-- 二级页面：模型服务 -->
@@ -573,50 +477,6 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 二级页面：场景对话 -->
-    <div v-else-if="currentSection === 'chat'" class="settings-body">
-      <div class="form-group">
-        <div class="form-group-header">
-          <span class="form-group-title">默认系统提示语</span>
-        </div>
-        <div class="form-row" style="flex-direction: column; align-items: stretch; gap: 4px;">
-          <el-input
-            v-model="settings.chatDefaultPrompt"
-            type="textarea"
-            :rows="6"
-            placeholder="输入系统提示语，定义AI的角色和行为"
-          />
-        </div>
-      </div>
-    </div>
-
-    <div v-else-if="currentSection === 'ocr'" class="settings-body">
-      <div class="form-group">
-        <div class="form-group-header">
-          <span class="form-group-title">百度 OCR</span>
-        </div>
-
-        <div class="form-row">
-          <label class="form-label">API Key</label>
-          <el-input
-            v-model="settings.baiduOcr.apiKey"
-            placeholder="请输入百度 OCR API Key"
-            show-password
-            class="form-input"
-          />
-        </div>
-
-        <div class="form-row">
-          <label class="form-label">Secret Key</label>
-          <el-input
-            v-model="settings.baiduOcr.secretKey"
-            placeholder="请输入百度 OCR Secret Key"
-            show-password
-            class="form-input"
-          />
-        </div>
-      </div>
-    </div>
     <div v-else-if="currentSection === 'theme'" class="settings-body">
       <div class="form-group">
         <div class="form-group-header">

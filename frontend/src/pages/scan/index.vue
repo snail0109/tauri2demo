@@ -861,21 +861,8 @@ ${text}
 const extractSpanishText = async () => {
   if (!selectedFile.value) return ''
 
-  const settings = getSettings()
-  if (!settings) {
-    throw new Error('未找到设置，请先在设置页配置百度 OCR')
-  }
-
-  const settingsData = JSON.parse(settings)
-  const apiKey = settingsData.baiduOcr?.apiKey || ''
-  const secretKey = settingsData.baiduOcr?.secretKey || ''
-
-  if (!apiKey || !secretKey) {
-    throw new Error('请先在设置页填写百度 OCR 的 API Key 和 Secret Key')
-  }
-
   const imageBase64 = await fileToBase64WithoutPrefix(selectedFile.value)
-  const ocrResult = await recognizeImageByBaiduOcr(imageBase64, apiKey, secretKey)
+  const ocrResult = await recognizeImageByBaiduOcr(imageBase64)
   return ocrResult?.text ?? ''
 }
 
