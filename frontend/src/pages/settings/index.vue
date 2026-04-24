@@ -192,6 +192,25 @@ watch(
   { deep: true, immediate: true }
 );
 
+// 监听各提供商的模型选择变化，同步更新 defaultModelInfo
+watch(
+  () => Object.keys(settings.value.providers).map(id => ({
+    id,
+    model: settings.value.providers[id].defaultModel,
+    enabled: settings.value.providers[id].enabled,
+  })),
+  (providers) => {
+    // 找到第一个已启用且选了模型的提供商
+    const active = providers.find(p => p.enabled && p.model);
+    if (active) {
+      const modelInfo = `${active.id}/${active.model}`;
+      settingsStore.settingsState.defaultModelInfo = modelInfo;
+      settingsStore.saveCurrentModelInfo(modelInfo);
+    }
+  },
+  { deep: true }
+);
+
 const queryModels = async (providerId: string, forceRefresh = false) => {
   const providerConfig = settings.value.providers[providerId];
   const baseURL = providerConfig.options.baseURL;
@@ -285,6 +304,12 @@ const testProvider = async (providerId: string) => {
     settings.value.providers[providerId].available = true;
     settingsStore.saveSettings({ providers: settings.value.providers });
     setCachedTestResult(providerId, true);
+    // 测试通过后同步更新 defaultModelInfo
+    if (providerConfig.defaultModel) {
+      const modelInfo = `${providerId}/${providerConfig.defaultModel}`;
+      settingsStore.settingsState.defaultModelInfo = modelInfo;
+      settingsStore.saveCurrentModelInfo(modelInfo);
+    }
     ElMessage.success("测试成功");
   } catch (error) {
     settings.value.providers[providerId].available = false;
