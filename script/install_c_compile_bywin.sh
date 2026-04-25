@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
-# install_c_compile_bywin.sh — Windows (Git Bash / MSYS2) Rust 编译依赖工具链安装脚本
+# install_c_compile_bywin.sh — Windows (MSYS2) Rust 编译依赖工具链安装脚本
 # 功能：
 #   1. 检查是否已安装 C/C++ 编译器（MSVC / GNU gcc）及 Rust 工具链
 #   2. 如果已安装，验证 Rust 工具链与 C 编译器 ABI 匹配后显示摘要退出
 #   3. 如果未安装，让用户在以下两套组合中选择：
 #        • MSVC + Rust (stable-x86_64-pc-windows-msvc)
 #        • GNU gcc + Rust (stable-x86_64-pc-windows-gnu)
+#
+# 运行环境假设：MSYS2 mingw64 shell（pacman、bash 均在 PATH 中）。
+# 不再针对 Git Bash 做兼容；如需在 Git Bash 下使用，请改用 MSYS2。
 
 set -euo pipefail
 
@@ -113,20 +116,9 @@ RUSTC_VERSION=""
 RUSTC_HOST=""
 check_rust() {
   # 若 rustc 不在 PATH 中，探测 cargo 的标准安装位置（rustup 默认装到 ~/.cargo/bin）
-  # 避免「Windows 用户 PATH 已更新但当前 Git Bash 会话未刷新」导致的误判
-  if ! command -v rustc &>/dev/null; then
-    local cargo_bin_candidates=(
-      "$HOME/.cargo/bin"
-      "${USERPROFILE:+$(cygpath -u "$USERPROFILE" 2>/dev/null)/.cargo/bin}"
-      "${CARGO_HOME:+$(cygpath -u "$CARGO_HOME" 2>/dev/null)/bin}"
-    )
-    for dir in "${cargo_bin_candidates[@]}"; do
-      [[ -z "$dir" ]] && continue
-      if [[ -f "${dir}/rustc.exe" ]]; then
-        export PATH="${dir}:${PATH}"
-        break
-      fi
-    done
+  # 适配 Windows 用户 PATH 已更新但当前 shell 未刷新的场景。
+  if ! command -v rustc &>/dev/null && [[ -f "$HOME/.cargo/bin/rustc.exe" ]]; then
+    export PATH="$HOME/.cargo/bin:$PATH"
   fi
 
   if ! command -v rustc &>/dev/null; then
@@ -179,7 +171,7 @@ install_rustup() {
     return 1
   fi
   ok "下载完成，启动 rustup-init（默认 toolchain=none，由本脚本后续配置）..."
-  cmd.exe /c "$installer" -y --default-toolchain none --no-modify-path 2>&1 || true
+  "$installer" -y --default-toolchain none --no-modify-path 2>&1 || true
   rm -f "$installer"
 
   if [[ -d "$HOME/.cargo/bin" ]]; then
@@ -283,11 +275,9 @@ install_msvc() {
       ok "下载完成，正在启动安装器 ..."
       echo -e "${YELLOW}  请在安装器中勾选「使用 C++ 的桌面开发」工作负载${RESET}"
       # --wait 让安装器阻塞直到安装完成
-      cmd.exe /c "$installer_path" --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive --wait 2>&1 || true
+      "$installer_path" --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive --wait 2>&1 || true
       rm -f "$installer_path"
 
-      # 安装完成后刷新 PATH 并重新检查
-      refresh_path
       echo ""
       echo -e "${CYAN}  重新检查 MSVC ...${RESET}"
       if check_msvc; then
@@ -335,7 +325,7 @@ install_gnu() {
 
     # gcc 不存在，通过 pacman 安装
     if confirm_install "通过 MSYS2 pacman 安装 mingw-w64-x86_64-gcc"; then
-      /c/msys64/usr/bin/bash.exe -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" 2>&1
+      pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils 2>&1
       if [[ -f "${MSYS2_MINGW_BIN}/gcc.exe" ]]; then
         export PATH="${MSYS2_MINGW_BIN}:${PATH}"
         ok "mingw-w64-x86_64-gcc 安装成功"
@@ -346,7 +336,7 @@ install_gnu() {
         return 0
       else
         warn "pacman 安装完成但未找到 gcc.exe，可能需要更新 MSYS2："
-        warn "  /c/msys64/usr/bin/bash.exe -lc 'pacman -Syu --noconfirm && pacman -S --noconfirm mingw-w64-x86_64-gcc'"
+        warn "  pacman -Syu --noconfirm && pacman -S --noconfirm mingw-w64-x86_64-gcc"
       fi
     fi
 
@@ -399,14 +389,14 @@ install_as() {
 
   if [[ -d "/c/msys64" ]]; then
     if confirm_install "通过 MSYS2 pacman 安装 mingw-w64-x86_64-binutils"; then
-      /c/msys64/usr/bin/bash.exe -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-binutils" 2>&1
+      pacman -S --noconfirm --needed mingw-w64-x86_64-binutils 2>&1
       if [[ -f "${MSYS2_MINGW_BIN}/as.exe" ]]; then
         export PATH="${MSYS2_MINGW_BIN}:${PATH}"
         ok "mingw-w64-x86_64-binutils 安装成功，as.exe 已添加到 PATH"
         return 0
       else
         warn "pacman 安装完成但未找到 as.exe，可能需要更新 MSYS2："
-        warn "  /c/msys64/usr/bin/bash.exe -lc 'pacman -Syu --noconfirm && pacman -S --noconfirm mingw-w64-x86_64-binutils'"
+        warn "  pacman -Syu --noconfirm && pacman -S --noconfirm mingw-w64-x86_64-binutils"
       fi
     fi
   else
@@ -433,16 +423,6 @@ install_as() {
   fail "  pacman -S mingw-w64-x86_64-binutils"
   fail "然后将 C:\\msys64\\mingw64\\bin 添加到 PATH"
   return 1
-}
-
-refresh_path() {
-  local win_path
-  win_path="$(powershell -Command "[Environment]::GetEnvironmentVariable('PATH','User')" 2>/dev/null | tr -d '\r')"
-  if [[ -n "$win_path" ]]; then
-    local unix_path
-    unix_path="$(cygpath -u "$win_path" 2>/dev/null || echo "$win_path")"
-    export PATH="${PATH}:${unix_path}"
-  fi
 }
 
 # ═══════════════════════════════════════════════════════════════════════════════
