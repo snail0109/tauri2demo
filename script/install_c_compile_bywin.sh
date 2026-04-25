@@ -94,7 +94,7 @@ check_gnu() {
     GCC_INFO=$(gcc --version 2>&1 | head -1)
     echo -e "${GREEN}  ✓${RESET} GNU GCC 编译器已安装"
     echo -e "    路径：$(which gcc)"
-    echo -e "    版本：${GCC_INFO}"g
+    echo -e "    版本：${GCC_INFO}"
     FOUND=1
 
     if ! command -v g++ &>/dev/null || ! g++ --version &>/dev/null; then
