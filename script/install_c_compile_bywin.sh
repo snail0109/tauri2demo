@@ -327,9 +327,9 @@ install_gnu() {
       return 0
     fi
 
-    # gcc 不存在，通过 pacman 安装
+    # gcc 不存在，通过 MSYS2 自带 bash 调用 pacman 安装（兼容 Git Bash）
     if confirm_install "通过 MSYS2 pacman 安装 mingw-w64-x86_64-gcc"; then
-      pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils 2>&1
+      /c/msys64/usr/bin/bash.exe -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" 2>&1
       if [[ -f "${MSYS2_MINGW_BIN}/gcc.exe" ]]; then
         export PATH="${MSYS2_MINGW_BIN}:${PATH}"
         ok "mingw-w64-x86_64-gcc 安装成功"
@@ -393,7 +393,7 @@ install_as() {
 
   if [[ -d "/c/msys64" ]]; then
     if confirm_install "通过 MSYS2 pacman 安装 mingw-w64-x86_64-binutils"; then
-      pacman -S --noconfirm --needed mingw-w64-x86_64-binutils 2>&1
+      /c/msys64/usr/bin/bash.exe -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-binutils" 2>&1
       if [[ -f "${MSYS2_MINGW_BIN}/as.exe" ]]; then
         export PATH="${MSYS2_MINGW_BIN}:${PATH}"
         ok "mingw-w64-x86_64-binutils 安装成功，as.exe 已添加到 PATH"
