@@ -103,6 +103,11 @@ check_gnu() {
     if ! command -v g++ &>/dev/null || ! g++ --version &>/dev/null; then
       warn "GCC 已找到但 G++ 未找到，部分 C++ 依赖可能编译失败"
     fi
+
+    # 顺带检查 GNU 汇编器 as.exe（gcc 链接 / dlltool 需要），缺失则尝试安装
+    if ! check_as; then
+      install_as
+    fi
   fi
 
   if [[ "$FOUND" -eq 1 ]]; then
@@ -436,7 +441,7 @@ FAILED=0
 FOUND_CC=0
 
 # ─── 步骤 1：检查是否已安装 C/C++ 编译器 ─────────────────────────────────────
-echo -e "${CYAN}[1/4] 检查 C/C++ 编译器${RESET}"
+echo -e "${CYAN}[1/3] 检查 C/C++ 编译器${RESET}"
 
 HAS_MSVC=0
 HAS_GNU=0
@@ -460,7 +465,7 @@ if [[ "$FOUND_CC" -eq 1 ]]; then
 
   # ─── 步骤 2：检查 Rust 工具链（与已检测到的 C 编译器配套） ────────────────
   echo ""
-  echo -e "${CYAN}[2/4] 检查 Rust 工具链${RESET}"
+  echo -e "${CYAN}[2/3] 检查 Rust 工具链${RESET}"
   if ! check_rust; then
     warn "未检测到 rustc/rustup"
     if install_rustup; then
@@ -476,20 +481,9 @@ if [[ "$FOUND_CC" -eq 1 ]]; then
     fi
   fi
 
-  # ─── 步骤 3：检查 as.exe ──────────────────────────────────────────────────
+  # ─── 步骤 3：显示环境摘要 ──────────────────────────────────────────────────
   echo ""
-  echo -e "${CYAN}[3/4] 检查 GNU 汇编器 as.exe${RESET}"
-  if [[ "$RUSTC_HOST" == *windows-gnu* ]]; then
-    if ! check_as; then
-      install_as
-    fi
-  else
-    ok "跳过（仅 Rust *-windows-gnu 工具链需要；当前 host=${RUSTC_HOST:-未检测到}）"
-  fi
-
-  # ─── 步骤 4：显示环境摘要 ──────────────────────────────────────────────────
-  echo ""
-  echo -e "${CYAN}[4/4] 环境摘要${RESET}"
+  echo -e "${CYAN}[3/3] 环境摘要${RESET}"
   echo -e "  MSVC      ：$([ "$HAS_MSVC" -eq 1 ] && echo -e "${GREEN}已安装${RESET}" || echo -e "${YELLOW}未安装${RESET}")"
   echo -e "  GNU GCC   ：$([ "$HAS_GNU" -eq 1 ] && echo -e "${GREEN}已安装${RESET}" || echo -e "${YELLOW}未安装${RESET}")"
   if [[ -n "$RUSTC_HOST" ]]; then
@@ -507,7 +501,7 @@ fi
 echo ""
 echo -e "${RED}  ✗ 未检测到 C/C++ 编译器${RESET}"
 echo ""
-echo -e "${CYAN}[2/4] 选择安装方式${RESET}"
+echo -e "${CYAN}[2/3] 选择安装方式${RESET}"
 
 select_option "请选择要安装的工具链组合：" \
   "MSVC + Rust 工具链 (Visual Studio Build Tools + stable-x86_64-pc-windows-msvc)" \
@@ -527,21 +521,10 @@ case "$SELECTED_OPTION" in
     ;;
 esac
 
-# ─── 步骤 3：安装后检查 as.exe ───────────────────────────────────────────────
+# ─── 步骤 3：安装后摘要 ──────────────────────────────────────────────────────
 check_rust >/dev/null 2>&1 || true
 echo ""
-echo -e "${CYAN}[3/4] 检查 GNU 汇编器 as.exe${RESET}"
-if [[ "$RUSTC_HOST" == *windows-gnu* ]]; then
-  if ! check_as; then
-    install_as
-  fi
-else
-  ok "跳过（仅 Rust *-windows-gnu 工具链需要；当前 host=${RUSTC_HOST:-未检测到}）"
-fi
-
-# ─── 步骤 4：安装后摘要 ──────────────────────────────────────────────────────
-echo ""
-echo -e "${CYAN}[4/4] 环境摘要${RESET}"
+echo -e "${CYAN}[3/3] 环境摘要${RESET}"
 echo -e "  MSVC      ：$(check_msvc >/dev/null 2>&1 && echo -e "${GREEN}已安装${RESET}" || echo -e "${YELLOW}未安装${RESET}")"
 echo -e "  GNU GCC   ：$(command -v gcc >/dev/null 2>&1 && echo -e "${GREEN}已安装${RESET}" || echo -e "${YELLOW}未安装${RESET}")"
 if [[ -n "$RUSTC_HOST" ]]; then
