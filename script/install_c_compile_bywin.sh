@@ -304,6 +304,26 @@ install_msvc() {
   fi
 }
 
+# ─── 配置 MSYS2 国内镜像源（清华 TUNA），避免 mirror.msys2.org 慢/不通 ───────
+# 通过修改 /c/msys64/etc/pacman.d/mirrorlist.* 文件，把 TUNA 镜像放到首位
+setup_msys2_china_mirrors() {
+  local d="/c/msys64/etc/pacman.d"
+  [[ -d "$d" ]] || return 0
+  # 已配置过则跳过（标记文件）
+  if [[ -f "$d/.china_mirrors_added" ]]; then
+    return 0
+  fi
+  echo -e "${CYAN}  配置 MSYS2 国内镜像源（清华 TUNA）...${RESET}"
+  sed -i '1i Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/i686/'    "$d/mirrorlist.mingw32"    2>/dev/null || true
+  sed -i '1i Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/x86_64/'  "$d/mirrorlist.mingw64"    2>/dev/null || true
+  sed -i '1i Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/ucrt64/'  "$d/mirrorlist.ucrt64"     2>/dev/null || true
+  sed -i '1i Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/clang64/' "$d/mirrorlist.clang64"    2>/dev/null || true
+  sed -i '1i Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/clangarm64/' "$d/mirrorlist.clangarm64" 2>/dev/null || true
+  sed -i '1i Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/msys/$arch/'    "$d/mirrorlist.msys"       2>/dev/null || true
+  touch "$d/.china_mirrors_added"
+  ok "MSYS2 国内镜像源已配置"
+}
+
 # ─── 安装 GNU gcc ────────────────────────────────────────────────────────────
 install_gnu() {
   echo ""
@@ -329,6 +349,7 @@ install_gnu() {
 
     # gcc 不存在，通过 MSYS2 自带 bash 调用 pacman 安装（兼容 Git Bash）
     if confirm_install "通过 MSYS2 pacman 安装 mingw-w64-x86_64-gcc"; then
+      setup_msys2_china_mirrors
       /c/msys64/usr/bin/bash.exe -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" 2>&1
       if [[ -f "${MSYS2_MINGW_BIN}/gcc.exe" ]]; then
         export PATH="${MSYS2_MINGW_BIN}:${PATH}"
@@ -351,6 +372,7 @@ install_gnu() {
         winget install MSYS2.MSYS2 --accept-package-agreements --accept-source-agreements 2>&1
         if [[ -d "/c/msys64" ]]; then
           # 初始化 MSYS2 并安装 gcc + binutils
+          setup_msys2_china_mirrors
           /c/msys64/usr/bin/bash.exe -lc "pacman-key --init && pacman-key --populate msys2 && pacman -Sy --noconfirm archlinux-msys2-keyring && pacman -Su --noconfirm && pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" 2>&1
           if [[ -f "${MSYS2_MINGW_BIN}/gcc.exe" ]]; then
             export PATH="${MSYS2_MINGW_BIN}:${PATH}"
@@ -393,6 +415,7 @@ install_as() {
 
   if [[ -d "/c/msys64" ]]; then
     if confirm_install "通过 MSYS2 pacman 安装 mingw-w64-x86_64-binutils"; then
+      setup_msys2_china_mirrors
       /c/msys64/usr/bin/bash.exe -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-binutils" 2>&1
       if [[ -f "${MSYS2_MINGW_BIN}/as.exe" ]]; then
         export PATH="${MSYS2_MINGW_BIN}:${PATH}"
@@ -407,6 +430,7 @@ install_as() {
     if confirm_install "通过 winget 安装 MSYS2，然后安装 mingw-w64-x86_64-binutils"; then
       winget install MSYS2.MSYS2 --accept-package-agreements --accept-source-agreements 2>&1
       if [[ -d "/c/msys64" ]]; then
+        setup_msys2_china_mirrors
         /c/msys64/usr/bin/bash.exe -lc "pacman-key --init && pacman-key --populate msys2 && pacman -Sy --noconfirm archlinux-msys2-keyring && pacman -Su --noconfirm && pacman -S --noconfirm --needed mingw-w64-x86_64-binutils" 2>&1
         if [[ -f "${MSYS2_MINGW_BIN}/as.exe" ]]; then
           export PATH="${MSYS2_MINGW_BIN}:${PATH}"
