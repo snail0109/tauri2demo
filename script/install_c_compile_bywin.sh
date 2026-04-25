@@ -123,6 +123,23 @@ check_gnu() {
 RUSTC_VERSION=""
 RUSTC_HOST=""
 check_rust() {
+  # 若 rustc 不在 PATH 中，探测 cargo 的标准安装位置（rustup 默认装到 ~/.cargo/bin）
+  # 避免「Windows 用户 PATH 已更新但当前 Git Bash 会话未刷新」导致的误判
+  if ! command -v rustc &>/dev/null; then
+    local cargo_bin_candidates=(
+      "$HOME/.cargo/bin"
+      "${USERPROFILE:+$(cygpath -u "$USERPROFILE" 2>/dev/null)/.cargo/bin}"
+      "${CARGO_HOME:+$(cygpath -u "$CARGO_HOME" 2>/dev/null)/bin}"
+    )
+    for dir in "${cargo_bin_candidates[@]}"; do
+      [[ -z "$dir" ]] && continue
+      if [[ -f "${dir}/rustc.exe" ]]; then
+        export PATH="${dir}:${PATH}"
+        break
+      fi
+    done
+  fi
+
   if ! command -v rustc &>/dev/null; then
     return 1
   fi
