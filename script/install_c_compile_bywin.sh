@@ -127,8 +127,9 @@ check_rust() {
   fi
   RUSTC_VERSION=$(rustc --version 2>&1 | head -1)
   RUSTC_HOST=$(rustc -vV 2>/dev/null | awk -F': ' '/^host:/{print $2}' | tr -d '\r ')
-  ok "Rust 已安装：${RUSTC_VERSION}"
+  ok "Rust 工具链已安装"
   echo -e "    host：${RUSTC_HOST}"
+  echo -e "    版本：${RUSTC_VERSION}}"
   return 0
 }
 
@@ -195,9 +196,6 @@ ensure_rust_toolchain() {
   local target="x86_64-pc-windows-${abi}"
   local toolchain="stable-${target}"
 
-  echo ""
-  echo -e "${CYAN}═══ 配置 Rust 工具链（${target}）═══${RESET}"
-
   if ! command -v rustup &>/dev/null; then
     if ! install_rustup; then
       return 1
@@ -205,7 +203,6 @@ ensure_rust_toolchain() {
   fi
 
   if rustup toolchain list 2>/dev/null | grep -q "^${toolchain}"; then
-    ok "Rust 工具链 ${toolchain} 已安装"
   else
     if confirm_install "通过 rustup 安装 ${toolchain} 工具链"; then
       if rustup toolchain install "${toolchain}" 2>&1; then
