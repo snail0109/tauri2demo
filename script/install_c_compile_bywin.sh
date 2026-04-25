@@ -79,6 +79,14 @@ check_msvc() {
 # ─── 检查 GNU gcc ────────────────────────────────────────────────────────────
 check_gnu() {
   FOUND=0
+
+  # 若 gcc 不在 PATH 中，先尝试探测 MSYS2 标准安装路径并将其加入 PATH，
+  # 避免出现「PATH 中没有 gcc → 报未安装 → 进入安装流程后又发现已安装」的冲突。
+  MSYS2_MINGW_BIN="/c/msys64/mingw64/bin"
+  if ! command -v gcc &>/dev/null && [[ -f "${MSYS2_MINGW_BIN}/gcc.exe" ]]; then
+    export PATH="${MSYS2_MINGW_BIN}:${PATH}"
+  fi
+
   if command -v gcc &>/dev/null && gcc --version &>/dev/null; then
     GCC_PATH="$(which gcc)"
     GCC_INFO=$(gcc --version 2>&1 | head -1)
