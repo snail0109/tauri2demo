@@ -37,6 +37,8 @@ confirm_install() {
   esac
 }
 
+SELECTED_OPTION=0
+
 select_option() {
   local prompt="$1"
   shift
@@ -54,9 +56,9 @@ select_option() {
   read -r choice
 
   if [[ "$choice" -ge 1 && "$choice" -le "${#options[@]}" ]] 2>/dev/null; then
-    return "$choice"
+    SELECTED_OPTION="$choice"
   else
-    return 0
+    SELECTED_OPTION=0
   fi
 }
 
@@ -395,8 +397,7 @@ echo -e "${CYAN}[2/3] 选择安装方式${RESET}"
 
 select_option "请选择要安装的 C/C++ 编译工具链：" "MSVC (Visual Studio Build Tools)" "GNU gcc (MinGW-w64 / MSYS2)"
 
-CHOICE=$?
-case "$CHOICE" in
+case "$SELECTED_OPTION" in
   1)
     install_msvc
     ;;
