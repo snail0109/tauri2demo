@@ -201,21 +201,67 @@ install_gnu() {
   echo -e "${CYAN}═══ 安装 GNU gcc (MinGW-w64) ═══${RESET}"
   echo ""
 
-  # 优先尝试 pacman（MSYS2 环境）
-  if command -v pacman &>/dev/null; then
-    if confirm_install "通过 pacman 安装 mingw-w64-x86_64-gcc"; then
-      pacman -S --noconfirm mingw-w64-x86_64-gcc && {
+  MSYS2_MINGW_BIN="/c/msys64/mingw64/bin"
+
+  # ── 情况 1：MSYS2 已安装 → 直接用 pacman 安装 gcc ──
+  if [[ -d "/c/msys64" ]]; then
+    ok "检测到 MSYS2 已安装在 C:\\msys64"
+
+    # 检查 gcc 是否已经存在于 MSYS2 目录中（只是不在 PATH 中）
+    if [[ -f "${MSYS2_MINGW_BIN}/gcc.exe" ]]; then
+      export PATH="${MSYS2_MINGW_BIN}:${PATH}"
+      ok "gcc 已存在于 ${MSYS2_MINGW_BIN}，已添加到 PATH"
+      if check_gnu; then
+        ok "GNU gcc 安装验证通过！"
+      fi
+      return 0
+    fi
+
+    # gcc 不存在，通过 pacman 安装
+    if confirm_install "通过 MSYS2 pacman 安装 mingw-w64-x86_64-gcc"; then
+      /c/msys64/usr/bin/bash.exe -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" 2>&1
+      if [[ -f "${MSYS2_MINGW_BIN}/gcc.exe" ]]; then
+        export PATH="${MSYS2_MINGW_BIN}:${PATH}"
         ok "mingw-w64-x86_64-gcc 安装成功"
-        refresh_path
         if check_gnu; then
           ok "GNU gcc 安装验证通过！"
         fi
         return 0
-      } || warn "pacman 安装失败"
+      else
+        warn "pacman 安装完成但未找到 gcc.exe，可能需要更新 MSYS2："
+        warn "  /c/msys64/usr/bin/bash.exe -lc 'pacman -Syu --noconfirm && pacman -S --noconfirm mingw-w64-x86_64-gcc'"
+      fi
+    fi
+
+  # ── 情况 2：MSYS2 未安装 → 先安装 MSYS2 再装 gcc ──
+  else
+    if command -v winget &>/dev/null; then
+      if confirm_install "通过 winget 安装 MSYS2，然后安装 mingw-w64-x86_64-gcc"; then
+        winget install MSYS2.MSYS2 --accept-package-agreements --accept-source-agreements 2>&1
+        if [[ -d "/c/msys64" ]]; then
+          # 初始化 MSYS2 并安装 gcc + binutils
+          /c/msys64/usr/bin/bash.exe -lc "pacman-key --init && pacman-key --populate msys2 && pacman -Sy --noconfirm archlinux-msys2-keyring && pacman -Su --noconfirm && pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" 2>&1
+          if [[ -f "${MSYS2_MINGW_BIN}/gcc.exe" ]]; then
+            export PATH="${MSYS2_MINGW_BIN}:${PATH}"
+            ok "MSYS2 + mingw-w64-gcc 安装成功"
+            if check_gnu; then
+              ok "GNU gcc 安装验证通过！"
+            fi
+            return 0
+          else
+            warn "MSYS2 已安装但 gcc 安装可能不完整，请手动执行："
+            warn "  /c/msys64/usr/bin/bash.exe -lc 'pacman -S --noconfirm mingw-w64-x86_64-gcc'"
+          fi
+        else
+          warn "winget 安装 MSYS2 后未在 C:\\msys64 找到安装目录"
+        fi
+      fi
+    else
+      warn "winget 未找到，无法自动安装 MSYS2"
     fi
   fi
 
-  # 尝试通过 rustup 安装 GNU 工具链
+  # ── 回退：尝试通过 rustup 安装 GNU 工具链 ──
   if command -v rustup &>/dev/null; then
     if confirm_install "通过 rustup 安装 stable-x86_64-pc-windows-gnu 工具链"; then
       rustup toolchain install stable-x86_64-pc-windows-gnu && {
@@ -233,30 +279,6 @@ install_gnu() {
           rm -f "$TEST_SRC" "$TEST_BIN"
         fi
       } || warn "rustup 工具链安装失败"
-    fi
-  fi
-
-  # 尝试通过 winget 安装 MSYS2（包含 gcc）
-  if command -v winget &>/dev/null; then
-    if confirm_install "通过 winget 安装 MSYS2（包含 mingw-w64-gcc）"; then
-      winget install MSYS2.MSYS2 --accept-package-agreements --accept-source-agreements 2>&1
-      if [[ -d "/c/msys64" ]]; then
-        /c/msys64/usr/bin/bash.exe -lc "pacman-key --init && pacman-key --populate msys2 && pacman -Sy --noconfirm archlinux-msys2-keyring && pacman -Su --noconfirm && pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" 2>&1
-        MSYS2_MINGW_BIN="/c/msys64/mingw64/bin"
-        if [[ -f "${MSYS2_MINGW_BIN}/gcc.exe" ]]; then
-          export PATH="${MSYS2_MINGW_BIN}:${PATH}"
-          ok "MSYS2 + mingw-w64-gcc 安装成功"
-          if check_gnu; then
-            ok "GNU gcc 安装验证通过！"
-          fi
-          return 0
-        else
-          warn "MSYS2 已安装但 gcc 未找到，请手动执行："
-          warn "  /c/msys64/usr/bin/bash.exe -lc 'pacman -S --noconfirm mingw-w64-x86_64-gcc'"
-        fi
-      else
-        warn "winget 安装 MSYS2 后未在 C:\\msys64 找到安装目录"
-      fi
     fi
   fi
 
