@@ -29,6 +29,100 @@ if [[ "${1:-}" == "-y" || "${1:-}" == "--yes" ]]; then
   AUTO_ACCEPT=1
 fi
 
+# ─── Confirm helper ──────────────────────────────────────────────────────────
+confirm_install() {
+  local desc="$1"
+  if [[ "$AUTO_ACCEPT" -eq 1 ]]; then
+    echo -e "${YELLOW}  自动确认：${desc}${RESET}"
+    return 0
+  fi
+  echo -e "${YELLOW}  ? ${desc} 是否继续？[Y/n]${RESET}"
+  read -r answer
+  case "$answer" in
+    n|N|no|No|NO) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+# ─── Bootstrap sdkmanager（自动下载 Android 命令行工具包） ───────────────────
+# 参数：$1 = SDK 根目录（如 C:/DevDisk/DevTools/AndroidSDK）
+# 完成后：${sdk_root}/cmdline-tools/latest/bin/sdkmanager.bat 可用
+bootstrap_sdkmanager() {
+  local sdk_root="$1"
+  # Android 官方命令行工具包（Windows 版本）
+  # 版本 11076708 = cmdline-tools 12.0（稳定版本，2024 年发布）
+  local zip_name="commandlinetools-win-11076708_latest.zip"
+  # 多镜像源（按顺序尝试）：华为云 → 腾讯云 → Google 官方
+  local zip_urls=(
+    "https://mirrors.huaweicloud.com/android/repository/${zip_name}"
+    "https://mirrors.cloud.tencent.com/AndroidSDK/${zip_name}"
+    "https://dl.google.com/android/repository/${zip_name}"
+  )
+
+  mkdir -p "${sdk_root}/cmdline-tools"
+
+  local tmp_zip tmp_extract
+  tmp_zip="$(mktemp /tmp/cmdline-tools_XXXXXX.zip)"
+  tmp_extract="$(mktemp -d /tmp/cmdline-tools_extract_XXXXXX)"
+
+  # 依次尝试镜像源；--ssl-no-revoke 解决 Windows schannel CRYPT_E_REVOCATION_OFFLINE
+  local downloaded=0
+  for url in "${zip_urls[@]}"; do
+    echo -e "${CYAN}  尝试下载：${url}${RESET}"
+    if curl -fSL --ssl-no-revoke --connect-timeout 15 -o "$tmp_zip" "$url"; then
+      ok "下载完成（来源：${url}）"
+      downloaded=1
+      break
+    else
+      warn "下载失败，尝试下一个镜像 ..."
+    fi
+  done
+
+  if [[ "$downloaded" -ne 1 ]]; then
+    fail "所有镜像源下载失败"
+    rm -rf "$tmp_zip" "$tmp_extract"
+    return 1
+  fi
+
+  echo -e "${CYAN}  解压到临时目录 ...${RESET}"
+  if command -v unzip &>/dev/null; then
+    if ! unzip -q "$tmp_zip" -d "$tmp_extract"; then
+      fail "unzip 解压失败"
+      rm -rf "$tmp_zip" "$tmp_extract"
+      return 1
+    fi
+  else
+    # 退路：PowerShell Expand-Archive
+    local zip_win extract_win
+    zip_win="$(cygpath -w "$tmp_zip")"
+    extract_win="$(cygpath -w "$tmp_extract")"
+    if ! powershell -NoProfile -Command "Expand-Archive -LiteralPath '$zip_win' -DestinationPath '$extract_win' -Force"; then
+      fail "PowerShell Expand-Archive 解压失败"
+      rm -rf "$tmp_zip" "$tmp_extract"
+      return 1
+    fi
+  fi
+
+  # 解压后结构：${tmp_extract}/cmdline-tools/{bin,lib,...}
+  # 需移到：${sdk_root}/cmdline-tools/latest/{bin,lib,...}
+  if [[ ! -d "${tmp_extract}/cmdline-tools" ]]; then
+    fail "解压后未找到 cmdline-tools 目录"
+    rm -rf "$tmp_zip" "$tmp_extract"
+    return 1
+  fi
+
+  rm -rf "${sdk_root}/cmdline-tools/latest"
+  mv "${tmp_extract}/cmdline-tools" "${sdk_root}/cmdline-tools/latest"
+  rm -rf "$tmp_zip" "$tmp_extract"
+
+  if [[ -f "${sdk_root}/cmdline-tools/latest/bin/sdkmanager.bat" ]]; then
+    ok "sdkmanager 已安装：${sdk_root}/cmdline-tools/latest/bin/sdkmanager.bat"
+    return 0
+  fi
+  fail "安装后仍未找到 sdkmanager.bat"
+  return 1
+}
+
 echo ""
 echo -e "${CYAN}═══════════════════════════════════════════════════════${RESET}"
 echo -e "${CYAN}  Android SDK 自动安装脚本（Windows Git Bash）         ${RESET}"
@@ -67,9 +161,21 @@ fi
 if [[ -f "$SDKMANAGER" ]]; then
   ok "sdkmanager 已找到：$SDKMANAGER"
 else
-  fail "sdkmanager 未找到：$SDKMANAGER"
-  fail "请确认 sdkmanager.bat 已安装在上述路径，或设置 ANDROID_HOME 环境变量。"
-  exit 1
+  warn "sdkmanager 未找到：$SDKMANAGER"
+  # 默认 SDK 根目录（与脚本顶部默认路径一致）
+  SDK_ROOT_DEFAULT="C:/DevDisk/DevTools/AndroidSDK"
+  if confirm_install "自动下载 Android 命令行工具包到 ${SDK_ROOT_DEFAULT}"; then
+    if bootstrap_sdkmanager "$SDK_ROOT_DEFAULT"; then
+      SDKMANAGER="${SDK_ROOT_DEFAULT}/cmdline-tools/latest/bin/sdkmanager.bat"
+    else
+      fail "命令行工具包下载/安装失败"
+      fail "请手动下载：https://developer.android.com/studio#command-tools"
+      exit 1
+    fi
+  else
+    fail "已跳过命令行工具包下载，无法继续"
+    exit 1
+  fi
 fi
 
 # 推导 ANDROID_HOME（sdkmanager 所在 SDK 根目录）
@@ -168,6 +274,12 @@ REQUIRED_TARGETS=(
   "i686-linux-android"
   "x86_64-linux-android"
 )
+
+# 探测 cargo bin 路径（与 install_c_compile_bywin.sh 对齐）：
+# Windows 用户 PATH 已更新但当前 shell 未刷新时，bare `command -v rustup` 会误判
+if ! command -v rustup &>/dev/null && [[ -f "$HOME/.cargo/bin/rustup.exe" ]]; then
+  export PATH="$HOME/.cargo/bin:$PATH"
+fi
 
 if command -v rustup &>/dev/null; then
   INSTALLED_TARGETS=$(rustup target list --installed 2>/dev/null)
