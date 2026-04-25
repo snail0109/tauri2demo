@@ -73,7 +73,7 @@ check_msvc() {
     MSVC_PATH="$(which cl.exe)"
     # 尝试获取 MSVC 版本信息
     CL_INFO=$(cl.exe 2>&1 | head -2 | tr '\r' ' ' | tr '\n' ' ')
-    echo -e "${GREEN}  ✓${RESET} MSVC cl.exe 已安装"
+    ok "MSVC cl.exe 已安装"
     echo -e "    路径：${MSVC_PATH}"
     echo -e "    版本：${CL_INFO}"
     return 0
@@ -95,7 +95,7 @@ check_gnu() {
 
   if command -v gcc &>/dev/null && gcc --version &>/dev/null; then
     GCC_INFO=$(gcc --version 2>&1 | head -1)
-    echo -e "${GREEN}  ✓${RESET} GNU GCC 编译器已安装"
+    ok "GNU GCC 编译器已安装"
     echo -e "    路径：$(which gcc)"
     echo -e "    版本：${GCC_INFO}"
     FOUND=1
