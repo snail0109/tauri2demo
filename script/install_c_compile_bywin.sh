@@ -460,7 +460,7 @@ echo -e "${CYAN}[2/4] 选择安装方式${RESET}"
 
 select_option "请选择要安装的工具链组合：" \
   "MSVC + Rust 工具链 (Visual Studio Build Tools + stable-x86_64-pc-windows-msvc)" \
-  "GNU gcc + Rust 工具链 (MinGW-w64 / MSYS2 + stable-x86_64-pc-windows-gnu)"
+  "GNU  + Rust 工具链 (MinGW-w64 / MSYS2 + stable-x86_64-pc-windows-gnu)"
 
 case "$SELECTED_OPTION" in
   1)
