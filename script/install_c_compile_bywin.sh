@@ -243,11 +243,13 @@ ensure_rust_toolchain() {
 check_as() {
   MSYS2_MINGW_BIN="/c/msys64/mingw64/bin"
   if command -v as &>/dev/null; then
-    ok "GNU 汇编器 as 已在 PATH 中"
+    ok "GNU 汇编器 as 已安装"
+    echo -e "    路径：$(which as)"
     return 0
   elif [[ -f "${MSYS2_MINGW_BIN}/as.exe" ]]; then
     export PATH="${MSYS2_MINGW_BIN}:${PATH}"
-    ok "GNU 汇编器 as 已找到：${MSYS2_MINGW_BIN}/as.exe（已添加到 PATH）"
+    ok "GNU 汇编器 as 已安装（已添加到 PATH）"
+    echo -e "    路径：${MSYS2_MINGW_BIN}/as.exe"
     return 0
   fi
   return 1
