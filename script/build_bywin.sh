@@ -112,47 +112,23 @@ if [[ "$FAILED" -ne 0 ]]; then
 fi
 
 # ─── 2. Java (JDK 17+) ────────────────────────────────────────────────────────
+# 仅检测，不安装；JDK 是 install_android_sdk_bywin.sh 的前置依赖
 echo -e "${CYAN}[2/8] Java JDK（17+）${RESET}"
 if command -v java &>/dev/null; then
   JAVA_VER=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+' | head -1)
   if [[ "$JAVA_VER" -ge 17 ]]; then
     ok "Java $JAVA_VER 已安装：$(which java)"
   else
-    fail "检测到 Java $JAVA_VER，但需要 JDK 17+。"
-    if confirm_install "通过 winget 安装 Eclipse Adoptium Temurin JDK 17"; then
-      winget install EclipseAdoptium.Temurin.17.JDK --accept-package-agreements --accept-source-agreements && {
-        refresh_path
-        # 验证安装
-        if command -v java &>/dev/null; then
-          JAVA_VER=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+' | head -1)
-          ok "Java $JAVA_VER 安装成功：$(which java)"
-        else
-          warn "JDK 已安装但当前 shell 未生效，请重新运行此脚本"
-        fi
-      } || warn "winget 安装 JDK 失败"
-    else
-      fail "请从 https://adoptium.net/ 下载 JDK 17+，或通过 winget 安装：winget install EclipseAdoptium.Temurin.17.JDK"
-    fi
+    fail "检测��� Java $JAVA_VER，但需要 JDK 17+"
+    fail "请从 https://adoptium.net/ 下载，或运行：winget install EclipseAdoptium.Temurin.17.JDK"
   fi
 else
   fail "未找到 Java"
-  if confirm_install "通过 winget 安装 Eclipse Adoptium Temurin JDK 17"; then
-    winget install EclipseAdoptium.Temurin.17.JDK --accept-package-agreements --accept-source-agreements && {
-      refresh_path
-      if command -v java &>/dev/null; then
-        JAVA_VER=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+' | head -1)
-        ok "Java $JAVA_VER 安装成功：$(which java)"
-      else
-        warn "JDK 已安装但当前 shell 未生效，请重新运行此脚本"
-      fi
-    } || warn "winget 安装 JDK 失败"
-  else
-    fail "请从 https://adoptium.net/ 下载 JDK 17+"
-    fail "或运行：winget install EclipseAdoptium.Temurin.17.JDK"
-  fi
+  fail "请从 https://adoptium.net/ 下载 JDK 17+，或运行：winget install EclipseAdoptium.Temurin.17.JDK"
 fi
 
 # ─── 3. ANDROID_HOME ──────────────────────────────────────────────────────────
+# 仅检测，不安装
 echo -e "${CYAN}[3/8] ANDROID_HOME${RESET}"
 ANDROID_HOME="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
 
@@ -162,7 +138,6 @@ ANDROID_HOME="${ANDROID_HOME%\"}"
 
 # 将 Windows 格式路径转换为 Unix 格式（Git Bash 环境）
 if [[ -n "$ANDROID_HOME" ]]; then
-  # 检测是否为 Windows 格式路径（包含反斜杠或 X:\ 格式）
   if [[ "$ANDROID_HOME" == *'\\'* ]] || [[ "$ANDROID_HOME" =~ ^[A-Za-z]: ]]; then
     AH_UNIX="$(cygpath -u "$ANDROID_HOME" 2>/dev/null || echo "")"
     if [[ -n "$AH_UNIX" ]]; then
@@ -174,116 +149,48 @@ fi
 if [[ -n "$ANDROID_HOME" && -d "$ANDROID_HOME" ]]; then
   ok "ANDROID_HOME=$ANDROID_HOME"
 else
-  # 如果仍未找到，尝试已知的 SDK 安装路径
+  # 尝试已知候选路径
   CANDIDATE_PATHS=(
     "C:/DevDisk/DevTools/AndroidSDK"
     "$LOCALAPPDATA/Android/Sdk"
     "$HOME/AppData/Local/Android/Sdk"
   )
-
   FOUND_SDK=0
   for CANDIDATE in "${CANDIDATE_PATHS[@]}"; do
     if [[ -d "$CANDIDATE" ]]; then
       export ANDROID_HOME="$CANDIDATE"
       warn "ANDROID_HOME 未设置，使用检测到的路径：$ANDROID_HOME"
-      warn "建议运行 ./script/install_android_sdk_bywin.sh 设置环境变量"
       FOUND_SDK=1
       break
     fi
   done
-
   if [[ "$FOUND_SDK" -eq 0 ]]; then
-    fail "ANDROID_HOME 未设置且未检测到 Android SDK 安装路径。"
-    if confirm_install "运行 ./script/install_android_sdk_bywin.sh 安装 SDK"; then
-      SCRIPT_DIR_TMP="$(cd "$(dirname "$0")" && pwd)"
-      bash "${SCRIPT_DIR_TMP}/install_android_sdk_bywin.sh" -y && {
-        # 安装脚本可能设置了 ANDROID_HOME，重新检测候选路径
-        for CANDIDATE in "${CANDIDATE_PATHS[@]}"; do
-          if [[ -d "$CANDIDATE" ]]; then
-            export ANDROID_HOME="$CANDIDATE"
-            FOUND_SDK=1
-            break
-          fi
-        done
-        # 也检查环境变量
-        if [[ "$FOUND_SDK" -eq 0 && -n "${ANDROID_HOME:-}" && -d "${ANDROID_HOME:-}" ]]; then
-          FOUND_SDK=1
-        fi
-        if [[ "$FOUND_SDK" -eq 1 ]]; then
-          ok "Android SDK 安装成功，ANDROID_HOME=$ANDROID_HOME"
-        else
-          warn "SDK 安装脚本已运行，但未检测到 SDK 路径，请重新运行此脚本"
-        fi
-      } || warn "install_android_sdk_bywin.sh 执行失败"
-    else
-      fail "请运行 ./script/install_android_sdk_bywin.sh 安装 SDK，或手动设置 ANDROID_HOME 环境变量。"
-    fi
+    fail "ANDROID_HOME 未设置且未检测到 Android SDK 安装路径"
+    fail "请运行 ./script/install_android_sdk_bywin.sh 安装"
   fi
 fi
 
 # ─── 4. Android SDK Tools ─────────────────────────────────────────────────────
+# 仅检测，不安装
 echo -e "${CYAN}[4/8] Android SDK 工具（adb、sdkmanager）${RESET}"
-# Windows 下可执行文件带 .exe 后缀
 if [[ -f "${ANDROID_HOME}/platform-tools/adb.exe" ]]; then
   ok "adb 已找到：${ANDROID_HOME}/platform-tools/adb.exe"
 else
-  fail "未找到 adb.exe（路径：${ANDROID_HOME}/platform-tools/adb.exe）"
-  SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager.bat"
-  if [[ -f "$SDKMANAGER" ]]; then
-    if confirm_install "通过 sdkmanager 安装 platform-tools"; then
-      export MSYS_NO_PATHCONV=1
-      SDKMANAGER_WIN="$(cygpath -w "$SDKMANAGER" 2>/dev/null || echo "$SDKMANAGER")"
-      SDK_ROOT_WIN="$(cygpath -w "$ANDROID_HOME" 2>/dev/null || echo "$ANDROID_HOME")"
-      yes | cmd.exe /c "$SDKMANAGER_WIN" --sdk_root="$SDK_ROOT_WIN" "platform-tools" && {
-        ok "platform-tools 安装成功"
-      } || warn "sdkmanager 安装 platform-tools 失败"
-      unset MSYS_NO_PATHCONV
-    fi
-  else
-    warn "sdkmanager 未找到，无法自动安装 platform-tools"
-    warn "请在 Android Studio SDK Manager 中安装 platform-tools"
-  fi
+  fail "未找到 adb.exe（${ANDROID_HOME}/platform-tools/adb.exe）"
+  fail "请运行 ./script/install_android_sdk_bywin.sh 安装 platform-tools"
 fi
 
 SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager.bat"
 if [[ -f "$SDKMANAGER" ]]; then
   ok "sdkmanager 已找到：${SDKMANAGER}"
 else
-  warn "sdkmanager 未找到：${SDKMANAGER}"
-  # 检查是否有其他版本的 cmdline-tools
-  ALT_SDKMANAGER=""
-  if [[ -d "${ANDROID_HOME}/cmdline-tools" ]]; then
-    for dir in "${ANDROID_HOME}/cmdline-tools"/*/bin; do
-      if [[ -f "${dir}/sdkmanager.bat" ]]; then
-        ALT_SDKMANAGER="${dir}/sdkmanager.bat"
-        break
-      fi
-    done
-  fi
-
-  if [[ -n "$ALT_SDKMANAGER" ]]; then
-    if confirm_install "通过 sdkmanager 安装 cmdline-tools;latest"; then
-      export MSYS_NO_PATHCONV=1
-      ALT_SDKMANAGER_WIN="$(cygpath -w "$ALT_SDKMANAGER" 2>/dev/null || echo "$ALT_SDKMANAGER")"
-      SDK_ROOT_WIN="$(cygpath -w "$ANDROID_HOME" 2>/dev/null || echo "$ANDROID_HOME")"
-      yes | cmd.exe /c "$ALT_SDKMANAGER_WIN" --sdk_root="$SDK_ROOT_WIN" "cmdline-tools;latest" && {
-        ok "cmdline-tools;latest 安装成功"
-        SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager.bat"
-      } || warn "sdkmanager 安装 cmdline-tools;latest 失败"
-      unset MSYS_NO_PATHCONV
-    fi
-  else
-    warn "无可用 sdkmanager，无法自动安装 cmdline-tools"
-    warn "请在 Android Studio SDK Manager > SDK Tools > Android SDK Command-line Tools 中安装"
-    warn "或运行：./script/install_android_sdk_bywin.sh"
-  fi
+  fail "sdkmanager 未找到：${SDKMANAGER}"
+  fail "请运行 ./script/install_android_sdk_bywin.sh 安装 cmdline-tools;latest"
 fi
 
 # ─── 5. NDK ───────────────────────────────────────────────────────────────────
+# 仅检测，不安装
 echo -e "${CYAN}[5/8] Android NDK${RESET}"
-# NDK 可能安装在两种目录结构中：
-#   1. ndk/<version>/ — 新版 NDK（推荐，通过 sdkmanager 安装 ndk;27.x.x）
-#   2. ndk-bundle/     — 旧版 NDK（已废弃，通过 ndk-bundle 包安装）
 NDK_DIR="${ANDROID_HOME}/ndk"
 NDK_BUNDLE_DIR="${ANDROID_HOME}/ndk-bundle"
 NDK_PATH=""
@@ -296,17 +203,14 @@ if [[ -d "$NDK_DIR" ]]; then
   fi
 fi
 
-# 如果 ndk/ 目录不存在或为空，尝试 ndk-bundle/
 if [[ -z "$NDK_PATH" && -d "$NDK_BUNDLE_DIR" ]]; then
-  # 从 source.properties 读取版本号
   if [[ -f "${NDK_BUNDLE_DIR}/source.properties" ]]; then
     NDK_VER=$(grep 'Pkg.Revision' "${NDK_BUNDLE_DIR}/source.properties" 2>/dev/null | awk '{print $NF}' || echo "unknown")
   else
     NDK_VER="ndk-bundle"
   fi
   NDK_PATH="$NDK_BUNDLE_DIR"
-  warn "检测到旧版 ndk-bundle（版本 $NDK_VER），建议安装新版 NDK："
-  warn "  sdkmanager --install 'ndk;27.0.12077973'"
+  warn "检测到旧版 ndk-bundle（版本 $NDK_VER），建议安装新版 NDK"
 fi
 
 if [[ -n "$NDK_PATH" ]]; then
@@ -314,31 +218,17 @@ if [[ -n "$NDK_PATH" ]]; then
   ok "NDK 版本：$NDK_VER → $NDK_PATH"
 else
   fail "未找到 NDK（路径：$NDK_DIR 和 $NDK_BUNDLE_DIR 均不存在）"
-  SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager.bat"
-  if [[ -f "$SDKMANAGER" ]]; then
-    if confirm_install "通过 sdkmanager 安装 NDK 27.0.12077973"; then
-      export MSYS_NO_PATHCONV=1
-      SDKMANAGER_WIN="$(cygpath -w "$SDKMANAGER" 2>/dev/null || echo "$SDKMANAGER")"
-      SDK_ROOT_WIN="$(cygpath -w "$ANDROID_HOME" 2>/dev/null || echo "$ANDROID_HOME")"
-      yes | cmd.exe /c "$SDKMANAGER_WIN" --sdk_root="$SDK_ROOT_WIN" "ndk;27.0.12077973" && {
-        ok "NDK 安装成功"
-        # 重新检测 NDK
-        if [[ -d "$NDK_DIR" ]]; then
-          NDK_VER=$(ls "$NDK_DIR" | sort -V | tail -1)
-          if [[ -n "$NDK_VER" ]]; then
-            NDK_PATH="${NDK_DIR}/${NDK_VER}"
-            export ANDROID_NDK_HOME="$NDK_PATH"
-            ok "NDK 版本：$NDK_VER → $NDK_PATH"
-          fi
-        fi
-      } || warn "sdkmanager 安装 NDK 失败"
-      unset MSYS_NO_PATHCONV
-    fi
-  else
-    fail "sdkmanager 未找到，无法自动安装 NDK"
-    fail "请运行 ./script/install_android_sdk_bywin.sh"
-    fail "或在 Android Studio SDK Manager → NDK (Side by side) 中安装。"
-  fi
+  fail "请运行 ./script/install_android_sdk_bywin.sh 安装"
+fi
+
+# Android 工具链任一缺失则立即退出
+if [[ "$FAILED" -ne 0 ]]; then
+  echo ""
+  echo -e "${RED}══════════════════════════════════════════${RESET}"
+  echo -e "${RED}  Android 工具链未就绪，已中止。${RESET}"
+  echo -e "${RED}  请运行 ./script/install_android_sdk_bywin.sh${RESET}"
+  echo -e "${RED}══════════════════════════════════════════${RESET}"
+  exit 1
 fi
 
 # ─── 6. Rust Android targets ──────────────────────────────────────────────────
