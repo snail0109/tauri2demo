@@ -133,6 +133,62 @@ check_rust() {
   return 0
 }
 
+# ─── 安装 rustup（Rust 工具链管理器） ───────────────────────────────────────
+install_rustup() {
+  if command -v rustup &>/dev/null; then
+    return 0
+  fi
+
+  echo ""
+  echo -e "${CYAN}═══ 安装 rustup ═══${RESET}"
+
+  if ! confirm_install "安装 rustup（Rust 工具链管理器）"; then
+    warn "已跳过 rustup 安装"
+    return 1
+  fi
+
+  # ── 优先尝试 winget ──
+  if command -v winget &>/dev/null; then
+    echo -e "${CYAN}  尝试通过 winget 安装 Rustlang.Rustup ...${RESET}"
+    winget install --id Rustlang.Rustup --accept-package-agreements --accept-source-agreements --silent 2>&1 || true
+    # 把 cargo bin 加入 PATH
+    if [[ -d "$HOME/.cargo/bin" ]]; then
+      export PATH="$HOME/.cargo/bin:$PATH"
+    fi
+    if command -v rustup &>/dev/null; then
+      ok "rustup 安装成功：$(rustup --version 2>&1 | head -1)"
+      return 0
+    fi
+    warn "winget 未生效或未找到 rustup,改用 rustup-init.exe ..."
+  fi
+
+  # ── 回退：下载 rustup-init.exe 静默安装 ──
+  local installer
+  installer=$(mktemp /tmp/rustup_init_XXXXXX.exe)
+  echo -e "${CYAN}  正在下载 rustup-init.exe ...${RESET}"
+  if ! curl -fSL -o "$installer" "https://win.rustup.rs/x86_64" 2>/dev/null; then
+    rm -f "$installer"
+    fail "下载 rustup-init.exe 失败"
+    fail "请手动访问 https://rustup.rs 安装"
+    return 1
+  fi
+  ok "下载完成，启动 rustup-init（默认 toolchain=none，由本脚本后续配置）..."
+  cmd.exe /c "$installer" -y --default-toolchain none --no-modify-path 2>&1 || true
+  rm -f "$installer"
+
+  if [[ -d "$HOME/.cargo/bin" ]]; then
+    export PATH="$HOME/.cargo/bin:$PATH"
+  fi
+
+  if command -v rustup &>/dev/null; then
+    ok "rustup 安装成功：$(rustup --version 2>&1 | head -1)"
+    return 0
+  fi
+
+  fail "rustup 自动安装失败，请手动访问 https://rustup.rs 安装"
+  return 1
+}
+
 # ─── 确保对应 ABI 的 Rust 工具链已安装并设为默认 ─────────────────────────────
 # 参数：msvc | gnu
 ensure_rust_toolchain() {
@@ -144,9 +200,9 @@ ensure_rust_toolchain() {
   echo -e "${CYAN}═══ 配置 Rust 工具链（${target}）═══${RESET}"
 
   if ! command -v rustup &>/dev/null; then
-    warn "未检测到 rustup,请先安装：https://rustup.rs"
-    warn "安装 rustup 后再次运行本脚本将自动配置 ${toolchain}"
-    return 1
+    if ! install_rustup; then
+      return 1
+    fi
   fi
 
   if rustup toolchain list 2>/dev/null | grep -q "^${toolchain}"; then
@@ -418,9 +474,13 @@ if [[ "$FOUND_CC" -eq 1 ]]; then
   echo ""
   echo -e "${CYAN}[2/4] 检查 Rust 工具链${RESET}"
   if ! check_rust; then
-    warn "未检测到 rustc/rustup,请先安装：https://rustup.rs"
-  else
-    # 当只有一种 C 编译器时，确保对应 ABI 的 Rust 工具链可用
+    warn "未检测到 rustc/rustup"
+    if install_rustup; then
+      check_rust >/dev/null 2>&1 || true
+    fi
+  fi
+  # 当只有一种 C 编译器时，确保对应 ABI 的 Rust 工具链可用
+  if command -v rustup &>/dev/null; then
     if [[ "$HAS_MSVC" -eq 1 && "$HAS_GNU" -eq 0 ]]; then
       ensure_rust_toolchain msvc || true
     elif [[ "$HAS_GNU" -eq 1 && "$HAS_MSVC" -eq 0 ]]; then
