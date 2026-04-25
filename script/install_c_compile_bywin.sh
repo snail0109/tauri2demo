@@ -202,8 +202,7 @@ ensure_rust_toolchain() {
     fi
   fi
 
-  if rustup toolchain list 2>/dev/null | grep -q "^${toolchain}"; then
-  else
+  if ! rustup toolchain list 2>/dev/null | grep -q "^${toolchain}"; then
     if confirm_install "通过 rustup 安装 ${toolchain} 工具链"; then
       if rustup toolchain install "${toolchain}" 2>&1; then
         ok "Rust 工具链 ${toolchain} 安装成功"
