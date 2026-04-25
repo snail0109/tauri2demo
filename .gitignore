@@ -29,3 +29,4 @@ backend/src-tauri/gen/ios
 .claude/settings.local.json
 
 .worktrees
+script/提示词

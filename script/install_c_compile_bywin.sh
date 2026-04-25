@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# install_c_compile_bywin.sh — Windows (Git Bash / MSYS2) C/C++ 编译工具安装脚本
+# install_c_compile_bywin.sh — Windows (Git Bash / MSYS2) Rust 编译依赖工具链安装脚本
 # 功能：
-#   1. 检查是否已安装 C/C++ 编译器（MSVC / GNU gcc）
-#   2. 如果已安装，显示环境信息后退出
-#   3. 如果未安装，让用户选择安装 MSVC 或 GNU 工具链
+#   1. 检查是否已安装 C/C++ 编译器（MSVC / GNU gcc）及 Rust 工具链
+#   2. 如果已安装，验证 Rust 工具链与 C 编译器 ABI 匹配后显示摘要退出
+#   3. 如果未安装，让用户在以下两套组合中选择：
+#        • MSVC + Rust (stable-x86_64-pc-windows-msvc)
+#        • GNU gcc + Rust (stable-x86_64-pc-windows-gnu)
 
 set -euo pipefail
 
@@ -117,25 +119,63 @@ check_gnu() {
   return 1
 }
 
-# ─── 检查 Rust GNU 工具链（间接验证 gcc 可用） ──────────────────────────────
-check_rust_gnu() {
+# ─── 检查 Rust 工具链 ───────────────────────────────────────────────────────
+RUSTC_VERSION=""
+RUSTC_HOST=""
+check_rust() {
   if ! command -v rustc &>/dev/null; then
     return 1
   fi
+  RUSTC_VERSION=$(rustc --version 2>&1 | head -1)
+  RUSTC_HOST=$(rustc -vV 2>/dev/null | awk -F': ' '/^host:/{print $2}' | tr -d '\r ')
+  ok "Rust 已安装：${RUSTC_VERSION}"
+  echo -e "    host：${RUSTC_HOST}"
+  return 0
+}
 
-  RUSTC_INFO=$(rustc --version --verbose 2>&1 | head -2 | tr '\n' ' ')
-  TEST_SRC=$(mktemp /tmp/test_rust_XXXXXX.rs)
-  TEST_BIN=$(mktemp /tmp/test_rust_XXXXXX.exe)
-  echo 'fn main() {}' > "$TEST_SRC"
-  if rustc "$TEST_SRC" -o "$TEST_BIN" 2>/dev/null; then
-    rm -f "$TEST_SRC" "$TEST_BIN"
-    echo -e "${GREEN}  ✓${RESET} Rust GNU 工具链可用（gcc 由 Rust 自带）"
-    echo -e "    版本：${RUSTC_INFO}"
-    return 0
-  else
-    rm -f "$TEST_SRC" "$TEST_BIN"
+# ─── 确保对应 ABI 的 Rust 工具链已安装并设为默认 ─────────────────────────────
+# 参数：msvc | gnu
+ensure_rust_toolchain() {
+  local abi="$1"
+  local target="x86_64-pc-windows-${abi}"
+  local toolchain="stable-${target}"
+
+  echo ""
+  echo -e "${CYAN}═══ 配置 Rust 工具链（${target}）═══${RESET}"
+
+  if ! command -v rustup &>/dev/null; then
+    warn "未检测到 rustup,请先安装：https://rustup.rs"
+    warn "安装 rustup 后再次运行本脚本将自动配置 ${toolchain}"
     return 1
   fi
+
+  if rustup toolchain list 2>/dev/null | grep -q "^${toolchain}"; then
+    ok "Rust 工具链 ${toolchain} 已安装"
+  else
+    if confirm_install "通过 rustup 安装 ${toolchain} 工具链"; then
+      if rustup toolchain install "${toolchain}" 2>&1; then
+        ok "Rust 工具链 ${toolchain} 安装成功"
+      else
+        fail "rustup toolchain install ${toolchain} 失败"
+        return 1
+      fi
+    else
+      warn "已跳过 Rust ${toolchain} 工具链安装"
+      return 1
+    fi
+  fi
+
+  local current_default
+  current_default=$(rustup default 2>/dev/null | awk '{print $1}')
+  if [[ "$current_default" != "${toolchain}" ]]; then
+    if confirm_install "将 ${toolchain} 设为默认 Rust 工具链（当前：${current_default:-未设置}）"; then
+      rustup default "${toolchain}" 2>&1 || warn "设置默认工具链失败"
+    fi
+  fi
+
+  # 刷新缓存的 host 信息
+  check_rust >/dev/null 2>&1 || true
+  return 0
 }
 
 # ─── 检查 GNU 汇编器 as.exe ─────────────────────────────────────────────────
@@ -185,12 +225,12 @@ install_msvc() {
       echo -e "${CYAN}  重新检查 MSVC ...${RESET}"
       if check_msvc; then
         ok "MSVC 安装成功！"
-        return 0
       else
         warn "MSVC 安装器已运行，但当前 shell 未检测到 cl.exe"
         warn "请重新打开终端后再次运行此脚本验证"
-        return 0
       fi
+      ensure_rust_toolchain msvc || true
+      return 0
     else
       rm -f "$installer_path"
       fail "下载 Visual Studio Build Tools 安装器失败"
@@ -222,6 +262,7 @@ install_gnu() {
       if check_gnu; then
         ok "GNU gcc 安装验证通过！"
       fi
+      ensure_rust_toolchain gnu || true
       return 0
     fi
 
@@ -234,6 +275,7 @@ install_gnu() {
         if check_gnu; then
           ok "GNU gcc 安装验证通过！"
         fi
+        ensure_rust_toolchain gnu || true
         return 0
       else
         warn "pacman 安装完成但未找到 gcc.exe，可能需要更新 MSYS2："
@@ -255,6 +297,7 @@ install_gnu() {
             if check_gnu; then
               ok "GNU gcc 安装验证通过！"
             fi
+            ensure_rust_toolchain gnu || true
             return 0
           else
             warn "MSYS2 已安装但 gcc 安装可能不完整，请手动执行："
@@ -269,33 +312,11 @@ install_gnu() {
     fi
   fi
 
-  # ── 回退：尝试通过 rustup 安装 GNU 工具链 ──
-  if command -v rustup &>/dev/null; then
-    if confirm_install "通过 rustup 安装 stable-x86_64-pc-windows-gnu 工具链"; then
-      rustup toolchain install stable-x86_64-pc-windows-gnu && {
-        ok "Rust GNU 工具链安装成功"
-        # 验证编译
-        TEST_SRC=$(mktemp /tmp/test_rust_XXXXXX.rs)
-        TEST_BIN=$(mktemp /tmp/test_rust_XXXXXX.exe)
-        echo 'fn main() {}' > "$TEST_SRC"
-        if rustc "$TEST_SRC" -o "$TEST_BIN" 2>/dev/null; then
-          ok "Rust GNU 工具链编译链接验证通过"
-          rm -f "$TEST_SRC" "$TEST_BIN"
-          return 0
-        else
-          warn "Rust GNU 工具链安装后编译链接仍失败"
-          rm -f "$TEST_SRC" "$TEST_BIN"
-        fi
-      } || warn "rustup 工具链安装失败"
-    fi
-  fi
-
   # 所有自动安装方式都失败
   fail "GNU gcc 自动安装失败或被跳过"
-  fail "请手动安装以下任一工具链："
+  fail "请手动安装以下工具链："
   fail "  • MSYS2: https://www.msys2.org/ 安装后运行 pacman -S mingw-w64-x86_64-gcc"
   fail "  • MinGW-w64: https://www.mingw-w64.org/"
-  fail "  • Rust + GNU: https://rustup.rs 安装时选择 x86_64-pc-windows-gnu"
   return 1
 }
 
@@ -371,11 +392,10 @@ FAILED=0
 FOUND_CC=0
 
 # ─── 步骤 1：检查是否已安装 C/C++ 编译器 ─────────────────────────────────────
-echo -e "${CYAN}[1/3] 检查 C/C++ 编译器${RESET}"
+echo -e "${CYAN}[1/4] 检查 C/C++ 编译器${RESET}"
 
 HAS_MSVC=0
 HAS_GNU=0
-HAS_RUST_GNU=0
 
 if check_msvc; then
   HAS_MSVC=1
@@ -387,32 +407,45 @@ if check_gnu; then
   FOUND_CC=1
 fi
 
-if [[ "$FOUND_CC" -eq 0 ]] && check_rust_gnu; then
-  HAS_RUST_GNU=1
-  FOUND_CC=1
-fi
-
-# ─── 已安装：显示环境信息后退出 ──────────────────────────────────────────────
+# ─── 已安装：检查 Rust 工具链匹配并显示摘要 ──────────────────────────────────
 if [[ "$FOUND_CC" -eq 1 ]]; then
   echo ""
   echo -e "${GREEN}══════════════════════════════════════════${RESET}"
   echo -e "${GREEN}  C/C++ 编译工具已就绪${RESET}"
   echo -e "${GREEN}══════════════════════════════════════════${RESET}"
 
-  # ─── 步骤 2（已安装分支）：检查 as.exe ────────────────────────────────────
+  # ─── 步骤 2：检查 Rust 工具链（与已检测到的 C 编译器配套） ────────────────
   echo ""
-  echo -e "${CYAN}[2/3] 检查 GNU 汇编器 as.exe${RESET}"
+  echo -e "${CYAN}[2/4] 检查 Rust 工具链${RESET}"
+  if ! check_rust; then
+    warn "未检测到 rustc/rustup,请先安装：https://rustup.rs"
+  else
+    # 当只有一种 C 编译器时，确保对应 ABI 的 Rust 工具链可用
+    if [[ "$HAS_MSVC" -eq 1 && "$HAS_GNU" -eq 0 ]]; then
+      ensure_rust_toolchain msvc || true
+    elif [[ "$HAS_GNU" -eq 1 && "$HAS_MSVC" -eq 0 ]]; then
+      ensure_rust_toolchain gnu || true
+    fi
+  fi
+
+  # ─── 步骤 3：检查 as.exe ──────────────────────────────────────────────────
+  echo ""
+  echo -e "${CYAN}[3/4] 检查 GNU 汇编器 as.exe${RESET}"
   if ! check_as; then
-    # as.exe 缺失，尝试安装
     install_as
   fi
 
-  # ─── 步骤 3：显示环境摘要 ──────────────────────────────────────────────────
+  # ─── 步骤 4：显示环境摘要 ──────────────────────────────────────────────────
   echo ""
-  echo -e "${CYAN}[3/3] 环境摘要${RESET}"
+  echo -e "${CYAN}[4/4] 环境摘要${RESET}"
   echo -e "  MSVC      ：$([ "$HAS_MSVC" -eq 1 ] && echo -e "${GREEN}已安装${RESET}" || echo -e "${YELLOW}未安装${RESET}")"
   echo -e "  GNU gcc   ：$([ "$HAS_GNU" -eq 1 ] && echo -e "${GREEN}已安装${RESET}" || echo -e "${YELLOW}未安装${RESET}")"
-  echo -e "  Rust GNU  ：$([ "$HAS_RUST_GNU" -eq 1 ] && echo -e "${GREEN}已安装${RESET}" || echo -e "${YELLOW}未安装${RESET}")"
+  if [[ -n "$RUSTC_HOST" ]]; then
+    echo -e "  Rust      ：${GREEN}${RUSTC_VERSION}${RESET}"
+    echo -e "              host: ${RUSTC_HOST}"
+  else
+    echo -e "  Rust      ：${YELLOW}未安装${RESET}"
+  fi
 
   echo ""
   echo -e "${GREEN}  检查完成，C/C++ 编译工具可用。${RESET}"
@@ -423,9 +456,11 @@ fi
 echo ""
 echo -e "${RED}  ✗ 未检测到 C/C++ 编译器${RESET}"
 echo ""
-echo -e "${CYAN}[2/3] 选择安装方式${RESET}"
+echo -e "${CYAN}[2/4] 选择安装方式${RESET}"
 
-select_option "请选择要安装的 C/C++ 编译工具链：" "MSVC (Visual Studio Build Tools)" "GNU gcc (MinGW-w64 / MSYS2)"
+select_option "请选择要安装的工具链组合：" \
+  "MSVC + Rust 工具链 (Visual Studio Build Tools + stable-x86_64-pc-windows-msvc)" \
+  "GNU gcc + Rust 工具链 (MinGW-w64 / MSYS2 + stable-x86_64-pc-windows-gnu)"
 
 case "$SELECTED_OPTION" in
   1)
@@ -436,21 +471,34 @@ case "$SELECTED_OPTION" in
     ;;
   0)
     echo ""
-    echo -e "${YELLOW}  已退出，未安装任何 C/C++ 编译工具。${RESET}"
+    echo -e "${YELLOW}  已退出，未安装任何工具链。${RESET}"
     exit 1
     ;;
 esac
 
 # ─── 步骤 3：安装后检查 as.exe ───────────────────────────────────────────────
 echo ""
-echo -e "${CYAN}[3/3] 检查 GNU 汇编器 as.exe${RESET}"
+echo -e "${CYAN}[3/4] 检查 GNU 汇编器 as.exe${RESET}"
 if ! check_as; then
   install_as
 fi
 
+# ─── 步骤 4：安装后摘要 ──────────────────────────────────────────────────────
+check_rust >/dev/null 2>&1 || true
+echo ""
+echo -e "${CYAN}[4/4] 环境摘要${RESET}"
+echo -e "  MSVC      ：$(check_msvc >/dev/null 2>&1 && echo -e "${GREEN}已安装${RESET}" || echo -e "${YELLOW}未安装${RESET}")"
+echo -e "  GNU gcc   ：$(command -v gcc >/dev/null 2>&1 && echo -e "${GREEN}已安装${RESET}" || echo -e "${YELLOW}未安装${RESET}")"
+if [[ -n "$RUSTC_HOST" ]]; then
+  echo -e "  Rust      ：${GREEN}${RUSTC_VERSION}${RESET}"
+  echo -e "              host: ${RUSTC_HOST}"
+else
+  echo -e "  Rust      ：${YELLOW}未安装${RESET}"
+fi
+
 echo ""
 if [[ "$FAILED" -eq 0 ]]; then
-  echo -e "${GREEN}  C/C++ 编译工具安装完成！${RESET}"
+  echo -e "${GREEN}  工具链安装完成！${RESET}"
 else
-  echo -e "${YELLOW}  C/C++ 编译工具安装已完成，但部分步骤可能需要手动处理。${RESET}"
+  echo -e "${YELLOW}  工具链安装已完成，但部分步骤可能需要手动处理。${RESET}"
 fi
