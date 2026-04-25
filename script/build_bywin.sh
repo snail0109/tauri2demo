@@ -67,21 +67,48 @@ echo ""
 
 FAILED=0
 
-# ─── 1. C/C++ Build Tools ────────────────────────────────────────────────────
-echo -e "${CYAN}[1/8] C/C++ 编译工具${RESET}"
-SCRIPT_DIR_CC="$(cd "$(dirname "$0")" && pwd)"
-if [[ -f "${SCRIPT_DIR_CC}/install_c_compile_bywin.sh" ]]; then
-  if [[ "$AUTO_YES" -eq 1 ]]; then
-    bash "${SCRIPT_DIR_CC}/install_c_compile_bywin.sh" -y || {
-      fail "C/C++ 编译工具检查未通过"
-    }
-  else
-    bash "${SCRIPT_DIR_CC}/install_c_compile_bywin.sh" || {
-      fail "C/C++ 编译工具检查未通过"
-    }
-  fi
+# ─── 1. C/C++ Build Tools + Rust ─────────────────────────────────────────────
+# 仅检测，不安装；安装请运行 install_c_compile_bywin.sh
+echo -e "${CYAN}[1/8] C/C++ 编译工具 + Rust${RESET}"
+
+# 探测 MSYS2 mingw64 与 cargo bin（Windows PATH 已更新但当前 shell 未刷新的场景）
+MSYS2_MINGW_BIN="/c/msys64/mingw64/bin"
+if ! command -v gcc &>/dev/null && [[ -f "${MSYS2_MINGW_BIN}/gcc.exe" ]]; then
+  export PATH="${MSYS2_MINGW_BIN}:${PATH}"
+fi
+if ! command -v rustc &>/dev/null && [[ -f "$HOME/.cargo/bin/rustc.exe" ]]; then
+  export PATH="$HOME/.cargo/bin:$PATH"
+fi
+
+HAS_MSVC=0
+HAS_GNU=0
+if command -v cl.exe &>/dev/null; then
+  ok "MSVC cl.exe 已安装：$(which cl.exe)"
+  HAS_MSVC=1
+fi
+if command -v gcc &>/dev/null && gcc --version &>/dev/null; then
+  ok "GNU gcc 已安装：$(which gcc)"
+  HAS_GNU=1
+fi
+if [[ "$HAS_MSVC" -eq 0 && "$HAS_GNU" -eq 0 ]]; then
+  fail "未检测到 C/C++ 编译器（MSVC 或 GNU gcc）"
+  fail "请先运行 ./script/install_c_compile_bywin.sh 安装"
+fi
+
+if command -v rustc &>/dev/null; then
+  ok "Rust 已安装：$(rustc --version 2>&1 | head -1)"
 else
-  fail "install_c_compile_bywin.sh 脚本未找到：${SCRIPT_DIR_CC}/install_c_compile_bywin.sh"
+  fail "未检测到 rustc/rustup"
+  fail "请先运行 ./script/install_c_compile_bywin.sh 安装"
+fi
+
+# 任一缺失立即退出
+if [[ "$FAILED" -ne 0 ]]; then
+  echo ""
+  echo -e "${RED}══════════════════════════════════════════${RESET}"
+  echo -e "${RED}  C/C++ 编译工具或 Rust 未就绪，已中止。${RESET}"
+  echo -e "${RED}══════════════════════════════════════════${RESET}"
+  exit 1
 fi
 
 # ─── 2. Java (JDK 17+) ────────────────────────────────────────────────────────
