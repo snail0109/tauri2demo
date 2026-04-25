@@ -169,6 +169,9 @@ remove_msys2() {
     winget uninstall MSYS2.MSYS2 --silent 2>&1 || true
   fi
 
+  # winget 卸载有异步删除文件的情况，等待后再检测
+  sleep 2
+
   if [[ -d "/c/msys64" ]]; then
     warn "winget 卸载后 C:\\msys64 仍存在。请关闭所有 MSYS2 / Git Bash 终端，"
     warn "然后在 PowerShell（管理员）中手动删除："
