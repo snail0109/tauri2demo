@@ -87,7 +87,7 @@ check_gnu() {
 
   # 若 gcc 不在 PATH 中，先尝试探测 MSYS2 标准安装路径并将其加入 PATH，
   # 避免出现「PATH 中没有 gcc → 报未安装 → 进入安装流程后又发现已安装」的冲突。
-  echo "    检测 MSYS2 安装路径： c:\\msys64"
+  echo "    检测 MSYS2 安装路径： /c/msys64"
   MSYS2_MINGW_BIN="/c/msys64/mingw64/bin"
   if ! command -v gcc &>/dev/null && [[ -f "${MSYS2_MINGW_BIN}/gcc.exe" ]]; then
     export PATH="${MSYS2_MINGW_BIN}:${PATH}"
@@ -117,6 +117,7 @@ RUSTC_HOST=""
 check_rust() {
   # 若 rustc 不在 PATH 中，探测 cargo 的标准安装位置（rustup 默认装到 ~/.cargo/bin）
   # 适配 Windows 用户 PATH 已更新但当前 shell 未刷新的场景。
+  echo "    检测 Rust 安装路径： $HOME/.cargo/bin"
   if ! command -v rustc &>/dev/null && [[ -f "$HOME/.cargo/bin/rustc.exe" ]]; then
     export PATH="$HOME/.cargo/bin:$PATH"
   fi
