@@ -84,33 +84,22 @@ check_gnu() {
 
   # 若 gcc 不在 PATH 中，先尝试探测 MSYS2 标准安装路径并将其加入 PATH，
   # 避免出现「PATH 中没有 gcc → 报未安装 → 进入安装流程后又发现已安装」的冲突。
+  echo "    检测 MSYS2 安装路径： c:\\msys64"
   MSYS2_MINGW_BIN="/c/msys64/mingw64/bin"
   if ! command -v gcc &>/dev/null && [[ -f "${MSYS2_MINGW_BIN}/gcc.exe" ]]; then
     export PATH="${MSYS2_MINGW_BIN}:${PATH}"
   fi
 
   if command -v gcc &>/dev/null && gcc --version &>/dev/null; then
-    GCC_PATH="$(which gcc)"
     GCC_INFO=$(gcc --version 2>&1 | head -1)
-    echo -e "${GREEN}  ✓${RESET} GNU gcc 已安装"
-    echo -e "    路径：${GCC_PATH}"
-    echo -e "    版本：${GCC_INFO}"
+    echo -e "${GREEN}  ✓${RESET} GNU GCC 编译器已安装"
+    echo -e "    路径：$(which gcc)"
+    echo -e "    版本：${GCC_INFO}"g
     FOUND=1
 
-    if command -v g++ &>/dev/null && g++ --version &>/dev/null; then
-      GPP_INFO=$(g++ --version 2>&1 | head -1)
-      echo -e "    g++ ：$(which g++) — ${GPP_INFO}"
-    else
-      warn "gcc 已找到但 g++ 未找到，部分 C++ 依赖可能编译失败"
+    if ! command -v g++ &>/dev/null || ! g++ --version &>/dev/null; then
+      warn "GCC 已找到但 G++ 未找到，部分 C++ 依赖可能编译失败"
     fi
-  fi
-
-  if [[ "$FOUND" -eq 0 ]] && command -v cc &>/dev/null && cc --version &>/dev/null; then
-    CC_INFO=$(cc --version 2>&1 | head -1)
-    echo -e "${GREEN}  ✓${RESET} C 编译器已安装"
-    echo -e "    路径：$(which cc)"
-    echo -e "    版本：${CC_INFO}"
-    FOUND=1
   fi
 
   if [[ "$FOUND" -eq 1 ]]; then
@@ -248,6 +237,11 @@ ensure_rust_toolchain() {
 
   # 刷新缓存的 host 信息
   check_rust >/dev/null 2>&1 || true
+
+  echo ""
+  echo -e "${GREEN}══════════════════════════════════════════${RESET}"
+  echo -e "${GREEN}  Rust 工具链已就绪${RESET}"
+  echo -e "${GREEN}══════════════════════════════════════════${RESET}"
   return 0
 }
 
@@ -516,10 +510,9 @@ if [[ "$FOUND_CC" -eq 1 ]]; then
   echo ""
   echo -e "${CYAN}[4/4] 环境摘要${RESET}"
   echo -e "  MSVC      ：$([ "$HAS_MSVC" -eq 1 ] && echo -e "${GREEN}已安装${RESET}" || echo -e "${YELLOW}未安装${RESET}")"
-  echo -e "  GNU gcc   ：$([ "$HAS_GNU" -eq 1 ] && echo -e "${GREEN}已安装${RESET}" || echo -e "${YELLOW}未安装${RESET}")"
+  echo -e "  GNU GCC   ：$([ "$HAS_GNU" -eq 1 ] && echo -e "${GREEN}已安装${RESET}" || echo -e "${YELLOW}未安装${RESET}")"
   if [[ -n "$RUSTC_HOST" ]]; then
-    echo -e "  Rust      ：${GREEN}${RUSTC_VERSION}${RESET}"
-    echo -e "              host: ${RUSTC_HOST}"
+    echo -e "  Rust      ：${GREEN}已安装${RESET}"
   else
     echo -e "  Rust      ：${YELLOW}未安装${RESET}"
   fi
@@ -565,10 +558,9 @@ check_rust >/dev/null 2>&1 || true
 echo ""
 echo -e "${CYAN}[4/4] 环境摘要${RESET}"
 echo -e "  MSVC      ：$(check_msvc >/dev/null 2>&1 && echo -e "${GREEN}已安装${RESET}" || echo -e "${YELLOW}未安装${RESET}")"
-echo -e "  GNU gcc   ：$(command -v gcc >/dev/null 2>&1 && echo -e "${GREEN}已安装${RESET}" || echo -e "${YELLOW}未安装${RESET}")"
+echo -e "  GNU GCC   ：$(command -v gcc >/dev/null 2>&1 && echo -e "${GREEN}已安装${RESET}" || echo -e "${YELLOW}未安装${RESET}")"
 if [[ -n "$RUSTC_HOST" ]]; then
-  echo -e "  Rust      ：${GREEN}${RUSTC_VERSION}${RESET}"
-  echo -e "              host: ${RUSTC_HOST}"
+  echo -e "  Rust      ：${GREEN}已安装${RESET}"
 else
   echo -e "  Rust      ：${YELLOW}未安装${RESET}"
 fi
