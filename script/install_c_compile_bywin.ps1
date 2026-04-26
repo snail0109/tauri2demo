@@ -8,9 +8,6 @@ $Failed = $false
 
 . (Join-Path $PSScriptRoot '_common.ps1')
 
-$RustcHost = ''
-$RustcVersion = ''
-
 function Test-Msvc {
   $cl = Get-ExePath 'cl.exe'
   if (-not $cl) { return $false }
@@ -94,11 +91,11 @@ function Test-RustToolchain {
     if (Test-Path -LiteralPath $cand) { Add-PathPrefix $cargoBin; $rustc = $cand }
   }
   if (-not $rustc) { return $false }
-  try {
-    $script:RustcVersion = (Invoke-NativeText -FilePath 'rustc' -Arguments @('--version') | Select-Object -First 1)
-    $hostLine = (Invoke-NativeText -FilePath 'rustc' -Arguments @('-vV') | Where-Object { $_ -match '^host:\s*' } | Select-Object -First 1)
-    if ($hostLine) { $script:RustcHost = ($hostLine -replace '^host:\s*', '').Trim() }
-  } catch {}
+  $script:RustcVersion = (Invoke-NativeText -FilePath 'rustc' -Arguments @('--version') | Select-Object -First 1)
+  $hostLine = Invoke-NativeText -FilePath 'rustc' -Arguments @('-vV') |
+    Where-Object { $_ -match '^host:\s*' } |
+    Select-Object -First 1
+  if ($hostLine) { $script:RustcHost = ($hostLine -replace '^host:\s*', '').Trim() }
   Write-Ok "Rust 工具链已安装"
   if (-not [string]::IsNullOrWhiteSpace($script:RustcHost)) { Write-Host "    host：$($script:RustcHost)" }
   if (-not [string]::IsNullOrWhiteSpace($script:RustcVersion)) { Write-Host "    版本：$($script:RustcVersion)" }
