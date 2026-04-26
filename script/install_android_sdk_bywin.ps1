@@ -106,7 +106,7 @@ function Invoke-SdkManager {
     (1..2500 | ForEach-Object { 'y' }) | Set-Content -LiteralPath $yesFile -Encoding ASCII
     try {
       $cmd = "type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
-      & cmd.exe /c $cmd | Out-Host
+      Invoke-NativeStream -Block { & cmd.exe /c $cmd }
       if ($LASTEXITCODE -ne 0) { throw "sdkmanager exit code $LASTEXITCODE" }
       return $true
     } catch {
