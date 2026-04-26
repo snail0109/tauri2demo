@@ -440,76 +440,51 @@ function Uninstall-WingetTool {
   }
 
   Write-Host ""
-  if (-not (Confirm-Continue "确认卸载 winget（Windows 包管理器）")) { return $false }
+  Write-Warn "winget（应用安装程序）是 Windows 系统内置组件，无法完全卸载"
+  Write-Warn "可选操作："
+  Write-Host "  1) 重置为系统初始版本（推荐，清除用户数据和配置）"
+  Write-Host "  2) 跳过，不做任何操作"
+  Write-Host ""
 
-  $uninstalled = $false
-
-  # 方式一：通过 Remove-AppxPackage 卸载 Microsoft.DesktopAppInstaller
-  $appInstaller = Get-AppxPackage -Name 'Microsoft.DesktopAppInstaller' -ErrorAction SilentlyContinue
-  if ($appInstaller) {
-    Write-Host "  通过 Remove-AppxPackage 卸载 Microsoft.DesktopAppInstaller ..." -ForegroundColor Cyan
-    try {
-      Remove-AppxPackage -Package $appInstaller.PackageFullName -ErrorAction Stop
-      Write-Ok "Microsoft.DesktopAppInstaller 已卸载"
-      $uninstalled = $true
-    } catch {
-      Write-Warn "Remove-AppxPackage 卸载失败：$($_.Exception.Message)"
-    }
+  $choice = Read-Host "  请选择 [1-2]（默认 2）"
+  if ($choice -ne '1') {
+    Write-Host ""
+    Write-Host "  已跳过卸载" -ForegroundColor Yellow
+    return $false
   }
 
-  # 方式二：通过 winget 卸载（如果方式一失败）
-  if (-not $uninstalled) {
-    $winget = Get-ExePath 'winget.exe'
-    if ($winget) {
-      Write-Host "  通过 winget 自卸载 ..." -ForegroundColor Cyan
-      if ($WingetMode -eq 'module') {
-        try {
-          Uninstall-WinGetPackage -Id Microsoft.DesktopAppInstaller_8wekyb3d8bbwe -Source winget | Out-Null
-          $uninstalled = $true
-        } catch {
-          Write-Fail "WinGet 模块卸载失败：$($_.Exception.Message)"
-        }
-      } else {
-        try {
-          Invoke-NativeStream -Block { & winget uninstall --id Microsoft.DesktopAppInstaller_8wekyb3d8bbwe --source winget --accept-source-agreements }
-          $uninstalled = $true
-        } catch {
-          Write-Fail "winget 命令行卸载失败：$($_.Exception.Message)"
-        }
-      }
-    }
+  # 重置应用安装程序
+  Write-Host ""
+  Write-Host "  重置应用安装程序 ..." -ForegroundColor Cyan
+  try {
+    Get-AppxPackage -Name 'Microsoft.DesktopAppInstaller' -ErrorAction SilentlyContinue |
+      ForEach-Object { Reset-AppxPackage -Package $_.PackageFullName -ErrorAction Stop }
+    Write-Ok "应用安装程序已重置为系统初始版本"
+  } catch {
+    Write-Fail "重置失败：$($_.Exception.Message)"
+    Write-Host ""
+    Write-Fail "winget 卸载失败"
+    Write-Fail "winget 是 Windows 系统内置组件，无法通过常规方式卸载"
+    Write-Fail "如需降级或移除，请尝试："
+    Write-Fail "  • 设置 → 应用 → 应用安装程序 → 高级选项 → 重置/修复"
+    Write-Fail "  • 或以管理员身份运行：Get-AppxPackage Microsoft.DesktopAppInstaller | Reset-AppxPackage"
+    return $false
   }
 
-  # 方式三：打开 Microsoft Store 卸载
-  if (-not $uninstalled) {
-    Write-Host "  尝试通过 Microsoft Store 卸载 ..." -ForegroundColor Cyan
+  # 移除镜像源配置
+  $winget = Get-ExePath 'winget.exe'
+  if ($winget) {
     try {
-      Start-Process 'ms-windows-store://pdp/?ProductId=9NBLGGH4NNS1'
-      Write-Warn "已打开 Microsoft Store 页面，请在 Store 中点击「卸载」"
-      Write-Warn "卸载完成后按 Enter 继续 ..."
-      Read-Host
-      $uninstalled = -not (Get-ExePath 'winget.exe')
+      Invoke-NativeStream -Block { & $winget source remove winget }
+      Write-Ok "已移除 winget 镜像源配置"
     } catch {
-      Write-Warn "无法打开 Microsoft Store：$($_.Exception.Message)"
+      Write-Warn "移除镜像源失败：$($_.Exception.Message)"
     }
   }
 
   Write-Host ""
-  if (-not (Get-ExePath 'winget.exe')) {
-    Write-Banner -Title 'winget 卸载成功' -Color Green
-    return $true
-  }
-  if ($uninstalled) {
-    Write-Warn "winget 卸载流程已执行，但当前 shell 仍检测到 winget"
-    Write-Warn "请重新打开终端后再次运行此脚本验证"
-    return $false
-  }
-  Write-Fail "winget 自动卸载失败"
-  Write-Fail "请手动卸载 winget："
-  Write-Fail "  • 打开 Microsoft Store 搜索「应用安装程序」并卸载"
-  Write-Fail "  • 或在「设置 → 应用」中找到「应用安装程序」并卸载"
-  Write-Fail "  • 或运行：Get-AppxPackage Microsoft.DesktopAppInstaller | Remove-AppxPackage"
-  return $false
+  Write-Banner -Title 'winget 已重置为系统初始版本' -Color Green
+  return $true
 }
 
 # ─── Windows 终端 ─────────────────────────────────────────────────────────────
