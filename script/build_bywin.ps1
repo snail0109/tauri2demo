@@ -143,6 +143,14 @@ Write-Host "[1/8] C/C++ 编译工具" -ForegroundColor Cyan
 $cl = Get-ExePath 'cl.exe'
 if ($cl) { Write-Ok "MSVC cl.exe：$cl" }
 $gcc = Get-ExePath 'gcc.exe'
+if (-not $gcc) {
+  # MSYS2 MinGW gcc 可能不在 PATH，但安装脚本不会写用户 PATH，主动探测一下
+  $msysGcc = 'C:\msys64\mingw64\bin\gcc.exe'
+  if (Test-Path -LiteralPath $msysGcc) {
+    Add-PathPrefix (Split-Path -Parent $msysGcc)
+    $gcc = Get-ExePath 'gcc.exe'
+  }
+}
 if ($gcc) { Write-Ok "GNU gcc：$gcc" }
 if (-not $cl -and -not $gcc) {
   Write-Fail "未检测到 C/C++ 编译器（MSVC 或 GNU gcc）"
