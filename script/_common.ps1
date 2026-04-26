@@ -97,12 +97,15 @@ function Invoke-NativeText {
 }
 
 function Invoke-NativeStream {
-  # 透传 native 命令的输出（一般用于 | Out-Host 显示安装日志）。
+  # 透传 native 命令的输出到 Host：把 stderr 合并进 stdout，并把 ErrorRecord
+  # 强制转为字符串，避免 PowerShell 5.1 用错误格式化器显示
+  # （如 rustup 把 "info: ..." 写到 stderr 时会被显示成大红块）。
+  # 调用方不要在块里再写 `2>&1 | Out-Host`，本函数已统一处理。
   param([scriptblock]$Block)
   $prev = $ErrorActionPreference
   try {
     $ErrorActionPreference = 'Continue'
-    & $Block
+    & $Block 2>&1 | ForEach-Object { Write-Host "$_" }
   } finally {
     $ErrorActionPreference = $prev
   }
