@@ -71,7 +71,7 @@ function Install-GnuAssembler {
   }
   if (-not (Confirm-Install "通过 MSYS2 pacman 安装 mingw-w64-x86_64-binutils")) { return $false }
   Set-Msys2ChinaMirror | Out-Null
-  & $bash -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-binutils" | Out-Host
+  Invoke-NativeStream -Block { & $bash -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-binutils" }
   if (Test-Path -LiteralPath 'C:\msys64\mingw64\bin\as.exe') {
     Add-PathPrefix 'C:\msys64\mingw64\bin'
     Write-Ok "mingw-w64-x86_64-binutils 安装成功，as.exe 已添加到 PATH"
@@ -254,7 +254,7 @@ function Install-MsysGcc {
 
   if (-not (Confirm-Install "通过 MSYS2 pacman 安装 mingw-w64-x86_64-gcc")) { return $false }
   Set-Msys2ChinaMirror | Out-Null
-  & $bash -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" | Out-Host
+  Invoke-NativeStream -Block { & $bash -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" }
   if (Test-Path -LiteralPath (Join-Path $mingwBin 'gcc.exe')) {
     Add-PathPrefix $mingwBin
     Write-Ok "mingw-w64-x86_64-gcc 安装成功"
@@ -296,7 +296,7 @@ function Install-Gnu {
     Invoke-NativeStream -Block { & winget install MSYS2.MSYS2 --accept-package-agreements --accept-source-agreements }
     if (Test-Path -LiteralPath $msysRoot) {
       Set-Msys2ChinaMirror | Out-Null
-      & $bash -lc "pacman-key --init && pacman-key --populate msys2 && pacman -Sy --noconfirm archlinux-msys2-keyring && pacman -Su --noconfirm && pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" | Out-Host
+      Invoke-NativeStream -Block { & $bash -lc "pacman-key --init && pacman-key --populate msys2 && pacman -Sy --noconfirm archlinux-msys2-keyring && pacman -Su --noconfirm && pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" }
       if (Test-Path -LiteralPath (Join-Path $mingwBin 'gcc.exe')) {
         Add-PathPrefix $mingwBin
         Write-Ok "MSYS2 + mingw-w64-gcc 安装成功"
