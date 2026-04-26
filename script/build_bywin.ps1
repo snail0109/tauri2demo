@@ -54,13 +54,20 @@ function Restore-AndroidProject {
 
   Write-Warn "正在运行 pnpm tauri android init ..."
   Invoke-NativeStreamIn -Path $ProjectRoot -Block { & pnpm tauri android init }
+  if ($LASTEXITCODE -ne 0) {
+    Write-Fail "pnpm tauri android init 失败（exit code $LASTEXITCODE）"
+    if ($keystoreBackup -and (Test-Path -LiteralPath $keystoreBackup)) {
+      Remove-Item -LiteralPath $keystoreBackup -Force -ErrorAction SilentlyContinue
+    }
+    return
+  }
 
-  if ($keystoreBackup -and (Test-Path -LiteralPath $keystoreBackup)) {
+  if ($keystoreBackup -and (Test-Path -LiteralPath $keystoreBackup) -and (Test-Path -LiteralPath $GenAndroidDir)) {
     Copy-Item -LiteralPath $keystoreBackup -Destination $keystorePropsInGen -Force
     Remove-Item -LiteralPath $keystoreBackup -Force -ErrorAction SilentlyContinue
     Write-Ok "keystore.properties 已恢复"
   }
-  elseif (-not (Test-Path -LiteralPath $keystorePropsInGen)) {
+  elseif (-not (Test-Path -LiteralPath $keystorePropsInGen) -and (Test-Path -LiteralPath $GenAndroidDir)) {
     Write-Warn "正在写入 keystore.properties ..."
     New-DirectoryIfMissing (Split-Path -Parent $keystorePropsInGen)
     $DefaultKeystoreLines | Set-Content -LiteralPath $keystorePropsInGen -Encoding UTF8
