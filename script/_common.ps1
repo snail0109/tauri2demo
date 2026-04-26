@@ -138,19 +138,33 @@ function Invoke-NativeStream {
   # 强制转为字符串，避免 PowerShell 5.1 用错误格式化器显示
   # （如 rustup 把 "info: ..." 写到 stderr 时会被显示成大红块）。
   # 调用方不要在块里再写 `2>&1 | Out-Host`，本函数已统一处理。
-  # 含 \r 的行（如 winget 进度条）用 [Console]::Write 输出以保持同行覆盖，
-  # 不含 \r 的行用 Write-Host 正常换行输出。
+  # winget 等工具的进度条（如 "- \ | /" 旋转动画）每帧输出一行，
+  # 用 [Console]::Write + \r 覆盖同一行，避免刷屏。
   param([scriptblock]$Block)
   $prev = $ErrorActionPreference
+  $isSpinnerLine = $false
   try {
     $ErrorActionPreference = 'Continue'
     & $Block 2>&1 | ForEach-Object {
       $text = "$_"
-      if ($text.Contains("`r")) {
+      # 检测 winget 风格的进度条帧：仅包含空格和 - \ | / 字符的短行
+      if ($text -match '^\s*[-\\/|]\s*$') {
+        if ($isSpinnerLine) {
+          [Console]::SetCursorPosition(0, [Console]::CursorTop)
+        }
         [Console]::Write($text)
+        $isSpinnerLine = $true
       } else {
+        if ($isSpinnerLine) {
+          [Console]::WriteLine()
+          $isSpinnerLine = $false
+        }
         Write-Host $text
       }
+    }
+    # 如果最后一行是进度条，补一个换行
+    if ($isSpinnerLine) {
+      [Console]::WriteLine()
     }
   } finally {
     $ErrorActionPreference = $prev
