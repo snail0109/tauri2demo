@@ -3,7 +3,8 @@
 # 通过 dot-sourcing 引入：. (Join-Path $PSScriptRoot '_common.ps1')
 #
 # 调用脚本约定：
-#   - 顶部需声明 $Yes（用于 -y 静默模式）；不声明也不报错
+#   - -y 静默模式：调用脚本声明 [switch]$Yes 并在 dot-source 后执行
+#       if ($Yes) { Enable-AutoConfirm }
 #   - 如需追踪整体失败状态，调用脚本应在顶部声明 $Failed = $false
 
 # ─── Logging ─────────────────────────────────────────────────────────────────
