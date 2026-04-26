@@ -187,22 +187,28 @@ function Add-UserPathSegment([string]$Segment) {
 }
 
 # ─── Android SDK / NDK discovery ─────────────────────────────────────────────
-function Resolve-AndroidHome {
+function Get-AndroidSdkRootCandidate {
+  # 候选 SDK 根（按探测优先级返回 string[]）：显式 -PreferredRoot → ANDROID_HOME →
+  # ANDROID_SDK_ROOT → 项目约定 C:\DevDisk\DevTools\AndroidSDK → Android Studio 默认。
   param([string]$PreferredRoot)
 
-  $candidates = New-Object System.Collections.Generic.List[string]
+  $roots = New-Object System.Collections.Generic.List[string]
   if (-not [string]::IsNullOrWhiteSpace($PreferredRoot)) {
-    $candidates.Add($PreferredRoot.Trim('"')) | Out-Null
+    $roots.Add($PreferredRoot.Trim('"')) | Out-Null
   }
-  if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_HOME)) { $candidates.Add($env:ANDROID_HOME.Trim('"')) | Out-Null }
-  if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_SDK_ROOT)) { $candidates.Add($env:ANDROID_SDK_ROOT.Trim('"')) | Out-Null }
-  $candidates.Add('C:\DevDisk\DevTools\AndroidSDK') | Out-Null
+  if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_HOME)) { $roots.Add($env:ANDROID_HOME.Trim('"')) | Out-Null }
+  if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_SDK_ROOT)) { $roots.Add($env:ANDROID_SDK_ROOT.Trim('"')) | Out-Null }
+  $roots.Add('C:\DevDisk\DevTools\AndroidSDK') | Out-Null
   if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-    $candidates.Add((Join-Path $env:LOCALAPPDATA 'Android\Sdk')) | Out-Null
+    $roots.Add((Join-Path $env:LOCALAPPDATA 'Android\Sdk')) | Out-Null
   }
-  $candidates.Add((Join-Path $HOME 'AppData\Local\Android\Sdk')) | Out-Null
+  $roots.Add((Join-Path $HOME 'AppData\Local\Android\Sdk')) | Out-Null
+  return $roots
+}
 
-  foreach ($p in $candidates) {
+function Resolve-AndroidHome {
+  param([string]$PreferredRoot)
+  foreach ($p in (Get-AndroidSdkRootCandidate -PreferredRoot $PreferredRoot)) {
     if (-not [string]::IsNullOrWhiteSpace($p) -and (Test-Path -LiteralPath $p)) {
       return (Resolve-Path -LiteralPath $p).Path
     }
@@ -212,17 +218,7 @@ function Resolve-AndroidHome {
 
 function Find-SdkManager {
   param([string]$PreferredRoot)
-
-  $roots = New-Object System.Collections.Generic.List[string]
-  if (-not [string]::IsNullOrWhiteSpace($PreferredRoot)) { $roots.Add($PreferredRoot) | Out-Null }
-  if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_HOME)) { $roots.Add($env:ANDROID_HOME.Trim('"')) | Out-Null }
-  if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_SDK_ROOT)) { $roots.Add($env:ANDROID_SDK_ROOT.Trim('"')) | Out-Null }
-  if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-    $roots.Add((Join-Path $env:LOCALAPPDATA 'Android\Sdk')) | Out-Null
-  }
-  $roots.Add((Join-Path $HOME 'AppData\Local\Android\Sdk')) | Out-Null
-
-  foreach ($r in $roots) {
+  foreach ($r in (Get-AndroidSdkRootCandidate -PreferredRoot $PreferredRoot)) {
     if ([string]::IsNullOrWhiteSpace($r)) { continue }
     $p = Join-Path $r 'cmdline-tools\latest\bin\sdkmanager.bat'
     if (Test-Path -LiteralPath $p) { return (Resolve-Path -LiteralPath $p).Path }
