@@ -116,7 +116,7 @@ function Install-Rustup {
 
   if (Get-ExePath 'winget.exe') {
     Write-Host "  尝试通过 winget 安装 Rustlang.Rustup ..." -ForegroundColor Cyan
-    Invoke-NativeStream -Block { & winget install --id Rustlang.Rustup --accept-package-agreements --accept-source-agreements --silent 2>&1 | Out-Host }
+    Invoke-NativeStream -Block { & winget install --id Rustlang.Rustup --accept-package-agreements --accept-source-agreements --silent }
     $cargoBin = Join-Path $HOME '.cargo\bin'
     if (Test-Path -LiteralPath $cargoBin) { Add-PathPrefix $cargoBin }
     if (Get-ExePath 'rustup.exe') {
@@ -173,7 +173,7 @@ function Install-RustToolchainAbi {
       return $false
     }
     try {
-      Invoke-NativeStream -Block { & rustup toolchain install $toolchain 2>&1 | Out-Host }
+      Invoke-NativeStream -Block { & rustup toolchain install $toolchain }
       if ($LASTEXITCODE -ne 0) { throw "rustup toolchain install exit code $LASTEXITCODE" }
       Write-Ok "Rust 工具链 $toolchain 安装成功"
     } catch {
@@ -187,7 +187,7 @@ function Install-RustToolchainAbi {
   if ($currentDefault -ne $toolchain) {
     $currentLabel = if ([string]::IsNullOrWhiteSpace($currentDefault)) { '未设置' } else { $currentDefault }
     if (Confirm-Install "将 $toolchain 设为默认 Rust 工具链（当前：$currentLabel）") {
-      try { Invoke-NativeStream -Block { & rustup default $toolchain 2>&1 | Out-Host } } catch { Write-Warn "设置默认工具链失败" }
+      try { Invoke-NativeStream -Block { & rustup default $toolchain } } catch { Write-Warn "设置默认工具链失败" }
     }
   }
 
@@ -295,7 +295,7 @@ function Install-Gnu {
       return $false
     }
     if (-not (Confirm-Install "通过 winget 安装 MSYS2，然后安装 mingw-w64-x86_64-gcc")) { return $false }
-    Invoke-NativeStream -Block { & winget install MSYS2.MSYS2 --accept-package-agreements --accept-source-agreements 2>&1 | Out-Host }
+    Invoke-NativeStream -Block { & winget install MSYS2.MSYS2 --accept-package-agreements --accept-source-agreements }
     if (Test-Path -LiteralPath $msysRoot) {
       Set-Msys2ChinaMirror | Out-Null
       & $bash -lc "pacman-key --init && pacman-key --populate msys2 && pacman -Sy --noconfirm archlinux-msys2-keyring && pacman -Su --noconfirm && pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" | Out-Host
