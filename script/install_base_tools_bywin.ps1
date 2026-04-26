@@ -29,6 +29,30 @@ $ToolDefs = @(
 
 # ─── winget ───────────────────────────────────────────────────────────────────
 
+function Resolve-WinGetModuleVersion {
+  # 从 PowerShell Gallery 查询 Microsoft.WinGet.Client 最新版本，
+  # 反推对应的 winget CLI 版本前缀，返回 @{ ModuleVersion; WingetVerPrefix }。
+  # 模块版本映射：0.2.x → winget 1.5.x，其他版本主版本号一致（1.6.x → 1.6.x）。
+  # 查询失败返回 $null。
+  try {
+    $latest = Find-Module -Name 'Microsoft.WinGet.Client' -ErrorAction Stop
+    if (-not $latest) { return $null }
+    $modVer = "$($latest.Version)"
+    # 提取主版本前缀（如 "1.12.440" → "1.12"，"0.2.1" → "0.2"）
+    if ($modVer -match '^(\d+\.\d+)') {
+      $modPrefix = $Matches[1]
+    } else {
+      return $null
+    }
+    # 反推 winget 版本前缀
+    $wingetPrefix = if ($modPrefix -eq '0.2') { '1.5' } else { $modPrefix }
+    return @{ ModuleVersion = $modVer; WingetVerPrefix = $wingetPrefix }
+  } catch {
+    Write-Warn "查询 Microsoft.WinGet.Client 模块版本失败：$($_.Exception.Message)"
+    return $null
+  }
+}
+
 function Initialize-WinGetMode {
   # 根据 -WingetMode 参数初始化：module 模式安装并导入模块，cli 模式跳过。
   # 模块版本必须与 winget CLI 版本匹配，否则会报 InvalidCastException。
