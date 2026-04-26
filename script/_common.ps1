@@ -138,8 +138,8 @@ function Invoke-NativeStream {
   # 强制转为字符串，避免 PowerShell 5.1 用错误格式化器显示
   # （如 rustup 把 "info: ..." 写到 stderr 时会被显示成大红块）。
   # 调用方不要在块里再写 `2>&1 | Out-Host`，本函数已统一处理。
-  # winget 等工具的进度条（如 "- \ | /" 旋转动画）每帧输出一行，
-  # 用 [Console]::Write + \r 覆盖同一行，避免刷屏。
+  # winget 等工具的进度条帧（如 "▉  3%" 或 "- \ | /" 旋转动画）每帧输出一行，
+  # 用 [Console]::SetCursorPosition 覆盖同一行，避免刷屏。
   # 非进度条的正常文本始终正常输出。
   param([scriptblock]$Block)
   $prev = $ErrorActionPreference
@@ -149,10 +149,16 @@ function Invoke-NativeStream {
     & $Block 2>&1 | ForEach-Object {
       $text = "$_"
       $trimmed = $text.Trim()
-      # 检测 winget 风格的进度条帧：短行，且去除空格后仅由旋转字符组成
-      $isSpinner = ($trimmed.Length -le 3) -and ($trimmed -match '^[-\\/|]+$')
+      # 检测进度条帧：行内仅包含进度条字符（▉▓░█─━■□●○◆◇★☆spinner等）+ 空格 + 百分比
+      # 不含字母/中文等正常文本内容的短行视为进度条帧
+      $isSpinner = ($trimmed.Length -gt 0) -and ($trimmed.Length -le 40) -and
+                   ($trimmed -notmatch '[a-zA-Z一-鿿]') -and
+                   ($trimmed -match '[▉▓░█─━■□●○◆◇★☆\-\\/|%0-9]')
       if ($isSpinner) {
         if ($isSpinnerLine) {
+          [Console]::SetCursorPosition(0, [Console]::CursorTop)
+          # 用空格覆盖旧内容（新内容可能比旧内容短）
+          [Console]::Write((' ' * [Math]::Max(0, [Console]::WindowWidth - 1)))
           [Console]::SetCursorPosition(0, [Console]::CursorTop)
         }
         [Console]::Write($text)
