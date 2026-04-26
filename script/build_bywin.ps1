@@ -242,7 +242,7 @@ $requiredTargets = @(
 if ($null -eq (Get-ExePath 'rustup.exe')) {
   Write-Fail "未找到 rustup，请从 https://rustup.rs 安装"
 } else {
-  $installedTargets = (& rustup target list --installed 2>$null) -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+  $installedTargets = Get-RustupInstalledTarget
   $missing = New-Object System.Collections.Generic.List[string]
   foreach ($t in $requiredTargets) {
     if ($installedTargets -contains $t) {

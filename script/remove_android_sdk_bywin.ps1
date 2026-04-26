@@ -30,7 +30,7 @@ function Remove-RustAndroidTarget {
     return
   }
   $required = @('aarch64-linux-android', 'armv7-linux-androideabi', 'i686-linux-android', 'x86_64-linux-android')
-  $installed = (& rustup target list --installed 2>$null) -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+  $installed = Get-RustupInstalledTarget
   $present = $required | Where-Object { $installed -contains $_ }
   if (-not $present -or $present.Count -eq 0) {
     Write-Warn "未检测到任何 Android Rust 编译目标，跳过"
@@ -141,7 +141,7 @@ function Show-InstallationStatus {
   $script:InstalledRustCount = 0
   $required = @('aarch64-linux-android', 'armv7-linux-androideabi', 'i686-linux-android', 'x86_64-linux-android')
   if (Get-ExePath 'rustup.exe') {
-    $installed = (& rustup target list --installed 2>$null) -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    $installed = Get-RustupInstalledTarget
     foreach ($t in $required) {
       if ($installed -contains $t) { Write-Ok "  $t"; $script:InstalledRustCount++ } else { Write-Warn "  $t（未装）" }
     }
@@ -209,7 +209,7 @@ $sdkNow = Resolve-AndroidHome
 Write-StatusLine -Label 'Android SDK    ' -Ok:(-not ($sdkNow -and (Test-Path -LiteralPath $sdkNow))) -OkText '已移除' -NotOkText '仍存在' -Detail $sdkNow
 
 if (Get-ExePath 'rustup.exe') {
-  $remain = ((& rustup target list --installed 2>$null) -split "`r?`n" | Where-Object { $_ -match 'linux-android' }).Count
+  $remain = (Get-RustupInstalledTarget | Where-Object { $_ -match 'linux-android' }).Count
   Write-StatusLine -Label 'Rust targets   ' -Ok:($remain -eq 0) -OkText '已移除' -NotOkText "仍存在 $remain 个"
 } else {
   Write-Warn "  Rust targets   ：rustup 未检测到，无法确认"

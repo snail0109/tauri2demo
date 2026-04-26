@@ -19,7 +19,7 @@ function Remove-RustToolchainAbi {
     Write-Warn "未检测到 rustup，跳过 Rust 工具链卸载"
     return
   }
-  $list = (& rustup toolchain list 2>$null) -split "`r?`n" | ForEach-Object { ($_ -split '\s+')[0] } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+  $list = Get-RustupToolchain
   if ($list -notcontains $toolchain) {
     Write-Warn "Rust 工具链 $toolchain 未安装，跳过"
     return
@@ -34,8 +34,8 @@ function Remove-RustToolchainAbi {
 
 function Remove-AllRustToolchain {
   if (-not (Get-ExePath 'rustup.exe')) { return }
-  $toolchains = (& rustup toolchain list 2>$null) -split "`r?`n" | ForEach-Object { ($_ -split '\s+')[0] } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-  if (-not $toolchains -or $toolchains.Count -eq 0) { return }
+  $toolchains = Get-RustupToolchain
+  if ($toolchains.Count -eq 0) { return }
   if (-not (Confirm-Remove "卸载所有 Rust 工具链（共 $($toolchains.Count) 个）")) { return }
   foreach ($tc in $toolchains) {
     if ($DryRun) { Write-Warn "DryRun: rustup toolchain uninstall $tc"; continue }

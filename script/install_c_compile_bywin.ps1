@@ -166,7 +166,7 @@ function Install-RustToolchainAbi {
     if (-not (Install-Rustup)) { return $false }
   }
 
-  $list = (& rustup toolchain list 2>$null) -split "`r?`n" | ForEach-Object { ($_ -split '\s+')[0] } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+  $list = Get-RustupToolchain
   if ($list -notcontains $toolchain) {
     if (-not (Confirm-Install "通过 rustup 安装 $toolchain 工具链")) {
       Write-Warn "已跳过 Rust $toolchain 工具链安装"

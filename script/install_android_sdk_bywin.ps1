@@ -233,7 +233,7 @@ if ($null -eq (Get-ExePath 'rustup.exe') -and (Test-Path -LiteralPath (Join-Path
 }
 
 if ($null -ne (Get-ExePath 'rustup.exe')) {
-  $installedTargets = (& rustup target list --installed 2>$null) -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+  $installedTargets = Get-RustupInstalledTarget
   $missing = New-Object System.Collections.Generic.List[string]
   foreach ($t in $requiredTargets) {
     if ($installedTargets -contains $t) {

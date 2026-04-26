@@ -111,6 +111,22 @@ function Invoke-NativeStream {
   }
 }
 
+# ─── Rustup helpers ──────────────────────────────────────────────────────────
+function Get-RustupInstalledTarget {
+  # 已安装的 Rust 编译目标列表（string[]）。rustup 不存在时返回空数组。
+  if (-not (Get-ExePath 'rustup.exe')) { return @() }
+  return @(Invoke-NativeText -FilePath 'rustup' -Arguments @('target', 'list', '--installed') |
+    Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
+function Get-RustupToolchain {
+  # 已安装的 Rust 工具链名称列表（string[]，每行第一段，去掉 "(default)" 等后缀）。
+  if (-not (Get-ExePath 'rustup.exe')) { return @() }
+  return @(Invoke-NativeText -FilePath 'rustup' -Arguments @('toolchain', 'list') |
+    ForEach-Object { ($_ -split '\s+')[0] } |
+    Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
 # ─── Path / process discovery ────────────────────────────────────────────────
 function Get-ExePath([string]$Name) {
   $cmd = Get-Command $Name -ErrorAction SilentlyContinue
