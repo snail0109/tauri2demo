@@ -105,6 +105,29 @@ Test-Case -Name 'Get-PropValue: 解析 key=value' -Body {
   if ((Get-PropValue -Lines $lines -Key 'x') -ne 'single') { throw "x 应去单引号" }
   if ((Get-PropValue -Lines $lines -Key 'missing') -ne '') { throw "missing 应为空" }
 }
+Test-Case -Name 'Confirm-Step: Enable-AutoConfirm 后透过 wrapper 自动通过' -Body {
+  Disable-AutoConfirm
+  Enable-AutoConfirm
+  try {
+    if (-not (Confirm-Remove "auto-confirm test" 6>$null)) { throw 'Enable-AutoConfirm 后 Confirm-Remove 应自动 true' }
+    if (-not (Confirm-Install "auto-confirm test" 6>$null)) { throw 'Enable-AutoConfirm 后 Confirm-Install 应自动 true' }
+    if (-not (Confirm-Continue "auto-confirm test" 6>$null)) { throw 'Enable-AutoConfirm 后 Confirm-Continue 应自动 true' }
+  } finally { Disable-AutoConfirm }
+}
+Test-Case -Name 'Confirm-Step: 未启用 AutoConfirm 时遇到 "n" 输入应返回 false（Default=No）' -Body {
+  Disable-AutoConfirm
+  $script = Join-Path $env:TEMP ("confirm_no_{0}.ps1" -f ([guid]::NewGuid().ToString('N')))
+  @"
+. '$ScriptDir\_common.ps1'
+if (Confirm-Remove 'should be denied') { exit 2 } else { exit 0 }
+"@ | Set-Content -LiteralPath $script -Encoding UTF8
+  try {
+    $null = 'n' | & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $script 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "Confirm-Remove 在 'n' 输入下应返回 false（exit 0），实际 exit $LASTEXITCODE" }
+  } finally {
+    Remove-Item -LiteralPath $script -Force -ErrorAction SilentlyContinue
+  }
+}
 
 Write-Host ""
 Write-Host "──── 3. build_bywin.ps1 不带参数 → 用法提示 ────" -ForegroundColor Cyan
@@ -123,8 +146,30 @@ Test-Case -Name 'remove_android_sdk_bywin.ps1 -DryRun（菜单选 0 退出）' -
   $rc = $LASTEXITCODE
   if ($rc -ne 0) { throw "应 exit 0，实际 $rc；输出：$($out -join "`n")" }
 }
+Test-Case -Name 'remove_android_sdk_bywin.ps1 -DryRun（菜单选 1，子操作不再问）' -Body {
+  # 只注入 "1"，不再注入任何 y/n。Enable-AutoConfirm 生效则全程不挂。
+  $out = '1' | & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ScriptDir 'remove_android_sdk_bywin.ps1') -DryRun 2>&1
+  $rc = $LASTEXITCODE
+  if ($rc -ne 0) { throw "应 exit 0，实际 $rc；输出：$($out -join "`n")" }
+}
+Test-Case -Name 'remove_android_sdk_bywin.ps1 -DryRun（菜单选 3 + 顶层 y，子操作不再问）' -Body {
+  # 选 3 需要先在顶层确认；之后 Enable-AutoConfirm 接管所有子 Confirm-Remove。
+  $out = "3`ny" | & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ScriptDir 'remove_android_sdk_bywin.ps1') -DryRun 2>&1
+  $rc = $LASTEXITCODE
+  if ($rc -ne 0) { throw "应 exit 0，实际 $rc；输出：$($out -join "`n")" }
+}
 Test-Case -Name 'remove_c_compile_bywin.ps1 -DryRun（菜单选 0 退出）' -Body {
   $out = '0' | & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ScriptDir 'remove_c_compile_bywin.ps1') -DryRun 2>&1
+  $rc = $LASTEXITCODE
+  if ($rc -ne 0) { throw "应 exit 0，实际 $rc；输出：$($out -join "`n")" }
+}
+Test-Case -Name 'remove_c_compile_bywin.ps1 -DryRun（菜单选 1，子操作不再问）' -Body {
+  $out = '1' | & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ScriptDir 'remove_c_compile_bywin.ps1') -DryRun 2>&1
+  $rc = $LASTEXITCODE
+  if ($rc -ne 0) { throw "应 exit 0，实际 $rc；输出：$($out -join "`n")" }
+}
+Test-Case -Name 'remove_c_compile_bywin.ps1 -DryRun（菜单选 3 + 顶层 y，子操作不再问）' -Body {
+  $out = "3`ny" | & powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $ScriptDir 'remove_c_compile_bywin.ps1') -DryRun 2>&1
   $rc = $LASTEXITCODE
   if ($rc -ne 0) { throw "应 exit 0，实际 $rc；输出：$($out -join "`n")" }
 }

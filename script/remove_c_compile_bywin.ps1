@@ -11,6 +11,8 @@ $Failed = $false
 
 . (Join-Path $PSScriptRoot '_common.ps1')
 
+if ($Yes) { Enable-AutoConfirm }
+
 function Remove-RustToolchainAbi {
   param([ValidateSet('msvc', 'gnu')] [string]$Abi)
 
@@ -121,11 +123,13 @@ $selected = Select-MenuOption -Prompt '请选择要卸载的内容：' -Options 
 
 switch ($selected) {
   1 {
+    Enable-AutoConfirm
     Remove-RustToolchainAbi -Abi 'gnu'
     Remove-Rustup
     Remove-Msys2
   }
   2 {
+    Enable-AutoConfirm
     Remove-RustToolchainAbi -Abi 'msvc'
     Remove-Msvc
     Remove-Rustup
@@ -138,6 +142,7 @@ switch ($selected) {
       Write-Host "  已退出，未卸载任何内容。" -ForegroundColor Yellow
       exit 0
     }
+    Enable-AutoConfirm
     Remove-AllRustToolchain
     Remove-Rustup
     Remove-Msys2

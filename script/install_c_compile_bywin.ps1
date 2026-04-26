@@ -8,6 +8,8 @@ $Failed = $false
 
 . (Join-Path $PSScriptRoot '_common.ps1')
 
+if ($Yes) { Enable-AutoConfirm }
+
 function Test-Msvc {
   $cl = Get-ExePath 'cl.exe'
   if (-not $cl) { return $false }

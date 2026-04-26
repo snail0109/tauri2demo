@@ -36,15 +36,20 @@ function Write-StatusLine {
 }
 
 # ─── Confirmations ───────────────────────────────────────────────────────────
+# 全局自动确认开关：一旦置位，本脚本进程内所有 Confirm-* 都直接返回 true。
+# 用于 -y 静默模式，以及"主菜单选择后子操作不再重复确认"场景。
+$script:__AutoConfirm = $false
+
+function Enable-AutoConfirm { $script:__AutoConfirm = $true }
+function Disable-AutoConfirm { $script:__AutoConfirm = $false }
+
 function Confirm-Step {
   param(
     [string]$Desc,
     [ValidateSet('Yes', 'No')] [string]$Default = 'Yes',
     [string]$AutoLabel = '自动确认'
   )
-  $autoYes = $false
-  try { if (Get-Variable -Name 'Yes' -Scope 1 -ErrorAction SilentlyContinue) { $autoYes = [bool](Get-Variable -Name 'Yes' -Scope 1 -ValueOnly) } } catch {}
-  if ($autoYes) {
+  if ($script:__AutoConfirm) {
     Write-Host "  ${AutoLabel}：$Desc" -ForegroundColor Yellow
     return $true
   }

@@ -11,6 +11,8 @@ $Failed = $false
 
 . (Join-Path $PSScriptRoot '_common.ps1')
 
+if ($Yes) { Enable-AutoConfirm }
+
 function Stop-AndroidProcess {
   Write-Warn "正在结束 adb / Android Studio / Gradle 相关进程..."
   $names = @('adb', 'studio64', 'studio', 'gradle', 'gradlew', 'fsnotifier')
@@ -180,8 +182,15 @@ $selected = Select-MenuOption -Prompt '请选择要卸载的内容：' -Options 
 )
 
 switch ($selected) {
-  1 { Remove-RustAndroidTarget }
-  2 { Remove-AndroidSdkDir; Remove-AndroidEnvVar }
+  1 {
+    Enable-AutoConfirm
+    Remove-RustAndroidTarget
+  }
+  2 {
+    Enable-AutoConfirm
+    Remove-AndroidSdkDir
+    Remove-AndroidEnvVar
+  }
   3 {
     Write-Warn "即将依次卸载：Rust Android targets → Android SDK 目录 → 环境变量"
     if (-not (Confirm-Remove "确认执行全部卸载（请慎重）")) {
@@ -189,6 +198,7 @@ switch ($selected) {
       Write-Host "  已退出，未卸载任何内容。" -ForegroundColor Yellow
       exit 0
     }
+    Enable-AutoConfirm
     Remove-RustAndroidTarget
     Remove-AndroidSdkDir
     Remove-AndroidEnvVar

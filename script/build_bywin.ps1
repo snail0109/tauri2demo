@@ -13,6 +13,8 @@ $Failed = $false
 
 . (Join-Path $PSScriptRoot '_common.ps1')
 
+if ($Yes) { Enable-AutoConfirm }
+
 $DefaultKeystoreLines = @(
   'keyAlias=tauri2demo_key',
   'password=abc009988',

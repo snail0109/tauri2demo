@@ -9,6 +9,8 @@ $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot '_common.ps1')
 
+if ($Yes) { Enable-AutoConfirm }
+
 function Save-WebFile {
   param([string[]]$Urls, [string]$OutFile)
   foreach ($u in $Urls) {
