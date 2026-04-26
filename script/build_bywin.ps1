@@ -394,7 +394,6 @@ Write-Host ""
 
 $env:ANDROID_HOME = $androidHome
 Add-PathPrefix (Join-Path $androidHome 'platform-tools')
-Add-PathPrefix (Join-Path $androidHome 'tools')
 
 if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) {
   $toolchainBin = Join-Path $env:ANDROID_NDK_HOME 'toolchains\llvm\prebuilt\windows-x86_64\bin'
