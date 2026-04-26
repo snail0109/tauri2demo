@@ -18,7 +18,7 @@ if ($Yes) { Enable-AutoConfirm }
 $DefaultKeystoreLines = @(
   'keyAlias=tauri2demo_key',
   'password=abc009988',
-  'storeFile="C:\SyncData\release.keystore"'
+  'storeFile=./config/release.keystore'
 )
 
 function Test-AndroidProjectComplete([string]$GenAndroidDir) {
@@ -238,14 +238,21 @@ if (Test-Path -LiteralPath $keystoreProps2) {
   $keyAlias = Get-PropValue -Lines $props -Key 'keyAlias'
   $keyPassword = Get-PropValue -Lines $props -Key 'password'
 
-  if (-not [string]::IsNullOrWhiteSpace($storeFileRaw) -and (Test-Path -LiteralPath $storeFileRaw)) {
-    Write-Ok "Keystore 文件已存在：$storeFileRaw"
+  # gradle 在 gen\android\app\build.gradle.kts 里通过 file() 解析 storeFile，
+  # 相对路径基准是 gen\android\app。脚本侧对齐这个基准，避免脚本生成的 keystore 跟 gradle 找的不是同一个文件。
+  $storeFileResolved = $storeFileRaw
+  if (-not [string]::IsNullOrWhiteSpace($storeFileRaw) -and -not [System.IO.Path]::IsPathRooted($storeFileRaw)) {
+    $storeFileResolved = [System.IO.Path]::GetFullPath((Join-Path (Join-Path $genAndroidDir 'app') $storeFileRaw))
+  }
+
+  if (-not [string]::IsNullOrWhiteSpace($storeFileRaw) -and (Test-Path -LiteralPath $storeFileResolved)) {
+    Write-Ok "Keystore 文件已存在：$storeFileResolved"
   } elseif (-not [string]::IsNullOrWhiteSpace($storeFileRaw)) {
-    Write-Warn "Keystore 文件不存在：$storeFileRaw"
+    Write-Warn "Keystore 文件不存在：$storeFileResolved"
     Write-Warn "正在自动生成 keystore ..."
     $aliasToUse = if ([string]::IsNullOrWhiteSpace($keyAlias)) { 'tauri2demo_key' } else { $keyAlias }
     $passwordToUse = if ([string]::IsNullOrWhiteSpace($keyPassword)) { 'changeit' } else { $keyPassword }
-    New-Keystore -StoreFile $storeFileRaw -Alias $aliasToUse -Password $passwordToUse
+    New-Keystore -StoreFile $storeFileResolved -Alias $aliasToUse -Password $passwordToUse
   } else {
     Write-Warn "keystore.properties 中未找到 storeFile=，跳过 keystore 文件检查"
   }
