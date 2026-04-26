@@ -427,7 +427,7 @@ function Assert-Java17 {
 # ─── Misc helpers ────────────────────────────────────────────────────────────
 function Get-PropValue {
   param([string[]]$Lines, [string]$Key)
-  $line = $Lines | Where-Object { $_ -match ('^' + [regex]::Escape($Key) + '=') } | Select-Object -First 1
+  $line = $Lines | Where-Object { $_ -match ('^' + [regex]::Escape($Key) + '\s*=') } | Select-Object -First 1
   if (-not $line) { return '' }
-  return ($line -replace ('^' + [regex]::Escape($Key) + '='), '').Trim().Trim('"').Trim("'")
+  return ($line -replace ('^' + [regex]::Escape($Key) + '\s*=\s*'), '').Trim().Trim('"').Trim("'")
 }

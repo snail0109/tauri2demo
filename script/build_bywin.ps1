@@ -155,7 +155,6 @@ Write-Host "[4/8] Android SDK" -ForegroundColor Cyan
 $androidHome = Resolve-AndroidHome
 if ($null -ne $androidHome) {
   $env:ANDROID_HOME = $androidHome
-  # 从 platforms/android-<N>/source.properties 提取 SDK 版本
   $platformsDir = Join-Path $androidHome 'platforms'
   $sdkDetails = if (Test-Path -LiteralPath $platformsDir) {
     @(Get-ChildItem -LiteralPath $platformsDir -Directory -ErrorAction SilentlyContinue |
@@ -164,8 +163,8 @@ if ($null -ne $androidHome) {
       ForEach-Object {
         $api = $Matches[1]
         $sp = Join-Path $_.FullName 'source.properties'
-        $ver = if (Test-Path -LiteralPath $sp) { (Get-PropValue -Lines (Get-Content -LiteralPath $sp) -Key 'Pkg.Revision') } else { '' }
-        if ($ver) { "API $api ($ver)" } else { "API $api" }
+        $platVer = if (Test-Path -LiteralPath $sp) { (Get-PropValue -Lines (Get-Content -LiteralPath $sp) -Key 'Platform.Version') } else { '' }
+        if ($platVer) { "API $api (Android $platVer)" } else { "API $api" }
       })
   } else { @() }
   $sdkStr = if ($sdkDetails.Count -gt 0) { $sdkDetails -join ', ' } else { '无 platform' }
