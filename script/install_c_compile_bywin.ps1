@@ -242,6 +242,7 @@ function Confirm-MingwGccReady {
   # 然后顺手安装/确认 stable-x86_64-pc-windows-gnu 工具链。3 处共用。
   param([string]$SuccessMessage)
   Add-PathPrefix $MingwBin
+  Add-UserPathSegment -Segment $MingwBin | Out-Null
   Write-Ok $SuccessMessage
   Test-Gnu | Out-Null
   Install-RustToolchainAbi -Abi 'gnu' | Out-Null
