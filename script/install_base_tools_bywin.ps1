@@ -4,6 +4,8 @@ param(
 
   [string[]]$AddTools,
 
+  [string[]]$RemoveTools,
+
   [ValidateSet('auto', 'appx', 'store', 'psgallery', 'onescript')]
   [string]$WingetMethod = 'auto'
 )
