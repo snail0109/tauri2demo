@@ -25,9 +25,9 @@ RESET='\033[0m'
 
 FAILED=0
 
-ok()   { echo -e "${GREEN}  ✓${RESET} $*"; }
-warn() { echo -e "${YELLOW}  ⚠${RESET} $*"; }
-fail() { echo -e "${RED}  ✗${RESET} $*"; FAILED=1; }
+ok()   { echo -e "${GREEN}  ✓ ${RESET} $*"; }
+warn() { echo -e "${YELLOW}  ⚠ ${RESET} $*"; }
+fail() { echo -e "${RED}  ✗ ${RESET} $*"; FAILED=1; }
 
 # 卸载默认 NO（与安装脚本相反），避免误操作
 confirm_remove() {
@@ -155,25 +155,12 @@ kill_android_processes() {
   warn "正在结束 adb / Android Studio / Gradle 相关进程..."
 
   # 按进程名直接 taskkill（/F 强制 /T 含子进程）
-  local procs=(adb.exe studio64.exe studio.exe gradle.exe fsnotifier.exe)
+  # 注：实际锁住 SDK 目录的主要是 adb.exe；其它列出来一并清理
+  local procs=(adb.exe studio64.exe studio.exe gradle.exe gradlew.exe fsnotifier.exe)
   for p in "${procs[@]}"; do
-    if cmd.exe /c "tasklist /FI \"IMAGENAME eq $p\" /NH" 2>/dev/null | grep -qi "$p"; then
-      if cmd.exe /c "taskkill /F /IM $p /T" >/dev/null 2>&1; then
-        ok "已结束 $p"
-      else
-        warn "结束 $p 失败（可能权限不足）"
-      fi
-    fi
+    # /F /T 强制结束 + 含子进程；进程不存在时返回非零，重定向丢弃即可，不报错
+    taskkill //F //T //IM "$p" >/dev/null 2>&1 && ok "已结束 $p" || true
   done
-
-  # Gradle daemon 是 java.exe 子进程，按命令行特征匹配
-  powershell -NoProfile -Command "
-    Get-CimInstance Win32_Process -Filter \"Name='java.exe'\" |
-      Where-Object { \$_.CommandLine -match 'GradleDaemon|gradle-launcher|kotlin-compiler' } |
-      ForEach-Object {
-        try { Stop-Process -Id \$_.ProcessId -Force -ErrorAction Stop; Write-Host \"  killed java.exe PID=\$(\$_.ProcessId)\" } catch {}
-      }
-  " 2>/dev/null || true
 
   # 等待 Windows 释放文件句柄
   sleep 1

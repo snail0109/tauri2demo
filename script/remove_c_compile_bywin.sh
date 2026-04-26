@@ -25,9 +25,9 @@ RESET='\033[0m'
 
 FAILED=0
 
-ok()   { echo -e "${GREEN}  ✓${RESET} $*"; }
-warn() { echo -e "${YELLOW}  ⚠${RESET} $*"; }
-fail() { echo -e "${RED}  ✗${RESET} $*"; FAILED=1; }
+ok()   { echo -e "${GREEN}  ✓ ${RESET} $*"; }
+warn() { echo -e "${YELLOW}  ⚠ ${RESET} $*"; }
+fail() { echo -e "${RED}  ✗ ${RESET} $*"; FAILED=1; }
 
 # 卸载默认 NO（与安装脚本相反），避免误操作
 confirm_remove() {

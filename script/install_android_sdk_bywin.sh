@@ -19,9 +19,9 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 RESET='\033[0m'
 
-ok()   { echo -e "${GREEN}  ✓${RESET} $*"; }
-warn() { echo -e "${YELLOW}  ⚠${RESET} $*"; }
-fail() { echo -e "${RED}  ✗${RESET} $*"; }
+ok()   { echo -e "${GREEN}  ✓ ${RESET} $*"; }
+warn() { echo -e "${YELLOW}  ⚠ ${RESET} $*"; }
+fail() { echo -e "${RED}  ✗ ${RESET} $*"; }
 
 # ─── Parse args ───────────────────────────────────────────────────────────────
 # 用法：./install_android_sdk_bywin.sh [-y|--yes] [--sdk-root <path>]
@@ -158,10 +158,10 @@ bootstrap_sdkmanager() {
   rm -rf "$tmp_zip" "$tmp_extract"
 
   if [[ -f "${sdk_root}/cmdline-tools/latest/bin/sdkmanager.bat" ]]; then
-    ok "sdkmanager 已安装：${sdk_root}/cmdline-tools/latest/bin/sdkmanager.bat"
+    ok "SDKManager 已安装：${sdk_root}/cmdline-tools/latest/bin/sdkmanager.bat"
     return 0
   fi
-  fail "安装后仍未找到 sdkmanager.bat"
+  fail "安装后仍未找到 SDKManager.bat"
   return 1
 }
 
@@ -214,6 +214,13 @@ else
   if confirm_install "自动下载 Android 命令行工具包到 ${SDK_ROOT_DEFAULT}"; then
     if bootstrap_sdkmanager "$SDK_ROOT_DEFAULT"; then
       SDKMANAGER="${SDK_ROOT_DEFAULT}/cmdline-tools/latest/bin/sdkmanager.bat"
+      # 尝试显示 SDKManager 版本（依赖 Java；失败则静默跳过）
+      SDKMANAGER_VER="$("$SDKMANAGER" --version 2>/dev/null | tr -d '\r' | grep -E '^[0-9]' | head -1 || true)"
+      if [[ -n "$SDKMANAGER_VER" ]]; then
+        ok "    版本：$SDKMANAGER_VER"
+      else
+        warn "    无法读取 SDKManager 版本（可能 Java 未就绪，下一步会校验）"
+      fi
     else
       fail "命令行工具包下载/安装失败"
       fail "请手动下载：https://developer.android.com/studio#command-tools"

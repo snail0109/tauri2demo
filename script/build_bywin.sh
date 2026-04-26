@@ -19,9 +19,9 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 RESET='\033[0m'
 
-ok()   { echo -e "${GREEN}  ✓${RESET} $*"; }
-warn() { echo -e "${YELLOW}  ⚠${RESET} $*"; }
-fail() { echo -e "${RED}  ✗${RESET} $*"; FAILED=1; }
+ok()   { echo -e "${GREEN}  ✓ ${RESET} $*"; }
+warn() { echo -e "${YELLOW}  ⚠ ${RESET} $*"; }
+fail() { echo -e "${RED}  ✗ ${RESET} $*"; FAILED=1; }
 
 # ─── Confirm & helpers ────────────────────────────────────────────────────────
 confirm_install() {
