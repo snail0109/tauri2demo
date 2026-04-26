@@ -1,0 +1,451 @@
+param(
+  [Alias('y')]
+  [switch]$Yes
+)
+
+$ErrorActionPreference = 'Stop'
+$Failed = $false
+
+function Write-Ok([string]$Message) { Write-Host "  ✓  $Message" -ForegroundColor Green }
+function Write-Warn([string]$Message) { Write-Host "  ⚠  $Message" -ForegroundColor Yellow }
+function Write-Fail([string]$Message) { Write-Host "  ✗  $Message" -ForegroundColor Red; $script:Failed = $true }
+
+function Confirm-Install([string]$Desc) {
+  if ($Yes) {
+    Write-Host "  自动确认：$Desc" -ForegroundColor Yellow
+    return $true
+  }
+  $ans = Read-Host "  ? $Desc 是否自动安装？[Y/n]"
+  if ($ans -match '^(n|no)$') { return $false }
+  return $true
+}
+
+function Select-Option([string]$Prompt, [string[]]$Options) {
+  Write-Host $Prompt -ForegroundColor Cyan
+  for ($i = 0; $i -lt $Options.Count; $i++) {
+    Write-Host ("  {0}) {1}" -f ($i + 1), $Options[$i]) -ForegroundColor Cyan
+  }
+  Write-Host "  0) 退出（不安装）" -ForegroundColor Cyan
+  Write-Host ""
+  $choice = Read-Host ("  请选择 [0-{0}]" -f $Options.Count)
+  $n = 0
+  if ([int]::TryParse($choice, [ref]$n) -and $n -ge 1 -and $n -le $Options.Count) { return $n }
+  return 0
+}
+
+function Get-ExePath([string]$Name) {
+  $cmd = Get-Command $Name -ErrorAction SilentlyContinue
+  if ($null -eq $cmd) { return $null }
+  return $cmd.Source
+}
+
+function Ensure-PathPrefix([string]$Prefix) {
+  if ([string]::IsNullOrWhiteSpace($Prefix)) { return }
+  $parts = $env:Path -split ';'
+  if ($parts -contains $Prefix) { return }
+  $env:Path = "$Prefix;$env:Path"
+}
+
+function Check-MSVC() {
+  $cl = Get-ExePath 'cl.exe'
+  if (-not $cl) { return $false }
+  $info = (& cl.exe 2>&1 | Select-Object -First 2) -join ' '
+  Write-Ok "MSVC cl.exe 已安装"
+  Write-Host "    路径：$cl"
+  if (-not [string]::IsNullOrWhiteSpace($info)) { Write-Host "    版本：$info" }
+  return $true
+}
+
+function Check-AS() {
+  $as = Get-ExePath 'as.exe'
+  if ($as) {
+    Write-Ok "GNU 汇编器 as 已安装"
+    Write-Host "    路径：$as"
+    return $true
+  }
+  $msysAs = 'C:\msys64\mingw64\bin\as.exe'
+  if (Test-Path -LiteralPath $msysAs) {
+    Ensure-PathPrefix 'C:\msys64\mingw64\bin'
+    Write-Ok "GNU 汇编器 as 已安装（已添加到 PATH）"
+    Write-Host "    路径：$msysAs"
+    return $true
+  }
+  return $false
+}
+
+function Install-AS() {
+  if (Check-AS) { return $true }
+  Write-Warn "未找到 GNU 汇编器 as.exe，Rust dlltool 将无法创建导入库（编译会报 CreateProcess 错误）"
+  $bash = 'C:\msys64\usr\bin\bash.exe'
+  if (-not (Test-Path -LiteralPath $bash)) {
+    Write-Fail "缺少 MSYS2，无法自动安装 binutils"
+    return $false
+  }
+  if (-not (Confirm-Install "通过 MSYS2 pacman 安装 mingw-w64-x86_64-binutils")) { return $false }
+  Setup-Msys2-ChinaMirrors | Out-Null
+  & $bash -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-binutils" | Out-Host
+  if (Test-Path -LiteralPath 'C:\msys64\mingw64\bin\as.exe') {
+    Ensure-PathPrefix 'C:\msys64\mingw64\bin'
+    Write-Ok "mingw-w64-x86_64-binutils 安装成功，as.exe 已添加到 PATH"
+    return $true
+  }
+  Write-Fail "缺少 GNU 汇编器 as.exe，Android 交叉编译将失败。"
+  Write-Fail "请安装 MSYS2（https://www.msys2.org/）并运行：pacman -S mingw-w64-x86_64-binutils"
+  Write-Fail "然后将 C:\msys64\mingw64\bin 添加到 PATH"
+  return $false
+}
+
+function Setup-Msys2-ChinaMirrors() {
+  $d = 'C:\msys64\etc\pacman.d'
+  if (-not (Test-Path -LiteralPath $d)) { return $true }
+  $marker = Join-Path $d '.china_mirrors_added'
+  if (Test-Path -LiteralPath $marker) { return $true }
+  Write-Host "  配置 MSYS2 国内镜像源（清华 TUNA）..." -ForegroundColor Cyan
+  $map = @(
+    @{ File = 'mirrorlist.mingw32';    Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/i686/' },
+    @{ File = 'mirrorlist.mingw64';    Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/x86_64/' },
+    @{ File = 'mirrorlist.ucrt64';     Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/ucrt64/' },
+    @{ File = 'mirrorlist.clang64';    Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/clang64/' },
+    @{ File = 'mirrorlist.clangarm64'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/clangarm64/' },
+    @{ File = 'mirrorlist.msys';       Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/msys/$arch/' }
+  )
+  foreach ($item in $map) {
+    $file = Join-Path $d $item.File
+    if (-not (Test-Path -LiteralPath $file)) { continue }
+    $content = Get-Content -LiteralPath $file -ErrorAction SilentlyContinue
+    if ($content -and ($content | Where-Object { $_ -eq $item.Line })) { continue }
+    @($item.Line) + $content | Set-Content -LiteralPath $file -Encoding ASCII
+  }
+  New-Item -ItemType File -Force -Path $marker | Out-Null
+  Write-Ok "MSYS2 国内镜像源已配置"
+  return $true
+}
+
+$RustcHost = ''
+$RustcVersion = ''
+function Check-Rust() {
+  $rustc = Get-ExePath 'rustc.exe'
+  if (-not $rustc) {
+    $cargoBin = Join-Path $HOME '.cargo\bin'
+    $cand = Join-Path $cargoBin 'rustc.exe'
+    if (Test-Path -LiteralPath $cand) { Ensure-PathPrefix $cargoBin; $rustc = $cand }
+  }
+  if (-not $rustc) { return $false }
+  try {
+    $script:RustcVersion = (& rustc --version 2>&1 | Select-Object -First 1)
+    $hostLine = (& rustc -vV 2>$null | Where-Object { $_ -match '^host:\s*' } | Select-Object -First 1)
+    if ($hostLine) { $script:RustcHost = ($hostLine -replace '^host:\s*', '').Trim() }
+  } catch {}
+  Write-Ok "Rust 工具链已安装"
+  if (-not [string]::IsNullOrWhiteSpace($script:RustcHost)) { Write-Host "    host：$($script:RustcHost)" }
+  if (-not [string]::IsNullOrWhiteSpace($script:RustcVersion)) { Write-Host "    版本：$($script:RustcVersion)" }
+  return $true
+}
+
+function Install-Rustup() {
+  if (Get-ExePath 'rustup.exe') { return $true }
+  Write-Host ""
+  Write-Host "═══ 安装 rustup ═══" -ForegroundColor Cyan
+  if (-not (Confirm-Install "安装 rustup（Rust 工具链管理器）")) {
+    Write-Warn "已跳过 rustup 安装"
+    return $false
+  }
+
+  if (Get-ExePath 'winget.exe') {
+    Write-Host "  尝试通过 winget 安装 Rustlang.Rustup ..." -ForegroundColor Cyan
+    & winget install --id Rustlang.Rustup --accept-package-agreements --accept-source-agreements --silent 2>&1 | Out-Host
+    $cargoBin = Join-Path $HOME '.cargo\bin'
+    if (Test-Path -LiteralPath $cargoBin) { Ensure-PathPrefix $cargoBin }
+    if (Get-ExePath 'rustup.exe') {
+      $v = (& rustup --version 2>&1 | Select-Object -First 1)
+      Write-Ok "rustup 安装成功：$v"
+      return $true
+    }
+    Write-Warn "winget 未生效或未找到 rustup，改用 rustup-init.exe ..."
+  }
+
+  $installer = Join-Path $env:TEMP ("rustup_init_{0}.exe" -f ([guid]::NewGuid().ToString('N')))
+  Write-Host "  正在下载 rustup-init.exe ..." -ForegroundColor Cyan
+  try {
+    Invoke-WebRequest -Uri 'https://win.rustup.rs/x86_64' -OutFile $installer -UseBasicParsing -TimeoutSec 30 | Out-Null
+  } catch {
+    Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
+    Write-Fail "下载 rustup-init.exe 失败"
+    Write-Fail "请手动访问 https://rustup.rs 安装"
+    return $false
+  }
+  Write-Ok "下载完成，启动 rustup-init（默认 toolchain=none，由本脚本后续配置）..."
+  try {
+    Start-Process -FilePath $installer -ArgumentList @('-y', '--default-toolchain', 'none', '--no-modify-path') -Wait -NoNewWindow | Out-Null
+  } catch {}
+  Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
+
+  $cargoBin = Join-Path $HOME '.cargo\bin'
+  if (Test-Path -LiteralPath $cargoBin) { Ensure-PathPrefix $cargoBin }
+
+  if (Get-ExePath 'rustup.exe') {
+    $v = (& rustup --version 2>&1 | Select-Object -First 1)
+    Write-Ok "rustup 安装成功：$v"
+    return $true
+  }
+
+  Write-Fail "rustup 自动安装失败，请手动访问 https://rustup.rs 安装"
+  return $false
+}
+
+function Ensure-RustToolchain([ValidateSet('msvc', 'gnu')] [string]$Abi) {
+  $target = "x86_64-pc-windows-$Abi"
+  $toolchain = "stable-$target"
+
+  if (-not (Get-ExePath 'rustup.exe')) {
+    if (-not (Install-Rustup)) { return $false }
+  }
+
+  $list = (& rustup toolchain list 2>$null) -split "`r?`n" | ForEach-Object { ($_ -split '\s+')[0] } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+  if ($list -notcontains $toolchain) {
+    if (-not (Confirm-Install "通过 rustup 安装 $toolchain 工具链")) {
+      Write-Warn "已跳过 Rust $toolchain 工具链安装"
+      return $false
+    }
+    try {
+      & rustup toolchain install $toolchain 2>&1 | Out-Host
+      Write-Ok "Rust 工具链 $toolchain 安装成功"
+    } catch {
+      Write-Fail "rustup toolchain install $toolchain 失败"
+      return $false
+    }
+  }
+
+  $currentDefault = ''
+  try { $currentDefault = ((& rustup default 2>$null) -split '\s+')[0] } catch {}
+  if ($currentDefault -ne $toolchain) {
+    $currentLabel = $currentDefault
+    if ([string]::IsNullOrWhiteSpace($currentLabel)) { $currentLabel = '未设置' }
+    if (Confirm-Install "将 $toolchain 设为默认 Rust 工具链（当前：$currentLabel）") {
+      try { & rustup default $toolchain 2>&1 | Out-Host } catch { Write-Warn "设置默认工具链失败" }
+    }
+  }
+
+  Check-Rust | Out-Null
+  Write-Host ""
+  Write-Host "══════════════════════════════════════════" -ForegroundColor Green
+  Write-Host "  Rust 工具链已就绪" -ForegroundColor Green
+  Write-Host "══════════════════════════════════════════" -ForegroundColor Green
+  return $true
+}
+
+function Install-MSVC() {
+  Write-Host ""
+  Write-Host "═══ 安装 MSVC (Visual Studio Build Tools) ═══" -ForegroundColor Cyan
+  Write-Host ""
+  Write-Host "  MSVC 需要通过 Visual Studio Installer 安装，步骤如下："
+  Write-Host ""
+  Write-Host "  方式一：自动下载安装器" -ForegroundColor Yellow
+  Write-Host "    脚本将下载 vs_BuildTools.exe 并启动安装"
+  Write-Host ""
+  Write-Host "  方式二：手动安装" -ForegroundColor Yellow
+  Write-Host "    1. 访问 https://visualstudio.microsoft.com/visual-cpp-build-tools/"
+  Write-Host "    2. 下载 Build Tools for Visual Studio"
+  Write-Host "    3. 安装时勾选「使用 C++ 的桌面开发」工作负载"
+  Write-Host ""
+
+  if (-not (Confirm-Install "自动下载并启动 MSVC Build Tools 安装器")) {
+    Write-Warn "已跳过 MSVC 自动安装，请手动安装后重新运行此脚本"
+    return $false
+  }
+
+  $installerPath = Join-Path $env:TEMP ("vs_buildtools_{0}.exe" -f ([guid]::NewGuid().ToString('N')))
+  Write-Host "  正在下载 Visual Studio Build Tools 安装器 ..." -ForegroundColor Cyan
+  try {
+    Invoke-WebRequest -Uri 'https://aka.ms/vs/17/release/vs_BuildTools.exe' -OutFile $installerPath -UseBasicParsing -TimeoutSec 60 | Out-Null
+  } catch {
+    Remove-Item -LiteralPath $installerPath -Force -ErrorAction SilentlyContinue
+    Write-Fail "下载 Visual Studio Build Tools 安装器失败"
+    Write-Fail "请手动访问 https://visualstudio.microsoft.com/visual-cpp-build-tools/ 下载安装"
+    return $false
+  }
+
+  Write-Ok "下载完成，正在启动安装器 ..."
+  Write-Host "  请在安装器中勾选「使用 C++ 的桌面开发」工作负载" -ForegroundColor Yellow
+  try {
+    Start-Process -FilePath $installerPath -ArgumentList @('--add', 'Microsoft.VisualStudio.Workload.VCTools', '--includeRecommended', '--passive', '--wait') -Wait -NoNewWindow | Out-Null
+  } catch {}
+  Remove-Item -LiteralPath $installerPath -Force -ErrorAction SilentlyContinue
+
+  Write-Host ""
+  Write-Host "  重新检查 MSVC ..." -ForegroundColor Cyan
+  if (Check-MSVC) {
+    Write-Ok "MSVC 安装成功！"
+  } else {
+    Write-Warn "MSVC 安装器已运行，但当前 shell 未检测到 cl.exe"
+    Write-Warn "请重新打开终端后再次运行此脚本验证"
+  }
+  Ensure-RustToolchain -Abi 'msvc' | Out-Null
+  return $true
+}
+
+function Install-GNU() {
+  Write-Host ""
+  Write-Host "═══ 安装 GNU gcc (MinGW-w64) ═══" -ForegroundColor Cyan
+  Write-Host ""
+
+  $msysRoot = 'C:\msys64'
+  $mingwBin = Join-Path $msysRoot 'mingw64\bin'
+  $bash = Join-Path $msysRoot 'usr\bin\bash.exe'
+
+  if (Test-Path -LiteralPath $msysRoot) {
+    Write-Ok "检测到 MSYS2 已安装在 C:\msys64"
+    $gccInMsys = Join-Path $mingwBin 'gcc.exe'
+    if (Test-Path -LiteralPath $gccInMsys) {
+      Ensure-PathPrefix $mingwBin
+      Write-Ok "gcc 已存在于 $mingwBin，已添加到 PATH"
+      Check-GNU | Out-Null
+      Ensure-RustToolchain -Abi 'gnu' | Out-Null
+      return $true
+    }
+
+    if (-not (Confirm-Install "通过 MSYS2 pacman 安装 mingw-w64-x86_64-gcc")) { return $false }
+    Setup-Msys2-ChinaMirrors | Out-Null
+    & $bash -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" | Out-Host
+    if (Test-Path -LiteralPath (Join-Path $mingwBin 'gcc.exe')) {
+      Ensure-PathPrefix $mingwBin
+      Write-Ok "mingw-w64-x86_64-gcc 安装成功"
+      Check-GNU | Out-Null
+      Ensure-RustToolchain -Abi 'gnu' | Out-Null
+      return $true
+    }
+    Write-Warn "pacman 安装完成但未找到 gcc.exe，可能需要更新 MSYS2："
+    Write-Warn "  pacman -Syu --noconfirm && pacman -S --noconfirm mingw-w64-x86_64-gcc"
+  } else {
+    if (-not (Get-ExePath 'winget.exe')) {
+      Write-Warn "winget 未找到，无法自动安装 MSYS2"
+      Write-Fail "GNU gcc 自动安装失败或被跳过"
+      return $false
+    }
+    if (-not (Confirm-Install "通过 winget 安装 MSYS2，然后安装 mingw-w64-x86_64-gcc")) { return $false }
+    & winget install MSYS2.MSYS2 --accept-package-agreements --accept-source-agreements 2>&1 | Out-Host
+    if (Test-Path -LiteralPath $msysRoot) {
+      Setup-Msys2-ChinaMirrors | Out-Null
+      & $bash -lc "pacman-key --init && pacman-key --populate msys2 && pacman -Sy --noconfirm archlinux-msys2-keyring && pacman -Su --noconfirm && pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" | Out-Host
+      if (Test-Path -LiteralPath (Join-Path $mingwBin 'gcc.exe')) {
+        Ensure-PathPrefix $mingwBin
+        Write-Ok "MSYS2 + mingw-w64-gcc 安装成功"
+        Check-GNU | Out-Null
+        Ensure-RustToolchain -Abi 'gnu' | Out-Null
+        return $true
+      }
+      Write-Warn "MSYS2 已安装但 gcc 安装可能不完整，请手动执行："
+      Write-Warn "  C:\msys64\usr\bin\bash.exe -lc 'pacman -S --noconfirm mingw-w64-x86_64-gcc'"
+    } else {
+      Write-Warn "winget 安装 MSYS2 后未在 C:\msys64 找到安装目录"
+    }
+  }
+
+  Write-Fail "GNU gcc 自动安装失败或被跳过"
+  Write-Fail "请手动安装以下工具链："
+  Write-Fail "  • MSYS2: https://www.msys2.org/ 安装后运行 pacman -S mingw-w64-x86_64-gcc"
+  Write-Fail "  • MinGW-w64: https://www.mingw-w64.org/"
+  return $false
+}
+
+function Check-GNU() {
+  $gcc = Get-ExePath 'gcc.exe'
+  if (-not $gcc) {
+    $msysGcc = 'C:\msys64\mingw64\bin\gcc.exe'
+    if (Test-Path -LiteralPath $msysGcc) { Ensure-PathPrefix 'C:\msys64\mingw64\bin'; $gcc = $msysGcc }
+  }
+  if (-not $gcc) { return $false }
+  try {
+    $info = (& gcc --version 2>&1 | Select-Object -First 1)
+    Write-Ok "GNU GCC 编译器已安装"
+    Write-Host "    路径：$gcc"
+    Write-Host "    版本：$info"
+  } catch {
+    Write-Ok "GNU GCC 编译器已安装"
+    Write-Host "    路径：$gcc"
+  }
+
+  $gpp = Get-ExePath 'g++.exe'
+  if (-not $gpp) { Write-Warn "GCC 已找到但 G++ 未找到，部分 C++ 依赖可能编译失败" }
+
+  if (-not (Check-AS)) { Install-AS | Out-Null }
+  return $true
+}
+
+Write-Host ""
+Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "  C/C++ 编译工具检查与安装（Windows）    " -ForegroundColor Cyan
+Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host ""
+
+$hasMsvc = $false
+$hasGnu = $false
+
+Write-Host "[1/3] 检查 C/C++ 编译器" -ForegroundColor Cyan
+if (Check-MSVC) { $hasMsvc = $true }
+if (Check-GNU) { $hasGnu = $true }
+
+if ($hasMsvc -or $hasGnu) {
+  Write-Host ""
+  Write-Host "══════════════════════════════════════════" -ForegroundColor Green
+  Write-Host "  C/C++ 编译工具已就绪" -ForegroundColor Green
+  Write-Host "══════════════════════════════════════════" -ForegroundColor Green
+
+  Write-Host ""
+  Write-Host "[2/3] 检查 Rust 工具链" -ForegroundColor Cyan
+  if (-not (Check-Rust)) {
+    Write-Warn "未检测到 rustc/rustup"
+    if (Install-Rustup) { Check-Rust | Out-Null }
+  }
+
+  if (Get-ExePath 'rustup.exe') {
+    if ($hasMsvc -and -not $hasGnu) { Ensure-RustToolchain -Abi 'msvc' | Out-Null }
+    elseif ($hasGnu -and -not $hasMsvc) { Ensure-RustToolchain -Abi 'gnu' | Out-Null }
+  }
+
+  Write-Host ""
+  Write-Host "[3/3] 环境摘要" -ForegroundColor Cyan
+  Write-Host ("  MSVC      ：{0}" -f ($(if ($hasMsvc) { '已安装' } else { '未安装' }))) -ForegroundColor ($(if ($hasMsvc) { 'Green' } else { 'Yellow' }))
+  Write-Host ("  GNU GCC   ：{0}" -f ($(if ($hasGnu) { '已安装' } else { '未安装' }))) -ForegroundColor ($(if ($hasGnu) { 'Green' } else { 'Yellow' }))
+  Write-Host ("  Rust      ：{0}" -f ($(if (-not [string]::IsNullOrWhiteSpace($RustcHost)) { '已安装' } else { '未安装' }))) -ForegroundColor ($(if (-not [string]::IsNullOrWhiteSpace($RustcHost)) { 'Green' } else { 'Yellow' }))
+  Write-Host ""
+  Write-Host "  检查完成，C/C++ 编译工具可用。" -ForegroundColor Green
+  exit 0
+}
+
+Write-Host ""
+Write-Host "  ✗ 未检测到 C/C++ 编译器" -ForegroundColor Red
+Write-Host ""
+Write-Host "[2/3] 选择安装方式" -ForegroundColor Cyan
+
+$selected = Select-Option -Prompt '请选择要安装的工具链组合：' -Options @(
+  'MSVC + Rust 工具链 (Visual Studio Build Tools + stable-x86_64-pc-windows-msvc)',
+  'GNU  + Rust 工具链 (MinGW-w64 / MSYS2 + stable-x86_64-pc-windows-gnu)'
+)
+
+switch ($selected) {
+  1 { Install-MSVC | Out-Null }
+  2 { Install-GNU | Out-Null }
+  0 {
+    Write-Host ""
+    Write-Host "  已退出，未安装任何工具链。" -ForegroundColor Yellow
+    exit 1
+  }
+}
+
+Check-Rust | Out-Null
+Write-Host ""
+Write-Host "[3/3] 环境摘要" -ForegroundColor Cyan
+$msvcNow = $false
+$gnuNow = $false
+if (Get-ExePath 'cl.exe') { $msvcNow = $true }
+if (Get-ExePath 'gcc.exe') { $gnuNow = $true }
+Write-Host ("  MSVC      ：{0}" -f ($(if ($msvcNow) { '已安装' } else { '未安装' }))) -ForegroundColor ($(if ($msvcNow) { 'Green' } else { 'Yellow' }))
+Write-Host ("  GNU GCC   ：{0}" -f ($(if ($gnuNow) { '已安装' } else { '未安装' }))) -ForegroundColor ($(if ($gnuNow) { 'Green' } else { 'Yellow' }))
+Write-Host ("  Rust      ：{0}" -f ($(if (-not [string]::IsNullOrWhiteSpace($RustcHost)) { '已安装' } else { '未安装' }))) -ForegroundColor ($(if (-not [string]::IsNullOrWhiteSpace($RustcHost)) { 'Green' } else { 'Yellow' }))
+Write-Host ""
+if (-not $Failed) {
+  Write-Host "  工具链安装完成！" -ForegroundColor Green
+} else {
+  Write-Host "  工具链安装已完成，但部分步骤可能需要手动处理。" -ForegroundColor Yellow
+}
