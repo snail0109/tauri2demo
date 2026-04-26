@@ -179,12 +179,13 @@ function Install-RustToolchainAbi {
     }
   }
 
-  $currentDefault = ''
-  try { $currentDefault = ((& rustup default 2>$null) -split '\s+')[0] } catch {}
+  $defaultLine = Invoke-NativeText -FilePath 'rustup' -Arguments @('default') | Select-Object -First 1
+  $currentDefault = if ($defaultLine) { ($defaultLine -split '\s+')[0] } else { '' }
   if ($currentDefault -ne $toolchain) {
     $currentLabel = if ([string]::IsNullOrWhiteSpace($currentDefault)) { '未设置' } else { $currentDefault }
     if (Confirm-Install "将 $toolchain 设为默认 Rust 工具链（当前：$currentLabel）") {
-      try { Invoke-NativeStream -Block { & rustup default $toolchain } } catch { Write-Warn "设置默认工具链失败" }
+      Invoke-NativeStream -Block { & rustup default $toolchain }
+      if ($LASTEXITCODE -ne 0) { Write-Warn "设置默认工具链失败" }
     }
   }
 
