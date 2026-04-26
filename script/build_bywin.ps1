@@ -132,8 +132,9 @@ Write-Host "[1/8] C/C++ 编译工具 + Rust" -ForegroundColor Cyan
 $hasMsvc = $false
 $hasGnu = $false
 
-if ($null -ne (Get-ExePath 'cl.exe')) {
-  Write-Ok "MSVC cl.exe 已安装：$(Get-ExePath 'cl.exe')"
+$cl = Get-ExePath 'cl.exe'
+if ($cl) {
+  Write-Ok "MSVC cl.exe 已安装：$cl"
   $hasMsvc = $true
 }
 
