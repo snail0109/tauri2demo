@@ -29,7 +29,7 @@ android {
         create("release") {
             val keystorePropertiesFile = rootProject.file("keystore.properties")
             val keystoreProperties = Properties()
-            if (keystorePropertiesFile.exists()) {
+            if (keystorePropertiesFile.exists(m)) {
                 keystoreProperties.load(FileInputStream(keystorePropertiesFile))
             }
 

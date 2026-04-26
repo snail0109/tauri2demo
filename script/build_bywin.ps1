@@ -169,7 +169,7 @@ if ($pnpmExe) {
 }
 
 Write-Host "[3/3] keystore.properties" -ForegroundColor Cyan
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$scriptDir = $PSScriptRoot
 $keystoreProps = Join-Path $scriptDir '..\backend\src-tauri\gen\android\keystore.properties'
 
 if (Test-Path -LiteralPath $keystoreProps) {
