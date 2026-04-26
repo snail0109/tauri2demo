@@ -211,10 +211,8 @@ if ($ndkInfo) {
 
 if ($Failed) {
   Write-Host ""
-  Write-Host "══════════════════════════════════════════" -ForegroundColor Red
-  Write-Host "  Android 工具链未就绪，已中止。         " -ForegroundColor Red
+  Write-Banner -Title 'Android 工具链未就绪，已中止。' -Color Red
   Write-Host "  请运行 .\script\install_android_sdk_bywin.ps1" -ForegroundColor Red
-  Write-Host "══════════════════════════════════════════" -ForegroundColor Red
   exit 1
 }
 
@@ -298,14 +296,11 @@ if (Test-Path -LiteralPath $keystoreProps) {
 }
 
 Write-Host ""
-Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
 if ($Failed) {
-  Write-Host "  环境检查未通过，请修复以上问题后重试。" -ForegroundColor Red
-  Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
+  Write-Banner -Title '环境检查未通过，请修复以上问题后重试。' -Color Cyan -TitleColor Red
   exit 1
 }
-Write-Host "  所有检查通过！" -ForegroundColor Green
-Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
+Write-Banner -Title '所有检查通过！' -Color Cyan -TitleColor Green
 Write-Host ""
 
 Write-Banner -Title '构建准备                                ' -Color Cyan
