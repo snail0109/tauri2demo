@@ -123,7 +123,7 @@ function Invoke-SdkManager {
 
   try {
     $cmd = "`"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
-    & cmd.exe /c $cmd | Out-Host
+    Invoke-NativeStream -Block { & cmd.exe /c $cmd }
     if ($LASTEXITCODE -ne 0) { throw "sdkmanager exit code $LASTEXITCODE" }
     return $true
   } catch {
