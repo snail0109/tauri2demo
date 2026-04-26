@@ -251,16 +251,6 @@ if (Add-UserPathSegment -Segment $platformTools) {
   Write-Warn "  系统设置 → 环境变量 → 用户变量 → 编辑 PATH → 添加 $platformTools"
 }
 
-if ($ndkHome) {
-  $ndkToolchainBin = Join-Path $ndkHome 'toolchains\llvm\prebuilt\windows-x86_64\bin'
-  if (Test-Path -LiteralPath $ndkToolchainBin) {
-    if (Add-UserPathSegment -Segment $ndkToolchainBin) {
-      Write-Ok "PATH 已追加：$ndkToolchainBin"
-      Write-Ok "（新开终端窗口后生效）"
-    }
-  }
-}
-
 $env:ANDROID_HOME = $androidHome
 if ($ndkHome) { $env:ANDROID_NDK_HOME = $ndkHome }
 $env:Path = "$platformTools;$env:Path"

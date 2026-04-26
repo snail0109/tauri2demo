@@ -357,10 +357,13 @@ Add-PathPrefix (Join-Path $androidHome 'platform-tools')
 if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) {
   $toolchainBin = Join-Path $env:ANDROID_NDK_HOME 'toolchains\llvm\prebuilt\windows-x86_64\bin'
   if (Test-Path -LiteralPath $toolchainBin) {
-    # cc crate 按目标三元组查找编译器（如 aarch64-linux-android-clang），
-    # 必须把 NDK toolchain bin 目录加入 PATH 才能找到。
-    Add-PathPrefix $toolchainBin
-    Write-Ok "NDK clang 已加入 PATH：$toolchainBin"
+    # 为每个 Android 目标设置 CC 环境变量，指向 NDK clang。
+    # 不将 NDK toolchain bin 加入 PATH，避免干扰 host 端 (gnu) 链接器。
+    foreach ($t in (Get-AndroidRustTarget)) {
+      $varName = 'CC_' + ($t -replace '-', '_')
+      Set-Item -Path "env:$varName" -Value (Join-Path $toolchainBin "$t21-clang.cmd")
+    }
+    Write-Ok "NDK clang 已配置（CC_<target> 环境变量）：$toolchainBin"
   }
   else {
     Write-Warn "NDK toolchain 目录未找到：$toolchainBin"
