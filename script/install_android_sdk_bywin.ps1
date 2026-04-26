@@ -209,7 +209,9 @@ function Invoke-SdkManager([string]$SdkManagerPath, [string]$AndroidHome, [strin
   Write-Host ""
 
   try {
-    & cmd.exe /c "`"$SdkManagerPath`" `"$sdkRootArg`" $($Packages | ForEach-Object { "`"$_`"" } -join ' ')" | Out-Host
+    $pkgArgs = ($Packages | ForEach-Object { '"{0}"' -f $_ }) -join ' '
+    $cmd = "`"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
+    & cmd.exe /c $cmd | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "sdkmanager exit code $LASTEXITCODE" }
     return $true
   } catch {
