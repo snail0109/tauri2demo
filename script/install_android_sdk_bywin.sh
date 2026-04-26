@@ -203,8 +203,7 @@ fi
 if [[ -f "$SDKMANAGER" ]]; then
   ok "SDKManager 已找到：$SDKMANAGER"
   # 尝试显示 SDKManager 版本（依赖 Java；失败则静默跳过）
-  SDKMANAGER_WIN_TMP="$(cygpath -w "$SDKMANAGER" 2>/dev/null || echo "$SDKMANAGER")"
-  SDKMANAGER_VER="$(MSYS_NO_PATHCONV=1 cmd.exe /c "\"$SDKMANAGER_WIN_TMP\" --version" 2>/dev/null | tr -d '\r' | grep -E '^[0-9]' | head -1 || true)"
+  SDKMANAGER_VER="$("$SDKMANAGER" --version 2>/dev/null | tr -d '\r' | grep -E '^[0-9]' | head -1 || true)"
   if [[ -n "$SDKMANAGER_VER" ]]; then
     ok "    版本：$SDKMANAGER_VER"
   else
