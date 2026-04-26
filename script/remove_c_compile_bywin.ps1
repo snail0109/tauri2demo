@@ -138,9 +138,7 @@ switch ($selected) {
   3 {
     Write-Warn "即将依次卸载：所有 Rust 工具链 → rustup → MSYS2 → MSVC"
     if (-not (Confirm-Remove "确认执行全部卸载（请慎重）")) {
-      Write-Host ""
-      Write-Host "  已退出，未卸载任何内容。" -ForegroundColor Yellow
-      exit 0
+      Exit-NoOp "已退出，未卸载任何内容。"
     }
     Enable-AutoConfirm
     Remove-AllRustToolchain
@@ -149,9 +147,7 @@ switch ($selected) {
     Remove-Msvc
   }
   0 {
-    Write-Host ""
-    Write-Host "  已退出，未卸载任何内容。" -ForegroundColor Yellow
-    exit 0
+    Exit-NoOp "已退出，未卸载任何内容。"
   }
 }
 

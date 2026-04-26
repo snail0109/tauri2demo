@@ -89,6 +89,15 @@ function Confirm-Install([string]$Desc) { Confirm-Step -Desc "$Desc 是否自动
 function Confirm-Continue([string]$Desc) { Confirm-Step -Desc "$Desc 是否继续？" -Default 'Yes' }
 function Confirm-Remove([string]$Desc) { Confirm-Step -Desc "$Desc —— 是否卸载？" -Default 'No' -AutoLabel '自动确认卸载' }
 
+function Exit-NoOp {
+  # 用户在菜单或确认提示中选择放弃时的统一退出：黄字提示 + exit。
+  # remove_*.ps1 的"菜单选 0 / Confirm-Remove 拒绝"以及 install_c_compile 的"菜单选 0"共用。
+  param([string]$Message, [int]$Code = 0)
+  Write-Host ""
+  Write-Host "  $Message" -ForegroundColor Yellow
+  exit $Code
+}
+
 function Select-MenuOption {
   param(
     [string]$Prompt,

@@ -375,9 +375,7 @@ switch ($selected) {
     Install-Gnu | Out-Null
   }
   0 {
-    Write-Host ""
-    Write-Host "  已退出，未安装任何工具链。" -ForegroundColor Yellow
-    exit 1
+    Exit-NoOp "已退出，未安装任何工具链。" -Code 1
   }
 }
 
