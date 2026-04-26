@@ -159,6 +159,11 @@ function Add-CargoBinPath {
   if (Test-Path -LiteralPath $p) { Add-PathPrefix $p }
 }
 
+function Get-PnpmExe {
+  # Windows 上 pnpm 同时存在 pnpm.cmd（npm 全局装）与 pnpm.exe（独立安装器），优先 .cmd。
+  return (Get-ExePath 'pnpm.cmd'), (Get-ExePath 'pnpm.exe') | Where-Object { $_ } | Select-Object -First 1
+}
+
 # ─── User environment writers ────────────────────────────────────────────────
 function Set-UserEnv([string]$Name, [string]$ValueOrNull) {
   try {
