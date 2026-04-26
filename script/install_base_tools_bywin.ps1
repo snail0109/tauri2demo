@@ -171,6 +171,67 @@ function Install-WingetFromStore {
   }
 }
 
+function Add-WingetMirrorSource {
+  $winget = Get-ExePath 'winget.exe'
+  if (-not $winget) { return }
+
+  # 获取 winget 版本号
+  $ver = $null
+  try {
+    $verStr = (Invoke-NativeText -FilePath $winget -Arguments @('--version') | Select-Object -First 1).Trim()
+    $ver = [version]::new($verStr.Substring(0, [Math]::Min($verStr.Length, 10 - 1))) # 取前缀避免多余字符
+  } catch {
+    $ver = $null
+  }
+
+  # 检查是否已存在同名源
+  $sourceList = $null
+  try {
+    $sourceList = Invoke-NativeText -FilePath $winget -Arguments @('source', 'list')
+  } catch {
+    $sourceList = ''
+  }
+
+  $mirrorUrl = 'https://mirrors.ustc.edu.cn/winget-source'
+  $alreadyHas = $false
+  if ($sourceList) {
+    $alreadyHas = ($sourceList | Where-Object { $_ -match 'winget' -and $_ -match [regex]::Escape($mirrorUrl) }) -ne $null
+  }
+
+  if ($alreadyHas) {
+    Write-Ok "winget 国内镜像源已配置（ustc）"
+    return
+  }
+
+  Write-Host "  配置 winget 国内镜像源（ustc）..." -ForegroundColor Cyan
+
+  # 如果已有默认 winget 源，先移除再添加镜像源
+  if ($sourceList -and ($sourceList | Where-Object { $_ -match 'winget\s' })) {
+    try {
+      Invoke-NativeStream -Block { & $winget source remove winget }
+    } catch {
+      Write-Warn "移除默认 winget 源失败：$($_.Exception.Message)"
+    }
+  }
+
+  # WinGet 1.8+ 支持 --trust-level 参数
+  if ($ver -and $ver -ge [version]'1.8') {
+    try {
+      Invoke-NativeStream -Block { & $winget source add winget $mirrorUrl --trust-level trusted }
+      Write-Ok "winget 国内镜像源配置成功（ustc，trust-level trusted）"
+    } catch {
+      Write-Warn "配置镜像源失败：$($_.Exception.Message)"
+    }
+  } else {
+    try {
+      Invoke-NativeStream -Block { & $winget source add winget $mirrorUrl }
+      Write-Ok "winget 国内镜像源配置成功（ustc）"
+    } catch {
+      Write-Warn "配置镜像源失败：$($_.Exception.Message)"
+    }
+  }
+}
+
 function Install-WingetTool {
   Write-Host ""
   Write-Host "═══ 安装 winget ═══" -ForegroundColor Cyan
@@ -178,6 +239,7 @@ function Install-WingetTool {
 
   if (Test-Winget) {
     Write-Host ""
+    Add-WingetMirrorSource
     Write-Banner -Title 'winget 已就绪' -Color Green
     return $true
   }
@@ -250,6 +312,7 @@ function Install-WingetTool {
 
   Write-Host ""
   if (Test-Winget) {
+    Add-WingetMirrorSource
     Write-Banner -Title 'winget 安装成功' -Color Green
     return $true
   }
