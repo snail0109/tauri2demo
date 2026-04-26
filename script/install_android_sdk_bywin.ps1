@@ -40,47 +40,43 @@ function Install-SdkManagerBootstrap {
   $tmpExtract = Join-Path $env:TEMP ("cmdline-tools_extract_{0}" -f ([guid]::NewGuid().ToString('N')))
   New-DirectoryIfMissing $tmpExtract
 
-  $cleanup = {
+  try {
+    if (-not (Save-WebFile -Urls $urls -OutFile $tmpZip)) {
+      Write-Fail "所有镜像源下载失败"
+      return $false
+    }
+
+    Write-Host "  解压到临时目录 ..." -ForegroundColor Cyan
+    try {
+      Expand-Archive -LiteralPath $tmpZip -DestinationPath $tmpExtract -Force
+    } catch {
+      Write-Fail "Expand-Archive 解压失败"
+      return $false
+    }
+
+    $extracted = Join-Path $tmpExtract 'cmdline-tools'
+    if (-not (Test-Path -LiteralPath $extracted)) {
+      Write-Fail "解压后未找到 cmdline-tools 目录"
+      return $false
+    }
+
+    $latest = Join-Path $SdkRootPath 'cmdline-tools\latest'
+    if (Test-Path -LiteralPath $latest) {
+      Remove-Item -LiteralPath $latest -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    Move-Item -LiteralPath $extracted -Destination $latest -Force
+
+    $sdkmanager = Join-Path $latest 'bin\sdkmanager.bat'
+    if (Test-Path -LiteralPath $sdkmanager) {
+      Write-Ok "SDKManager 已安装：$sdkmanager"
+      return $true
+    }
+    Write-Fail "安装后仍未找到 SDKManager.bat"
+    return $false
+  } finally {
     Remove-Item -LiteralPath $tmpZip -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $tmpExtract -Recurse -Force -ErrorAction SilentlyContinue
   }
-
-  if (-not (Save-WebFile -Urls $urls -OutFile $tmpZip)) {
-    Write-Fail "所有镜像源下载失败"
-    & $cleanup
-    return $false
-  }
-
-  Write-Host "  解压到临时目录 ..." -ForegroundColor Cyan
-  try {
-    Expand-Archive -LiteralPath $tmpZip -DestinationPath $tmpExtract -Force
-  } catch {
-    Write-Fail "Expand-Archive 解压失败"
-    & $cleanup
-    return $false
-  }
-
-  $extracted = Join-Path $tmpExtract 'cmdline-tools'
-  if (-not (Test-Path -LiteralPath $extracted)) {
-    Write-Fail "解压后未找到 cmdline-tools 目录"
-    & $cleanup
-    return $false
-  }
-
-  $latest = Join-Path $SdkRootPath 'cmdline-tools\latest'
-  if (Test-Path -LiteralPath $latest) {
-    Remove-Item -LiteralPath $latest -Recurse -Force -ErrorAction SilentlyContinue
-  }
-  Move-Item -LiteralPath $extracted -Destination $latest -Force
-  & $cleanup
-
-  $sdkmanager = Join-Path $latest 'bin\sdkmanager.bat'
-  if (Test-Path -LiteralPath $sdkmanager) {
-    Write-Ok "SDKManager 已安装：$sdkmanager"
-    return $true
-  }
-  Write-Fail "安装后仍未找到 SDKManager.bat"
-  return $false
 }
 
 function Show-SdkManagerVersion([string]$SdkManagerPath) {
