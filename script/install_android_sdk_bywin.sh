@@ -451,26 +451,23 @@ fi
 PLATFORM_TOOLS_WIN="${ANDROID_HOME_WIN}\\platform-tools"
 CURRENT_PATH="$(cmd.exe /c "echo %PATH%" 2>/dev/null | tr -d '\r')"
 if [[ "$CURRENT_PATH" != *"$PLATFORM_TOOLS_WIN"* ]]; then
-  # 追加到用户 PATH（setx 有 1024 字符限制，需谨慎）
   # 获取当前用户 PATH（不含系统 PATH）
-  USER_PATH="$(powershell -Command "[Environment]::GetEnvironmentVariable('PATH','User')" 2>/dev/null | tr -d '\r')"
+  USER_PATH="$(powershell -NoProfile -Command "[Environment]::GetEnvironmentVariable('PATH','User')" 2>/dev/null | tr -d '\r')"
   if [[ -n "$USER_PATH" ]]; then
     NEW_USER_PATH="${USER_PATH};${PLATFORM_TOOLS_WIN}"
   else
     NEW_USER_PATH="$PLATFORM_TOOLS_WIN"
   fi
-  # setx 限制 1024 字符，超出则跳过
-  if [[ ${#NEW_USER_PATH} -le 1024 ]]; then
-    MSYS_NO_PATHCONV=1 cmd.exe /c "setx PATH $NEW_USER_PATH" &>/dev/null && {
-      ok "PATH 已追加：$PLATFORM_TOOLS_WIN"
-      ok "（新开终端窗口后生效）"
-    } || {
-      warn "setx 设置 PATH 失败，请手动添加"
-      warn "  系统设置 → 环境变量 → 用户变量 → 编辑 PATH → 添加 $PLATFORM_TOOLS_WIN"
-    }
+  # 用 PowerShell SetEnvironmentVariable 写入用户 PATH
+  # 优势：① 无 1024 字符限制（setx 限制）② 不会展开 %VAR%（setx 会展开导致 PATH 损坏）
+  #       ③ 通过环境变量 NEW_PATH_VALUE 传值，避免空格 / 引号在 cmd.exe 命令行里被错误切分
+  if NEW_PATH_VALUE="$NEW_USER_PATH" \
+     powershell -NoProfile -Command "[Environment]::SetEnvironmentVariable('PATH', \$env:NEW_PATH_VALUE, 'User')" 2>/dev/null; then
+    ok "PATH 已追加：$PLATFORM_TOOLS_WIN"
+    ok "（新开终端窗口后生效）"
   else
-    warn "用户 PATH 过长（${#NEW_USER_PATH} 字符），超出 setx 1024 字符限制"
-    warn "请手动添加到 PATH：$PLATFORM_TOOLS_WIN"
+    warn "写入用户 PATH 失败，请手动添加"
+    warn "  系统设置 → 环境变量 → 用户变量 → 编辑 PATH → 添加 $PLATFORM_TOOLS_WIN"
   fi
 else
   ok "PATH 已包含 platform-tools：$PLATFORM_TOOLS_WIN"
