@@ -31,7 +31,7 @@ function Remove-RustAndroidTarget {
     Write-Warn "未检测到 rustup，跳过 Rust Android 编译目标卸载"
     return
   }
-  $required = @('aarch64-linux-android', 'armv7-linux-androideabi', 'i686-linux-android', 'x86_64-linux-android')
+  $required = Get-AndroidRustTarget
   $installed = Get-RustupInstalledTarget
   $present = $required | Where-Object { $installed -contains $_ }
   if (-not $present -or $present.Count -eq 0) {
@@ -140,7 +140,7 @@ function Show-InstallationStatus {
 
   Write-Host "[2/3] Rust Android 编译目标" -ForegroundColor Cyan
   $script:InstalledRustCount = 0
-  $required = @('aarch64-linux-android', 'armv7-linux-androideabi', 'i686-linux-android', 'x86_64-linux-android')
+  $required = Get-AndroidRustTarget
   if (Get-ExePath 'rustup.exe') {
     $installed = Get-RustupInstalledTarget
     foreach ($t in $required) {

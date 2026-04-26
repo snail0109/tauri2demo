@@ -190,12 +190,7 @@ Write-Host "  ✓ Android SDK 组件安装完成！" -ForegroundColor Green
 Write-Host ""
 
 Write-Host "[5/6] 安装 Rust Android 编译目标" -ForegroundColor Cyan
-$requiredTargets = @(
-  'aarch64-linux-android',
-  'armv7-linux-androideabi',
-  'i686-linux-android',
-  'x86_64-linux-android'
-)
+$requiredTargets = Get-AndroidRustTarget
 
 if ($null -eq (Get-ExePath 'rustup.exe')) { Add-CargoBinPath }
 

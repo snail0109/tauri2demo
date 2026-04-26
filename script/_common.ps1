@@ -154,6 +154,16 @@ function Get-RustupInstalledTarget {
     Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 }
 
+function Get-AndroidRustTarget {
+  # Tauri Android 构建所需的 4 个 Rust 编译目标。install / remove / build 共用。
+  return @(
+    'aarch64-linux-android',
+    'armv7-linux-androideabi',
+    'i686-linux-android',
+    'x86_64-linux-android'
+  )
+}
+
 function Get-RustupToolchain {
   # 已安装的 Rust 工具链名称列表（string[]，每行第一段，去掉 "(default)" 等后缀）。
   if (-not (Get-ExePath 'rustup.exe')) { return @() }

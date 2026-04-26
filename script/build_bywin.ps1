@@ -219,12 +219,7 @@ if ($Failed) {
 }
 
 Write-Host "[6/8] Rust Android 编译目标" -ForegroundColor Cyan
-$requiredTargets = @(
-  'aarch64-linux-android',
-  'armv7-linux-androideabi',
-  'i686-linux-android',
-  'x86_64-linux-android'
-)
+$requiredTargets = Get-AndroidRustTarget
 
 if ($null -eq (Get-ExePath 'rustup.exe')) {
   Write-Fail "未找到 rustup，请从 https://rustup.rs 安装"
