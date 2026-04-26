@@ -397,8 +397,14 @@ $selected = Select-MenuOption -Prompt '请选择要安装的工具链组合：' 
 )
 
 switch ($selected) {
-  1 { Install-Msvc | Out-Null }
-  2 { Install-Gnu | Out-Null }
+  1 {
+    Enable-AutoConfirm
+    Install-Msvc | Out-Null
+  }
+  2 {
+    Enable-AutoConfirm
+    Install-Gnu | Out-Null
+  }
   0 {
     Write-Host ""
     Write-Host "  已退出，未安装任何工具链。" -ForegroundColor Yellow
