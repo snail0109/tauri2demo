@@ -102,7 +102,7 @@ function Restore-AndroidProject {
   elseif (-not (Test-Path -LiteralPath $keystorePropsInGen) -and (Test-Path -LiteralPath $GenAndroidDir)) {
     Write-Warn "正在写入 keystore.properties ..."
     New-DirectoryIfMissing (Split-Path -Parent $keystorePropsInGen)
-    $DefaultKeystoreLines | Set-Content -LiteralPath $keystorePropsInGen -Encoding UTF8
+    [System.IO.File]::WriteAllLines($keystorePropsInGen, $DefaultKeystoreLines, [System.Text.UTF8Encoding]::new($false))
     Write-Ok "keystore.properties 已写入"
   }
 
@@ -293,7 +293,7 @@ else {
   Write-Warn "keystore.properties 未找到：$keystoreProps"
   if (Confirm-Install "创建默认 keystore.properties 文件") {
     New-DirectoryIfMissing (Split-Path -Parent $keystoreProps)
-    $DefaultKeystoreLines | Set-Content -LiteralPath $keystoreProps -Encoding UTF8
+    [System.IO.File]::WriteAllLines($keystoreProps, $DefaultKeystoreLines, [System.Text.UTF8Encoding]::new($false))
     Write-Ok "keystore.properties 已创建：$keystoreProps"
   }
   else {
