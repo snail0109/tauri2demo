@@ -80,10 +80,12 @@ function Install-SdkManagerBootstrap {
 }
 
 function Show-SdkManagerVersion([string]$SdkManagerPath) {
-  try {
-    $ver = (& cmd.exe /c "`"$SdkManagerPath`" --version" 2>$null | Where-Object { $_ -match '^[0-9]' } | Select-Object -First 1)
-    if ($ver) { Write-Ok "    版本：$ver" } else { Write-Warn "    无法读取 SDKManager 版本（可能 Java 未就绪，下一步会校验）" }
-  } catch {
+  $ver = Invoke-NativeText -FilePath $SdkManagerPath -Arguments @('--version') |
+    Where-Object { $_ -match '^[0-9]' } |
+    Select-Object -First 1
+  if ($ver) {
+    Write-Ok "    版本：$ver"
+  } else {
     Write-Warn "    无法读取 SDKManager 版本（可能 Java 未就绪，下一步会校验）"
   }
 }
