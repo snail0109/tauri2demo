@@ -257,7 +257,6 @@ Write-Host ""
 Write-Host "  构建准备完成！" -ForegroundColor Green
 Write-Host ""
 
-$env:ANDROID_HOME = $androidHome
 Add-PathPrefix (Join-Path $androidHome 'platform-tools')
 
 if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) {
