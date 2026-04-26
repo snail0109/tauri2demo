@@ -155,16 +155,21 @@ Write-Host "[4/8] Android SDK" -ForegroundColor Cyan
 $androidHome = Resolve-AndroidHome
 if ($null -ne $androidHome) {
   $env:ANDROID_HOME = $androidHome
-  # 从 platforms/android-<N> 目录名提取已安装的 API 版本
+  # 从 platforms/android-<N>/source.properties 提取 SDK 版本
   $platformsDir = Join-Path $androidHome 'platforms'
-  $apiLevels = if (Test-Path -LiteralPath $platformsDir) {
+  $sdkDetails = if (Test-Path -LiteralPath $platformsDir) {
     @(Get-ChildItem -LiteralPath $platformsDir -Directory -ErrorAction SilentlyContinue |
       Where-Object { $_.Name -match '^android-(\d+)$' } |
-      ForEach-Object { $Matches[1] } |
-      Sort-Object { [int]$_ })
+      Sort-Object { [int]($Matches[0] -replace '\D') } |
+      ForEach-Object {
+        $api = $Matches[1]
+        $sp = Join-Path $_.FullName 'source.properties'
+        $ver = if (Test-Path -LiteralPath $sp) { (Get-PropValue -Lines (Get-Content -LiteralPath $sp) -Key 'Pkg.Revision') } else { '' }
+        if ($ver) { "API $api ($ver)" } else { "API $api" }
+      })
   } else { @() }
-  $apiStr = if ($apiLevels.Count -gt 0) { "API $($apiLevels -join ', ')" } else { "无 platform" }
-  Write-Ok "Android SDK：$apiStr（$androidHome）"
+  $sdkStr = if ($sdkDetails.Count -gt 0) { $sdkDetails -join ', ' } else { '无 platform' }
+  Write-Ok "Android SDK：$sdkStr（$androidHome）"
 } else {
   Write-Fail "ANDROID_HOME 未设置且未检测到 Android SDK"
   Write-Fail "请运行 .\script\install_android_sdk_bywin.ps1 安装"
@@ -174,7 +179,10 @@ Write-Host "[5/8] Android NDK" -ForegroundColor Cyan
 $ndkInfo = if ($androidHome) { Resolve-AndroidNdk $androidHome } else { $null }
 if ($ndkInfo) {
   if ([string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) { $env:ANDROID_NDK_HOME = $ndkInfo.Path }
-  Write-Ok "Android NDK 版本：$($ndkInfo.Version)"
+  # 从 ndk/source.properties 提取精确版本号
+  $ndkProp = Join-Path $ndkInfo.Path 'source.properties'
+  $ndkVer = if (Test-Path -LiteralPath $ndkProp) { (Get-PropValue -Lines (Get-Content -LiteralPath $ndkProp) -Key 'Pkg.Revision') } else { $ndkInfo.Version }
+  Write-Ok "Android NDK：$ndkVer（$($ndkInfo.Path)）"
 } else {
   Write-Fail "未找到 Android NDK"
   Write-Fail "请运行 .\script\install_android_sdk_bywin.ps1 安装"
