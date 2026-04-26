@@ -3,6 +3,7 @@ node_modules/
 .env.local
 backend/src-tauri/.env
 backend/src-tauri/.env.local
+config/*
 
 # misc
 .DS_Store
