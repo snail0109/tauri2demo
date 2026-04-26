@@ -261,32 +261,10 @@ $ndkInfo = Resolve-AndroidNdk -AndroidHome $androidHome
 $ndkHome = if ($ndkInfo) { $ndkInfo.Path } else { $null }
 $platformTools = Join-Path $androidHome 'platform-tools'
 
-$currentAhUser = [Environment]::GetEnvironmentVariable('ANDROID_HOME', 'User')
-if ($currentAhUser -ne $androidHome) {
-  if (Set-UserEnv -Name 'ANDROID_HOME' -ValueOrNull $androidHome) {
-    Write-Ok "ANDROID_HOME 已写入用户环境变量：$androidHome"
-    Write-Ok "（新开终端窗口后生效）"
-  } else {
-    Write-Warn "写入 ANDROID_HOME 失败，请手动设置"
-    Write-Warn "  系统设置 → 环境变量 → 用户变量 → 新建 ANDROID_HOME = $androidHome"
-  }
-} else {
-  Write-Ok "ANDROID_HOME 环境变量已正确设置：$androidHome"
-}
+Set-UserEnvIfChanged -Name 'ANDROID_HOME' -Value $androidHome
 
 if ($ndkHome) {
-  $currentNdkUser = [Environment]::GetEnvironmentVariable('ANDROID_NDK_HOME', 'User')
-  if ($currentNdkUser -ne $ndkHome) {
-    if (Set-UserEnv -Name 'ANDROID_NDK_HOME' -ValueOrNull $ndkHome) {
-      Write-Ok "ANDROID_NDK_HOME 已写入用户环境变量：$ndkHome"
-      Write-Ok "（新开终端窗口后生效）"
-    } else {
-      Write-Warn "写入 ANDROID_NDK_HOME 失败，请手动设置"
-      Write-Warn "  系统设置 → 环境变量 → 用户变量 → 新建 ANDROID_NDK_HOME = $ndkHome"
-    }
-  } else {
-    Write-Ok "ANDROID_NDK_HOME 环境变量已正确设置：$ndkHome"
-  }
+  Set-UserEnvIfChanged -Name 'ANDROID_NDK_HOME' -Value $ndkHome
 } else {
   Write-Warn "未检测到 NDK 版本，跳过 ANDROID_NDK_HOME 设置"
 }

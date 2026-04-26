@@ -186,6 +186,24 @@ function Add-UserPathSegment([string]$Segment) {
   return (Set-UserEnv -Name 'PATH' -ValueOrNull $new)
 }
 
+function Set-UserEnvIfChanged {
+  # 写入用户环境变量；若与现值相同则只打印"已正确设置"日志。
+  # 替代 install_android_sdk 中重复的 ANDROID_HOME / ANDROID_NDK_HOME 设置块。
+  param([string]$Name, [string]$Value)
+  $current = [Environment]::GetEnvironmentVariable($Name, 'User')
+  if ($current -eq $Value) {
+    Write-Ok "$Name 环境变量已正确设置：$Value"
+    return
+  }
+  if (Set-UserEnv -Name $Name -ValueOrNull $Value) {
+    Write-Ok "$Name 已写入用户环境变量：$Value"
+    Write-Ok "（新开终端窗口后生效）"
+  } else {
+    Write-Warn "写入 $Name 失败，请手动设置"
+    Write-Warn "  系统设置 → 环境变量 → 用户变量 → 新建 $Name = $Value"
+  }
+}
+
 # ─── Android SDK / NDK discovery ─────────────────────────────────────────────
 function Get-AndroidSdkRootCandidate {
   # 候选 SDK 根（按探测优先级返回 string[]）：显式 -PreferredRoot → ANDROID_HOME →
