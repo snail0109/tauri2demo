@@ -137,12 +137,10 @@ if ($null -ne (Get-ExePath 'cl.exe')) {
   $hasMsvc = $true
 }
 
-if ($null -ne (Get-ExePath 'gcc.exe')) {
-  try {
-    & gcc --version *> $null
-    Write-Ok "GNU gcc 已安装：$(Get-ExePath 'gcc.exe')"
-    $hasGnu = $true
-  } catch {}
+$gcc = Get-ExePath 'gcc.exe'
+if ($gcc) {
+  Write-Ok "GNU gcc 已安装：$gcc"
+  $hasGnu = $true
 }
 
 if (-not $hasMsvc -and -not $hasGnu) {
