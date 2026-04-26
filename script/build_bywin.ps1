@@ -53,8 +53,7 @@ function Restore-AndroidProject {
   }
 
   Write-Warn "正在运行 pnpm tauri android init ..."
-  Push-Location $ProjectRoot
-  try { Invoke-NativeStream -Block { & pnpm tauri android init } } finally { Pop-Location }
+  Invoke-NativeStreamIn -Path $ProjectRoot -Block { & pnpm tauri android init }
 
   if ($keystoreBackup -and (Test-Path -LiteralPath $keystoreBackup)) {
     Copy-Item -LiteralPath $keystoreBackup -Destination $keystorePropsInGen -Force
@@ -340,8 +339,7 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'node_modules')) {
   Write-Ok "node_modules 已存在"
 } else {
   Write-Warn "node_modules 不存在，正在运行 pnpm install ..."
-  Push-Location $projectRoot
-  try { Invoke-NativeStream -Block { & pnpm install } } finally { Pop-Location }
+  Invoke-NativeStreamIn -Path $projectRoot -Block { & pnpm install }
   Write-Ok "pnpm install 完成"
 }
 
@@ -357,8 +355,7 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'frontend\dist')) {
   Write-Ok "frontend\dist 已存在"
 } else {
   Write-Warn "frontend\dist 不存在，正在运行前端构建 ..."
-  Push-Location $projectRoot
-  try { Invoke-NativeStream -Block { & pnpm build } } finally { Pop-Location }
+  Invoke-NativeStreamIn -Path $projectRoot -Block { & pnpm build }
   Write-Ok "前端构建完成"
 }
 

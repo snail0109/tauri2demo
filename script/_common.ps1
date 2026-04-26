@@ -123,6 +123,13 @@ function Invoke-NativeStream {
   }
 }
 
+function Invoke-NativeStreamIn {
+  # 在 $Path 目录下运行 $Block；总是恢复 cwd，即便 native 命令出错也不残留。
+  param([string]$Path, [scriptblock]$Block)
+  Push-Location $Path
+  try { Invoke-NativeStream -Block $Block } finally { Pop-Location }
+}
+
 # ─── Rustup helpers ──────────────────────────────────────────────────────────
 function Get-RustupInstalledTarget {
   # 已安装的 Rust 编译目标列表（string[]）。rustup 不存在时返回空数组。
