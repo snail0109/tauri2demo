@@ -47,9 +47,41 @@ function Restore-AndroidProject {
     Write-Warn "已备份 keystore.properties"
   }
 
+  # 停止可能锁定 gen\android 的 Gradle Daemon，否则删除会失败
+  $jpsExe = Get-Command 'jps' -ErrorAction SilentlyContinue
+  if ($jpsExe) {
+    $gradleProcs = (& jps) | Where-Object { $_ -match 'GradleDaemon|GradleServer|KotlinCompileDaemon' }
+    if ($gradleProcs) {
+      Write-Warn "检测到 Gradle Daemon 进程，正在停止 ..."
+      foreach ($proc in $gradleProcs) {
+        $procId = ($proc -split '\s+')[0]
+        if ($procId -match '^\d+$') {
+          Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
+        }
+      }
+      Start-Sleep -Milliseconds 500
+    }
+  }
+
   Write-Warn "正在删除不完整的 gen\android 目录 ..."
   if (Test-Path -LiteralPath $GenAndroidDir) {
     Remove-Item -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue
+    # Windows 上 Remove-Item 偶尔会有残留，确认清理
+    if (Test-Path -LiteralPath $GenAndroidDir) {
+      Start-Sleep -Milliseconds 200
+      Remove-Item -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    if (Test-Path -LiteralPath $GenAndroidDir) {
+      Write-Warn "Remove-Item 未能完全删除 gen\android，尝试强制清理 ..."
+      Get-ChildItem -LiteralPath $GenAndroidDir -Recurse -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+      Remove-Item -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue
+    }
+  }
+
+  # Tauri init 要求 gen/android 若存在则必须包含 app/src/main/java/<identifier> 目录，否则报错
+  $pkgDir = Join-Path $GenAndroidDir 'app\src\main\java\com\spanishassistant\app'
+  if (-not (Test-Path -LiteralPath $pkgDir)) {
+    New-Item -ItemType Directory -Path $pkgDir -Force | Out-Null
   }
 
   Write-Warn "正在运行 pnpm tauri android init ..."
@@ -90,6 +122,19 @@ function Restore-AndroidProject {
     else {
       Write-Warn "$($c.Label) 源文件不存在，跳过替换"
     }
+  }
+
+  # 降低 Gradle Daemon 内存限制，避免在 7GB 内存系统上崩溃
+  $gradlePropsPath = Join-Path $GenAndroidDir 'gradle.properties'
+  if (Test-Path -LiteralPath $gradlePropsPath) {
+    $propsContent = Get-Content -LiteralPath $gradlePropsPath -Raw
+    # 禁用 Daemon + 降低堆内存 + 降低线程栈大小
+    $propsContent = $propsContent -replace 'org\.gradle\.jvmargs=-Xmx2048m', 'org.gradle.jvmargs=-Xmx768m -Xss256k -Dfile.encoding=UTF-8'
+    if ($propsContent -notmatch 'org\.gradle\.daemon=') {
+      $propsContent += "`norg.gradle.daemon=false"
+    }
+    [System.IO.File]::WriteAllText($gradlePropsPath, $propsContent, [System.Text.UTF8Encoding]::new($false))
+    Write-Ok "gradle.properties 已调整：禁用 Daemon、-Xmx768m、-Xss256k"
   }
 
   Write-Ok "pnpm tauri android init 完成"
@@ -305,8 +350,21 @@ else {
 }
 
 Write-Host "[准备 3/4] 前端构建" -ForegroundColor Cyan
+$tauriConfPath = Join-Path $projectRoot 'backend\src-tauri\tauri.conf.json'
+$originalBeforeBuildCommand = $null
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'frontend\dist')) {
   Write-Ok "frontend\dist 已存在"
+  # 临时清空 beforeBuildCommand，避免 Tauri 再次运行前端构建（在完整构建链中会导致 OOM）
+  if (Test-Path -LiteralPath $tauriConfPath) {
+    $confRaw = Get-Content -LiteralPath $tauriConfPath -Raw
+    $m = [regex]::Match($confRaw, '"beforeBuildCommand"\s*:\s*"([^"]*)"')
+    if ($m.Success) {
+      $originalBeforeBuildCommand = $m.Groups[1].Value
+      $confRaw = $confRaw -replace '"beforeBuildCommand"\s*:\s*"[^"]*"', '"beforeBuildCommand": ""'
+      [System.IO.File]::WriteAllText($tauriConfPath, $confRaw, [System.Text.UTF8Encoding]::new($false))
+      Write-Ok "已临时清空 tauri.conf.json 中的 beforeBuildCommand"
+    }
+  }
 }
 else {
   Write-Warn "frontend\dist 不存在，正在运行前端构建 ..."
@@ -362,8 +420,10 @@ if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) {
     $llvmAr = Join-Path $toolchainBin 'llvm-ar.exe'
     foreach ($t in (Get-AndroidRustTarget)) {
       $underscore = $t -replace '-', '_'
-      Set-Item -Path "env:CC_$underscore" -Value (Join-Path $toolchainBin "$t21-clang.cmd")
-      Set-Item -Path "env:CXX_$underscore" -Value (Join-Path $toolchainBin "$t21-clang++.cmd")
+      $clangCmd = Join-Path $toolchainBin "${t}21-clang.cmd"
+      $clangxxCmd = Join-Path $toolchainBin "${t}21-clang++.cmd"
+      Set-Item -Path "env:CC_$underscore" -Value $clangCmd
+      Set-Item -Path "env:CXX_$underscore" -Value $clangxxCmd
       Set-Item -Path "env:AR_$underscore" -Value $llvmAr
     }
     Write-Ok "NDK clang/clang++/llvm-ar 已配置（CC/CXX/AR_<target>）：$toolchainBin"
@@ -390,9 +450,40 @@ if ($null -ne (Get-ExePath 'rustup.exe')) {
   }
 }
 
+# GNU 工具链链接时需要 MinGW 库目录（crt2.o, libkernel32.a 等）以及 GCC 运行时库目录（libgcc.a, libgcc_eh.a）
+$mingwLibDir = 'C:\msys64\mingw64\lib'
+$gccLibDirs = @(Get-ChildItem -LiteralPath 'C:\msys64\mingw64\lib\gcc\x86_64-w64-mingw32' -Directory -ErrorAction SilentlyContinue |
+  Sort-Object { [version]$_.Name } -Descending |
+  Select-Object -First 1 | ForEach-Object { $_.FullName })
+if ((Test-Path -LiteralPath $mingwLibDir) -and $gcc) {
+  $libPaths = @($mingwLibDir) + $gccLibDirs
+  $env:LIBRARY_PATH = ($libPaths + $(if ($env:LIBRARY_PATH) { $env:LIBRARY_PATH -split ';' } else { @() })) -join ';'
+  foreach ($p in $libPaths) { Write-Ok "LIBRARY_PATH 已追加：$p" }
+}
+
+# 加载 .env 文件中的环境变量（env!() 宏在编译时需要）
+$envFile = Join-Path $projectRoot '.env'
+if (Test-Path -LiteralPath $envFile) {
+  $loaded = 0
+  foreach ($line in (Get-Content -LiteralPath $envFile -ErrorAction SilentlyContinue)) {
+    $trimmed = $line.Trim()
+    if ([string]::IsNullOrWhiteSpace($trimmed) -or $trimmed.StartsWith('#')) { continue }
+    $eqIdx = $trimmed.IndexOf('=')
+    if ($eqIdx -lt 1) { continue }
+    $key = $trimmed.Substring(0, $eqIdx).Trim()
+    $val = $trimmed.Substring($eqIdx + 1).Trim()
+    if (-not [string]::IsNullOrWhiteSpace($key)) {
+      Set-Item -Path "env:$key" -Value $val
+      $loaded++
+    }
+  }
+  if ($loaded -gt 0) { Write-Ok ".env 已加载（$loaded 个环境变量）" }
+}
+
 $env:CARGO_BUILD_JOBS = '1'
 $env:GRADLE_OPTS = '-Dorg.gradle.workers.max=1'
-Write-Host "  CARGO_BUILD_JOBS=1, Gradle workers=1（避免内存溢出）" -ForegroundColor Yellow
+$env:NODE_OPTIONS = '--max-old-space-size=8192 --max-semi-space-size=512'
+Write-Host "  CARGO_BUILD_JOBS=1, Gradle workers=1, NODE_OPTIONS=--max-old-space-size=8192（避免内存溢出）" -ForegroundColor Yellow
 Write-Host ""
 
 Write-Host "执行：pnpm tauri android $Command" -ForegroundColor Cyan
@@ -406,5 +497,12 @@ try {
 }
 finally {
   Pop-Location
+  # 恢复 beforeBuildCommand
+  if ($originalBeforeBuildCommand -ne $null -and (Test-Path -LiteralPath $tauriConfPath)) {
+    $confRaw = Get-Content -LiteralPath $tauriConfPath -Raw
+    $confRaw = $confRaw -replace '"beforeBuildCommand"\s*:\s*""', "`"beforeBuildCommand`": `"$originalBeforeBuildCommand`""
+    [System.IO.File]::WriteAllText($tauriConfPath, $confRaw, [System.Text.UTF8Encoding]::new($false))
+    Write-Ok "已恢复 tauri.conf.json 中的 beforeBuildCommand"
+  }
 }
 exit $code

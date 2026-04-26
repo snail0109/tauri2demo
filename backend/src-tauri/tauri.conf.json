@@ -7,7 +7,7 @@
     "frontendDist": "../../frontend/dist",
     "devUrl": "http://localhost:31420",
     "beforeDevCommand": "pnpm start",
-    "beforeBuildCommand": "pnpm build"
+    "beforeBuildCommand": ""
   },
   "app": {
     "windows": [

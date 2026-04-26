@@ -33,10 +33,10 @@ android {
                 keystoreProperties.load(FileInputStream(keystorePropertiesFile))
             }
 
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["password"] as String
-            storeFile = file(keystoreProperties["storeFile"] as String)
-            storePassword = keystoreProperties["password"] as String
+            keyAlias = keystoreProperties.getProperty("keyAlias", "")
+            keyPassword = keystoreProperties.getProperty("password", "")
+            storeFile = file(keystoreProperties.getProperty("storeFile", "./config/release.keystore"))
+            storePassword = keystoreProperties.getProperty("password", "")
         }
     }
     buildFeatures {
@@ -70,6 +70,11 @@ android {
 
 rust {
     rootDirRel = "../../../"
+}
+
+// Tauri CLI 已经编译了 Rust 代码并复制到 jniLibs，Gradle 不需要再次编译
+tasks.matching { it.name.startsWith("rustBuild") }.configureEach {
+    enabled = false
 }
 
 dependencies {
