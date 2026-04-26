@@ -128,7 +128,7 @@ Write-Host ""
 Write-Banner -Title 'Android 环境检查（Windows PowerShell）  ' -Color Cyan
 Write-Host ""
 
-Write-Host "[1/8] C/C++ 编译工具 + Rust" -ForegroundColor Cyan
+Write-Host "[1/8] C/C++ 编译工具 + Rust + Rust GNU|MSVC" -ForegroundColor Cyan
 
 $hasMsvc = $false
 $hasGnu = $false
@@ -141,12 +141,12 @@ if ($cl) {
 
 $gcc = Get-ExePath 'gcc.exe'
 if ($gcc) {
-  Write-Ok "GNU gcc 已安装：$gcc"
+  Write-Ok "GNU Gcc 已安装：$gcc"
   $hasGnu = $true
 }
 
 if (-not $hasMsvc -and -not $hasGnu) {
-  Write-Fail "未检测到 C/C++ 编译器（MSVC 或 GNU gcc）"
+  Write-Fail "未检测到 C/C++ 编译器（MSVC 或 GNU Gcc）"
   Write-Fail "请先运行 .\script\install_c_compile_bywin.ps1 安装"
 }
 
@@ -177,21 +177,21 @@ if ($null -ne $androidHome) {
   Write-Fail "请运行 .\script\install_android_sdk_bywin.ps1 安装"
 }
 
-Write-Host "[4/8] Android SDK 工具（adb、sdkmanager）" -ForegroundColor Cyan
+Write-Host "[4/8] Android SDK 工具（Adb、SDKManager）" -ForegroundColor Cyan
 if ($androidHome) {
   $adb = Join-Path $androidHome 'platform-tools\adb.exe'
   if (Test-Path -LiteralPath $adb) {
-    Write-Ok "adb 已找到：$adb"
+    Write-Ok "Adb 已找到：$adb"
   } else {
-    Write-Fail "未找到 adb.exe（$adb）"
+    Write-Fail "未找到 Adb.exe（$adb）"
     Write-Fail "请运行 .\script\install_android_sdk_bywin.ps1 安装 platform-tools"
   }
 
   $sdkmanager = Join-Path $androidHome 'cmdline-tools\latest\bin\sdkmanager.bat'
   if (Test-Path -LiteralPath $sdkmanager) {
-    Write-Ok "sdkmanager 已找到：$sdkmanager"
+    Write-Ok "SDKManager 已找到：$sdkmanager"
   } else {
-    Write-Fail "sdkmanager 未找到：$sdkmanager"
+    Write-Fail "SDKManager 未找到：$sdkmanager"
     Write-Fail "请运行 .\script\install_android_sdk_bywin.ps1 安装 cmdline-tools;latest"
   }
 }
