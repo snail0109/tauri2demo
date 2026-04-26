@@ -169,14 +169,12 @@ function Install-RustToolchainAbi {
       Write-Warn "已跳过 Rust $toolchain 工具链安装"
       return $false
     }
-    try {
-      Invoke-NativeStream -Block { & rustup toolchain install $toolchain }
-      if ($LASTEXITCODE -ne 0) { throw "rustup toolchain install exit code $LASTEXITCODE" }
-      Write-Ok "Rust 工具链 $toolchain 安装成功"
-    } catch {
+    Invoke-NativeStream -Block { & rustup toolchain install $toolchain }
+    if ($LASTEXITCODE -ne 0) {
       Write-Fail "rustup toolchain install $toolchain 失败"
       return $false
     }
+    Write-Ok "Rust 工具链 $toolchain 安装成功"
   }
 
   $defaultLine = Invoke-NativeText -FilePath 'rustup' -Arguments @('default') | Select-Object -First 1
