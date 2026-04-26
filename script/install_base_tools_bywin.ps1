@@ -24,6 +24,32 @@ $ToolDefs = @(
   @{ Id = 'terminal'; Name = 'Windows 终端';  Description = 'Windows Terminal（多标签终端）' }
 )
 
+# ─── WinGet PowerShell Module ──────────────────────────────────────────────────
+# 优先使用 Microsoft.WinGet.Client 模块的 cmdlet，避免命令行进度条换行问题。
+#  模块不存在时自动安装；安装失败则回退到命令行。
+
+function Import-WinGetModule {
+  # 确保模块可用，返回 $true 表示模块模式可用，$false 表示需回退到命令行。
+  if (Get-Module -ListAvailable -Name 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue) {
+    Import-Module 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue
+    if (Get-Module -Name 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue) {
+      return $true
+    }
+  }
+  Write-Host "  安装 Microsoft.WinGet.Client PowerShell 模块 ..." -ForegroundColor Cyan
+  try {
+    Install-Module -Name 'Microsoft.WinGet.Client' -Force -Scope CurrentUser -ErrorAction Stop
+    Import-Module 'Microsoft.WinGet.Client' -ErrorAction Stop
+    Write-Ok "Microsoft.WinGet.Client 模块安装完成"
+    return $true
+  } catch {
+    Write-Warn "模块安装失败，将回退到 winget 命令行：$($_.Exception.Message)"
+    return $false
+  }
+}
+
+$script:UseWinGetModule = $false
+
 # ─── winget ───────────────────────────────────────────────────────────────────
 
 function Test-Winget {
@@ -250,6 +276,7 @@ function Install-WingetTool {
   if (Test-Winget) {
     Write-Host ""
     Add-WingetMirrorSource
+    $script:UseWinGetModule = Import-WinGetModule
     Write-Banner -Title 'winget 已就绪' -Color Green
     return $true
   }
@@ -323,6 +350,7 @@ function Install-WingetTool {
   Write-Host ""
   if (Test-Winget) {
     Add-WingetMirrorSource
+    $script:UseWinGetModule = Import-WinGetModule
     Write-Banner -Title 'winget 安装成功' -Color Green
     return $true
   }
@@ -369,16 +397,26 @@ function Uninstall-WingetTool {
     }
   }
 
-  # 方式二：通过 winget 自卸载（如果方式一失败）
+  # 方式二：通过 WinGet 模块或命令行自卸载（如果方式一失败）
   if (-not $uninstalled) {
     $winget = Get-ExePath 'winget.exe'
     if ($winget) {
       Write-Host "  通过 winget 自卸载 ..." -ForegroundColor Cyan
-      try {
-        Invoke-NativeStream -Block { & winget uninstall --id Microsoft.DesktopAppInstaller_8wekyb3d8bbwe --source winget --accept-source-agreements }
-        $uninstalled = $true
-      } catch {
-        Write-Warn "winget 自卸载失败：$($_.Exception.Message)"
+      if ($script:UseWinGetModule) {
+        try {
+          Uninstall-WinGetPackage -Id Microsoft.DesktopAppInstaller_8wekyb3d8bbwe -Source winget | Out-Null
+          $uninstalled = $true
+        } catch {
+          Write-Warn "WinGet 模块卸载失败：$($_.Exception.Message)，回退到命令行"
+        }
+      }
+      if (-not $uninstalled) {
+        try {
+          Invoke-NativeStream -Block { & winget uninstall --id Microsoft.DesktopAppInstaller_8wekyb3d8bbwe --source winget --accept-source-agreements }
+          $uninstalled = $true
+        } catch {
+          Write-Warn "winget 命令行卸载失败：$($_.Exception.Message)"
+        }
       }
     }
   }
@@ -452,11 +490,22 @@ function Install-WindowsTerminalTool {
   # 方式一：通过 winget 安装
   if (Get-ExePath 'winget.exe') {
     Write-Host "  通过 winget 安装 Windows 终端 ..." -ForegroundColor Cyan
-    try {
-      Invoke-NativeStream -Block { & winget install --id Microsoft.WindowsTerminal --source winget --accept-package-agreements --accept-source-agreements }
-      $installed = $true
-    } catch {
-      Write-Warn "winget 安装 Windows 终端失败：$($_.Exception.Message)"
+    if ($script:UseWinGetModule) {
+      try {
+        Install-WinGetPackage -Id Microsoft.WindowsTerminal -Source winget -AcceptPackageAgreements -AcceptSourceAgreements | Out-Null
+        $installed = $true
+      } catch {
+        Write-Warn "WinGet 模块安装失败：$($_.Exception.Message)，回退到命令行"
+        $installed = $false
+      }
+    }
+    if (-not $installed) {
+      try {
+        Invoke-NativeStream -Block { & winget install --id Microsoft.WindowsTerminal --source winget --accept-package-agreements --accept-source-agreements }
+        $installed = $true
+      } catch {
+        Write-Warn "winget 命令行安装失败：$($_.Exception.Message)"
+      }
     }
     if ($installed -and -not (Test-WindowsTerminal)) {
       Write-Warn "winget 报告成功但未检测到 wt.exe"
@@ -562,14 +611,24 @@ function Uninstall-WindowsTerminalTool {
     }
   }
 
-  # 方式二：通过 winget 卸载
+  # 方式二：通过 WinGet 模块或命令行卸载
   if (-not $uninstalled -and (Get-ExePath 'winget.exe')) {
     Write-Host "  通过 winget 卸载 Windows 终端 ..." -ForegroundColor Cyan
-    try {
-      Invoke-NativeStream -Block { & winget uninstall --id Microsoft.WindowsTerminal --source winget --accept-source-agreements }
-      $uninstalled = $true
-    } catch {
-      Write-Warn "winget 卸载 Windows 终端失败：$($_.Exception.Message)"
+    if ($script:UseWinGetModule) {
+      try {
+        Uninstall-WinGetPackage -Id Microsoft.WindowsTerminal -Source winget | Out-Null
+        $uninstalled = $true
+      } catch {
+        Write-Warn "WinGet 模块卸载失败：$($_.Exception.Message)，回退到命令行"
+      }
+    }
+    if (-not $uninstalled) {
+      try {
+        Invoke-NativeStream -Block { & winget uninstall --id Microsoft.WindowsTerminal --source winget --accept-source-agreements }
+        $uninstalled = $true
+      } catch {
+        Write-Warn "winget 命令行卸载失败：$($_.Exception.Message)"
+      }
     }
   }
 
