@@ -10,6 +10,12 @@ $Failed = $false
 
 if ($Yes) { Enable-AutoConfirm }
 
+$MsysRoot     = 'C:\msys64'
+$MsysBash     = Join-Path $MsysRoot 'usr\bin\bash.exe'
+$MingwBin     = Join-Path $MsysRoot 'mingw64\bin'
+$MingwGccExe  = Join-Path $MingwBin 'gcc.exe'
+$MingwAsExe   = Join-Path $MingwBin 'as.exe'
+
 function Test-Msvc {
   $cl = Get-ExePath 'cl.exe'
   if (-not $cl) { return $false }
@@ -27,18 +33,17 @@ function Test-GnuAssembler {
     Write-Host "    路径：$as"
     return $true
   }
-  $msysAs = 'C:\msys64\mingw64\bin\as.exe'
-  if (Test-Path -LiteralPath $msysAs) {
-    Add-PathPrefix 'C:\msys64\mingw64\bin'
+  if (Test-Path -LiteralPath $MingwAsExe) {
+    Add-PathPrefix $MingwBin
     Write-Ok "GNU 汇编器 as 已安装（已添加到 PATH）"
-    Write-Host "    路径：$msysAs"
+    Write-Host "    路径：$MingwAsExe"
     return $true
   }
   return $false
 }
 
 function Set-Msys2ChinaMirror {
-  $d = 'C:\msys64\etc\pacman.d'
+  $d = Join-Path $MsysRoot 'etc\pacman.d'
   if (-not (Test-Path -LiteralPath $d)) { return $true }
   $marker = Join-Path $d '.china_mirrors_added'
   if (Test-Path -LiteralPath $marker) { return $true }
@@ -66,22 +71,21 @@ function Set-Msys2ChinaMirror {
 function Install-GnuAssembler {
   if (Test-GnuAssembler) { return $true }
   Write-Warn "未找到 GNU 汇编器 as.exe，Rust dlltool 将无法创建导入库（编译会报 CreateProcess 错误）"
-  $bash = 'C:\msys64\usr\bin\bash.exe'
-  if (-not (Test-Path -LiteralPath $bash)) {
+  if (-not (Test-Path -LiteralPath $MsysBash)) {
     Write-Fail "缺少 MSYS2，无法自动安装 binutils"
     return $false
   }
   if (-not (Confirm-Install "通过 MSYS2 pacman 安装 mingw-w64-x86_64-binutils")) { return $false }
   Set-Msys2ChinaMirror | Out-Null
-  Invoke-NativeStream -Block { & $bash -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-binutils" }
-  if (Test-Path -LiteralPath 'C:\msys64\mingw64\bin\as.exe') {
-    Add-PathPrefix 'C:\msys64\mingw64\bin'
+  Invoke-NativeStream -Block { & $MsysBash -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-binutils" }
+  if (Test-Path -LiteralPath $MingwAsExe) {
+    Add-PathPrefix $MingwBin
     Write-Ok "mingw-w64-x86_64-binutils 安装成功，as.exe 已添加到 PATH"
     return $true
   }
   Write-Fail "缺少 GNU 汇编器 as.exe，Android 交叉编译将失败。"
   Write-Fail "请安装 MSYS2（https://www.msys2.org/）并运行：pacman -S mingw-w64-x86_64-binutils"
-  Write-Fail "然后将 C:\msys64\mingw64\bin 添加到 PATH"
+  Write-Fail "然后将 $MingwBin 添加到 PATH"
   return $false
 }
 
@@ -247,15 +251,11 @@ function Install-Msvc {
 }
 
 function Install-MsysGcc {
-  $msysRoot = 'C:\msys64'
-  $mingwBin = Join-Path $msysRoot 'mingw64\bin'
-  $bash = Join-Path $msysRoot 'usr\bin\bash.exe'
-
   if (-not (Confirm-Install "通过 MSYS2 pacman 安装 mingw-w64-x86_64-gcc")) { return $false }
   Set-Msys2ChinaMirror | Out-Null
-  Invoke-NativeStream -Block { & $bash -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" }
-  if (Test-Path -LiteralPath (Join-Path $mingwBin 'gcc.exe')) {
-    Add-PathPrefix $mingwBin
+  Invoke-NativeStream -Block { & $MsysBash -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" }
+  if (Test-Path -LiteralPath $MingwGccExe) {
+    Add-PathPrefix $MingwBin
     Write-Ok "mingw-w64-x86_64-gcc 安装成功"
     Test-Gnu | Out-Null
     Install-RustToolchainAbi -Abi 'gnu' | Out-Null
@@ -271,15 +271,11 @@ function Install-Gnu {
   Write-Host "═══ 安装 GNU gcc (MinGW-w64) ═══" -ForegroundColor Cyan
   Write-Host ""
 
-  $msysRoot = 'C:\msys64'
-  $mingwBin = Join-Path $msysRoot 'mingw64\bin'
-  $bash = Join-Path $msysRoot 'usr\bin\bash.exe'
-
-  if (Test-Path -LiteralPath $msysRoot) {
-    Write-Ok "检测到 MSYS2 已安装在 C:\msys64"
-    if (Test-Path -LiteralPath (Join-Path $mingwBin 'gcc.exe')) {
-      Add-PathPrefix $mingwBin
-      Write-Ok "gcc 已存在于 $mingwBin，已添加到 PATH"
+  if (Test-Path -LiteralPath $MsysRoot) {
+    Write-Ok "检测到 MSYS2 已安装在 $MsysRoot"
+    if (Test-Path -LiteralPath $MingwGccExe) {
+      Add-PathPrefix $MingwBin
+      Write-Ok "gcc 已存在于 $MingwBin，已添加到 PATH"
       Test-Gnu | Out-Null
       Install-RustToolchainAbi -Abi 'gnu' | Out-Null
       return $true
@@ -293,20 +289,20 @@ function Install-Gnu {
     }
     if (-not (Confirm-Install "通过 winget 安装 MSYS2，然后安装 mingw-w64-x86_64-gcc")) { return $false }
     Invoke-NativeStream -Block { & winget install MSYS2.MSYS2 --accept-package-agreements --accept-source-agreements }
-    if (Test-Path -LiteralPath $msysRoot) {
+    if (Test-Path -LiteralPath $MsysRoot) {
       Set-Msys2ChinaMirror | Out-Null
-      Invoke-NativeStream -Block { & $bash -lc "pacman-key --init && pacman-key --populate msys2 && pacman -Sy --noconfirm archlinux-msys2-keyring && pacman -Su --noconfirm && pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" }
-      if (Test-Path -LiteralPath (Join-Path $mingwBin 'gcc.exe')) {
-        Add-PathPrefix $mingwBin
+      Invoke-NativeStream -Block { & $MsysBash -lc "pacman-key --init && pacman-key --populate msys2 && pacman -Sy --noconfirm archlinux-msys2-keyring && pacman -Su --noconfirm && pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" }
+      if (Test-Path -LiteralPath $MingwGccExe) {
+        Add-PathPrefix $MingwBin
         Write-Ok "MSYS2 + mingw-w64-gcc 安装成功"
         Test-Gnu | Out-Null
         Install-RustToolchainAbi -Abi 'gnu' | Out-Null
         return $true
       }
       Write-Warn "MSYS2 已安装但 gcc 安装可能不完整，请手动执行："
-      Write-Warn "  C:\msys64\usr\bin\bash.exe -lc 'pacman -S --noconfirm mingw-w64-x86_64-gcc'"
+      Write-Warn "  $MsysBash -lc 'pacman -S --noconfirm mingw-w64-x86_64-gcc'"
     } else {
-      Write-Warn "winget 安装 MSYS2 后未在 C:\msys64 找到安装目录"
+      Write-Warn "winget 安装 MSYS2 后未在 $MsysRoot 找到安装目录"
     }
   }
 
@@ -320,8 +316,7 @@ function Install-Gnu {
 function Test-Gnu {
   $gcc = Get-ExePath 'gcc.exe'
   if (-not $gcc) {
-    $msysGcc = 'C:\msys64\mingw64\bin\gcc.exe'
-    if (Test-Path -LiteralPath $msysGcc) { Add-PathPrefix 'C:\msys64\mingw64\bin'; $gcc = $msysGcc }
+    if (Test-Path -LiteralPath $MingwGccExe) { Add-PathPrefix $MingwBin; $gcc = $MingwGccExe }
   }
   if (-not $gcc) { return $false }
   try {
