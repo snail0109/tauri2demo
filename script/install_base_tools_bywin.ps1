@@ -31,17 +31,59 @@ $ToolDefs = @(
 
 function Initialize-WinGetMode {
   # 根据 -WingetMode 参数初始化：module 模式安装并导入模块，cli 模式跳过。
+  # 模块版本必须与 winget CLI 版本匹配，否则会报 InvalidCastException。
+  # 例如 winget v1.5.x → 模块 0.2.x，winget v1.10.x → 模块 1.10.x
   if ($WingetMode -ne 'module') { return }
-  if (Get-Module -ListAvailable -Name 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue) {
-    Import-Module 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue
-    if (Get-Module -Name 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue) {
-      Write-Ok "Microsoft.WinGet.Client 模块已加载"
-      return
-    }
-  }
-  Write-Host "  安装 Microsoft.WinGet.Client PowerShell 模块 ..." -ForegroundColor Cyan
+
+  # 获取 winget CLI 版本
+  $wingetVer = $null
   try {
-    Install-Module -Name 'Microsoft.WinGet.Client' -Force -Scope CurrentUser -ErrorAction Stop
+    $verStr = (Invoke-NativeText -FilePath 'winget' -Arguments @('--version') | Select-Object -First 1).Trim()
+    # winget --version 输出如 "v1.10.340" 或 "1.10.340"
+    if ($verStr -match '^v?(\d+\.\d+)') { $wingetVer = $Matches[1] }
+  } catch {}
+
+  # 确定匹配的模块版本号前缀
+  # winget v1.5.x → 模块 0.2.x（特殊映射），其他版本主版本号一致
+  $moduleVerPrefix = if ($wingetVer -and $wingetVer.StartsWith('1.5')) {
+    '0.2'
+  } elseif ($wingetVer) {
+    $wingetVer
+  }
+
+  # 检查已安装的模块版本是否匹配
+  $existingModule = Get-Module -ListAvailable -Name 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue |
+    Sort-Object Version -Descending | Select-Object -First 1
+  if ($existingModule) {
+    $installed = "$($existingModule.Version)"
+    if (-not $moduleVerPrefix -or $installed.StartsWith($moduleVerPrefix)) {
+      Import-Module 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue
+      if (Get-Module -Name 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue) {
+        Write-Ok "Microsoft.WinGet.Client 模块 v$installed 已加载"
+        return
+      }
+    }
+    Write-Warn "已安装模块 v$installed 与 winget v$wingetVer 不兼容，将安装匹配版本"
+  }
+
+  # 安装匹配版本的模块
+  Write-Host "  安装 Microsoft.WinGet.Client PowerShell 模块（匹配 winget v$wingetVer）..." -ForegroundColor Cyan
+  try {
+    if ($moduleVerPrefix) {
+      # 查找匹配版本的模块
+      $allVersions = Find-Module -Name 'Microsoft.WinGet.Client' -AllVersions -ErrorAction Stop |
+        Sort-Object Version -Descending
+      $matched = $allVersions | Where-Object { "$($_.Version)".StartsWith($moduleVerPrefix) } | Select-Object -First 1
+      if ($matched) {
+        Install-Module -Name 'Microsoft.WinGet.Client' -RequiredVersion $matched.Version -Force -Scope CurrentUser -ErrorAction Stop
+        Write-Ok "已安装模块 v$($matched.Version)（匹配 winget v$wingetVer）"
+      } else {
+        Write-Warn "未找到匹配 winget v$wingetVer 的模块版本，安装最新版"
+        Install-Module -Name 'Microsoft.WinGet.Client' -Force -Scope CurrentUser -ErrorAction Stop
+      }
+    } else {
+      Install-Module -Name 'Microsoft.WinGet.Client' -Force -Scope CurrentUser -ErrorAction Stop
+    }
     Import-Module 'Microsoft.WinGet.Client' -ErrorAction Stop
     Write-Ok "Microsoft.WinGet.Client 模块安装完成"
   } catch {
