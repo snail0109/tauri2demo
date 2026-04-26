@@ -77,35 +77,6 @@ function Show-SdkManagerVersion([string]$SdkManagerPath) {
   }
 }
 
-function Invoke-SdkManagerOutput {
-  # sdkmanager 进度行格式形如 "[====   ] 16% Unzipping... aapt.exe"。
-  # 去掉前面的 [===] 条，只保留 "百分比  文件名/状态"，并去重连续相同的行，
-  # 避免被 JLine 的终端宽度截断（同时把 COLUMNS 设大让 JLine 不再裁剪）。
-  param([scriptblock]$Block)
-  $prev = $ErrorActionPreference
-  $last = $null
-  try {
-    $ErrorActionPreference = 'Continue'
-    & $Block 2>&1 | ForEach-Object {
-      $line = "$_"
-      if ($line -match '^\s*\[[= ]+\]\s*(\d+)%\s*(.*)$') {
-        $pct = $Matches[1]
-        $status = $Matches[2].TrimEnd()
-        if ([string]::IsNullOrWhiteSpace($status)) { return }
-        $formatted = '  {0,3}%  {1}' -f $pct, $status
-        if ($formatted -eq $last) { return }
-        $last = $formatted
-        Write-Host $formatted
-      } else {
-        $last = $null
-        Write-Host $line
-      }
-    }
-  } finally {
-    $ErrorActionPreference = $prev
-  }
-}
-
 function Invoke-SdkManager {
   param(
     [string]$SdkManagerPath,
@@ -126,7 +97,7 @@ function Invoke-SdkManager {
       (1..2500 | ForEach-Object { 'y' }) | Set-Content -LiteralPath $yesFile -Encoding ASCII
       try {
         $cmd = "type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
-        Invoke-SdkManagerOutput { & cmd.exe /c $cmd }
+        Invoke-NativeStream -Block { & cmd.exe /c $cmd }
       } finally {
         Remove-Item -LiteralPath $yesFile -Force -ErrorAction SilentlyContinue
       }
@@ -142,7 +113,7 @@ function Invoke-SdkManager {
     Write-Host ""
 
     $cmd = "`"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
-    Invoke-SdkManagerOutput { & cmd.exe /c $cmd }
+    Invoke-NativeStream -Block { & cmd.exe /c $cmd }
     if ($LASTEXITCODE -ne 0) {
       Write-Fail "Android SDK 组件安装失败"
       return $false
