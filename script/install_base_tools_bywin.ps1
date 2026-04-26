@@ -205,6 +205,16 @@ function Add-WingetMirrorSource {
 
   Write-Host "  配置 winget 国内镜像源（ustc）..." -ForegroundColor Cyan
 
+  # 移除 msstore 源（证书验证问题，且开发者通常不需要）
+  if ($sourceList -and ($sourceList | Where-Object { $_ -match 'msstore' })) {
+    try {
+      Invoke-NativeStream -Block { & $winget source remove msstore }
+      Write-Ok "已移除 msstore 源（避免证书验证报错）"
+    } catch {
+      Write-Warn "移除 msstore 源失败：$($_.Exception.Message)"
+    }
+  }
+
   # 如果已有默认 winget 源，先移除再添加镜像源
   if ($sourceList -and ($sourceList | Where-Object { $_ -match 'winget\s' })) {
     try {
