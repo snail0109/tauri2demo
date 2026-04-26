@@ -193,6 +193,10 @@ if ($null -eq (Get-ExePath 'rustup.exe')) {
   Write-Fail "未找到 rustup"
   Write-Fail "请运行 .\script\install_c_compile_bywin.ps1 安装"
 } else {
+  $rustVer = Invoke-NativeText -FilePath 'rustc' -Arguments @('--version') | Select-Object -First 1
+  $rustExe = Get-ExePath 'rustc.exe'
+  $rustDir = if ($rustExe) { Split-Path -Parent $rustExe } else { '' }
+  Write-Ok "$rustVer（$rustDir）"
   $installedTargets = Get-RustupInstalledTarget
   $missing = @($requiredTargets | Where-Object { $installedTargets -notcontains $_ })
   foreach ($t in $requiredTargets) {
