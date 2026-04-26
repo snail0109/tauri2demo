@@ -7,7 +7,7 @@ param(
   [string[]]$RemoveTools,
 
   [ValidateSet('module', 'cli')]
-  [string]$WingetMode = 'module',
+  [string]$WingetMode = 'cli',
 
   [ValidateSet('auto', 'appx', 'store', 'psgallery', 'onescript')]
   [string]$WingetMethod = 'auto'
@@ -697,8 +697,8 @@ function Write-Usage {
   Write-Host "  onescript  通过一键脚本 irm asheroto.com/winget | iex 安装（无需 GitHub）"
   Write-Host ""
   Write-Host "WingetMode 参数（安装/卸载其他工具时生效）：" -ForegroundColor Cyan
-  Write-Host "  module     通过 Microsoft.WinGet.Client PowerShell 模块调用（默认，无进度条换行问题）"
-  Write-Host "  cli        通过 winget 命令行调用"
+  Write-Host "  cli        通过 winget 命令行调用（默认）"
+  Write-Host "  module     通过 Microsoft.WinGet.Client PowerShell 模块调用（可能存在版本兼容问题）"
   Write-Host ""
   Write-Host "示例：" -ForegroundColor Cyan
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools winget"
