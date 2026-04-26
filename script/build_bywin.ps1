@@ -52,7 +52,7 @@ function Restore-AndroidProject {
 
   Write-Warn "正在运行 pnpm tauri android init ..."
   Push-Location $ProjectRoot
-  try { & pnpm tauri android init | Out-Host } finally { Pop-Location }
+  try { Invoke-NativeStream -Block { & pnpm tauri android init } } finally { Pop-Location }
 
   if ($keystoreBackup -and (Test-Path -LiteralPath $keystoreBackup)) {
     Copy-Item -LiteralPath $keystoreBackup -Destination $keystorePropsInGen -Force
@@ -96,15 +96,18 @@ function New-Keystore {
   $storeDir = Split-Path -Parent $StoreFile
   if (-not [string]::IsNullOrWhiteSpace($storeDir)) { New-DirectoryIfMissing $storeDir }
   try {
-    & keytool -genkeypair -v `
-      -keystore $StoreFile `
-      -alias $Alias `
-      -keyalg RSA `
-      -keysize 2048 `
-      -validity 10000 `
-      -storepass $Password `
-      -keypass $Password `
-      -dname 'CN=Tauri2Demo, OU=Dev, O=Dev, L=Unknown, ST=Unknown, C=CN' | Out-Host
+    Invoke-NativeStream -Block {
+      & keytool -genkeypair -v `
+        -keystore $StoreFile `
+        -alias $Alias `
+        -keyalg RSA `
+        -keysize 2048 `
+        -validity 10000 `
+        -storepass $Password `
+        -keypass $Password `
+        -dname 'CN=Tauri2Demo, OU=Dev, O=Dev, L=Unknown, ST=Unknown, C=CN'
+    }
+    if ($LASTEXITCODE -ne 0) { throw "keytool exit $LASTEXITCODE" }
     Write-Ok "Keystore 已生成：$StoreFile"
   } catch {
     Write-Fail "keytool 生成 keystore 失败"
@@ -344,7 +347,7 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'node_modules')) {
 } else {
   Write-Warn "node_modules 不存在，正在运行 pnpm install ..."
   Push-Location $projectRoot
-  try { & pnpm install | Out-Host } finally { Pop-Location }
+  try { Invoke-NativeStream -Block { & pnpm install } } finally { Pop-Location }
   Write-Ok "pnpm install 完成"
 }
 
@@ -361,7 +364,7 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'frontend\dist')) {
 } else {
   Write-Warn "frontend\dist 不存在，正在运行前端构建 ..."
   Push-Location $projectRoot
-  try { & pnpm build | Out-Host } finally { Pop-Location }
+  try { Invoke-NativeStream -Block { & pnpm build } } finally { Pop-Location }
   Write-Ok "前端构建完成"
 }
 
