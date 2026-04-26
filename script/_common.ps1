@@ -140,6 +140,7 @@ function Invoke-NativeStream {
   # 调用方不要在块里再写 `2>&1 | Out-Host`，本函数已统一处理。
   # winget 等工具的进度条（如 "- \ | /" 旋转动画）每帧输出一行，
   # 用 [Console]::Write + \r 覆盖同一行，避免刷屏。
+  # 非进度条的正常文本始终正常输出。
   param([scriptblock]$Block)
   $prev = $ErrorActionPreference
   $isSpinnerLine = $false
@@ -147,8 +148,10 @@ function Invoke-NativeStream {
     $ErrorActionPreference = 'Continue'
     & $Block 2>&1 | ForEach-Object {
       $text = "$_"
-      # 检测 winget 风格的进度条帧：仅包含空格和 - \ | / 字符的短行
-      if ($text -match '^\s*[-\\/|]\s*$') {
+      $trimmed = $text.Trim()
+      # 检测 winget 风格的进度条帧：短行，且去除空格后仅由旋转字符组成
+      $isSpinner = ($trimmed.Length -le 3) -and ($trimmed -match '^[-\\/|]+$')
+      if ($isSpinner) {
         if ($isSpinnerLine) {
           [Console]::SetCursorPosition(0, [Console]::CursorTop)
         }
