@@ -276,14 +276,16 @@ if ($null -eq (Get-ExePath 'rustup.exe')) {
 Write-Host "[7/8] pnpm" -ForegroundColor Cyan
 $pnpmExe = (Get-ExePath 'pnpm.cmd'), (Get-ExePath 'pnpm.exe') | Where-Object { $_ } | Select-Object -First 1
 if ($pnpmExe) {
-  $v = (& pnpm --version 2>&1 | Select-Object -First 1)
+  $v = (Invoke-NativeText -FilePath $pnpmExe -Arguments @('--version') | Select-Object -First 1)
   Write-Ok "pnpm $v 已安装"
 } else {
   Write-Fail "未找到 pnpm"
   if (Confirm-Install "通过 npm 全局安装 pnpm") {
     try {
-      & npm install -g pnpm | Out-Host
-      $v = (& pnpm --version 2>&1 | Select-Object -First 1)
+      Invoke-NativeStream -Block { & npm install -g pnpm }
+      if ($LASTEXITCODE -ne 0) { throw "exit $LASTEXITCODE" }
+      $pnpmExe = (Get-ExePath 'pnpm.cmd'), (Get-ExePath 'pnpm.exe') | Where-Object { $_ } | Select-Object -First 1
+      $v = (Invoke-NativeText -FilePath $pnpmExe -Arguments @('--version') | Select-Object -First 1)
       Write-Ok "pnpm $v 安装成功"
     } catch {
       Write-Fail "npm install -g pnpm 失败"
