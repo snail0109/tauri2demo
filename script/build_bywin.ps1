@@ -408,20 +408,18 @@ if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) {
 }
 
 if ($null -ne (Get-ExePath 'rustup.exe')) {
-  try {
-    $rustcPath = (& rustup which rustc 2>$null).Trim()
-    if (-not [string]::IsNullOrWhiteSpace($rustcPath)) {
-      $toolchainRoot = Split-Path -Parent (Split-Path -Parent $rustcPath)
-      $selfContained = Join-Path $toolchainRoot 'lib\rustlib\x86_64-pc-windows-gnu\bin\self-contained'
-      if (Test-Path -LiteralPath (Join-Path $selfContained 'dlltool.exe')) {
-        Add-PathPrefix $selfContained
-        Write-Ok "Rust dlltool 已加入 PATH：$selfContained"
-      } else {
-        Write-Warn "Rust GNU 工具链 self-contained 目录未找到：$selfContained"
-        Write-Warn "交叉编译 Android 时可能因找不到 dlltool 而失败"
-      }
+  $rustcPath = Invoke-NativeText -FilePath 'rustup' -Arguments @('which', 'rustc') | Select-Object -First 1
+  if (-not [string]::IsNullOrWhiteSpace($rustcPath)) {
+    $toolchainRoot = Split-Path -Parent (Split-Path -Parent $rustcPath.Trim())
+    $selfContained = Join-Path $toolchainRoot 'lib\rustlib\x86_64-pc-windows-gnu\bin\self-contained'
+    if (Test-Path -LiteralPath (Join-Path $selfContained 'dlltool.exe')) {
+      Add-PathPrefix $selfContained
+      Write-Ok "Rust dlltool 已加入 PATH：$selfContained"
+    } else {
+      Write-Warn "Rust GNU 工具链 self-contained 目录未找到：$selfContained"
+      Write-Warn "交叉编译 Android 时可能因找不到 dlltool 而失败"
     }
-  } catch {}
+  }
 }
 
 $env:CARGO_BUILD_JOBS = '1'
