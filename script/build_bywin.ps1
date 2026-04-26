@@ -265,13 +265,9 @@ if ($null -eq (Get-ExePath 'rustup.exe')) {
       Enable-AutoConfirm
       foreach ($t in $missing) {
         Write-Host "  rustup target add $t" -ForegroundColor Cyan
-        try {
-          Invoke-NativeStream -Block { & rustup target add $t }
-          if ($LASTEXITCODE -ne 0) { throw "exit $LASTEXITCODE" }
-          Write-Ok "  $t 安装成功"
-        } catch {
-          Write-Warn "  $t 安装失败，请手动运行：rustup target add $t"
-        }
+        Invoke-NativeStream -Block { & rustup target add $t }
+        if ($LASTEXITCODE -eq 0) { Write-Ok "  $t 安装成功" }
+        else { Write-Warn "  $t 安装失败，请手动运行：rustup target add $t" }
       }
     } else {
       Write-Warn "请手动运行以下命令安装缺失的编译目标："
@@ -289,14 +285,13 @@ if ($pnpmExe) {
   Write-Fail "未找到 pnpm"
   if (Confirm-Install "通过 npm 全局安装 pnpm") {
     Enable-AutoConfirm
-    try {
-      Invoke-NativeStream -Block { & npm install -g pnpm }
-      if ($LASTEXITCODE -ne 0) { throw "exit $LASTEXITCODE" }
+    Invoke-NativeStream -Block { & npm install -g pnpm }
+    if ($LASTEXITCODE -ne 0) {
+      Write-Fail "npm install -g pnpm 失败"
+    } else {
       $pnpmExe = Get-PnpmExe
       $v = (Invoke-NativeText -FilePath $pnpmExe -Arguments @('--version') | Select-Object -First 1)
       Write-Ok "pnpm $v 安装成功"
-    } catch {
-      Write-Fail "npm install -g pnpm 失败"
     }
   } else {
     Write-Fail "请手动安装：npm install -g pnpm"

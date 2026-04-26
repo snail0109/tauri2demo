@@ -109,29 +109,27 @@ function Invoke-SdkManager {
     try {
       $cmd = "type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
       Invoke-NativeStream -Block { & cmd.exe /c $cmd }
-      if ($LASTEXITCODE -ne 0) { throw "sdkmanager exit code $LASTEXITCODE" }
-      return $true
-    } catch {
-      Write-Fail "Android SDK 组件安装失败"
-      return $false
     } finally {
       Remove-Item -LiteralPath $yesFile -Force -ErrorAction SilentlyContinue
     }
+    if ($LASTEXITCODE -ne 0) {
+      Write-Fail "Android SDK 组件安装失败"
+      return $false
+    }
+    return $true
   }
 
   Write-Host "  交互模式：安装过程中需要手动接受许可协议" -ForegroundColor Yellow
   Write-Host "  （如需自动接受，请使用 -y 参数重新运行）" -ForegroundColor Yellow
   Write-Host ""
 
-  try {
-    $cmd = "`"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
-    Invoke-NativeStream -Block { & cmd.exe /c $cmd }
-    if ($LASTEXITCODE -ne 0) { throw "sdkmanager exit code $LASTEXITCODE" }
-    return $true
-  } catch {
+  $cmd = "`"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
+  Invoke-NativeStream -Block { & cmd.exe /c $cmd }
+  if ($LASTEXITCODE -ne 0) {
     Write-Fail "Android SDK 组件安装失败"
     return $false
   }
+  return $true
 }
 
 Write-Host ""
@@ -245,10 +243,8 @@ if ($null -ne (Get-ExePath 'rustup.exe')) {
     Write-Host "  正在安装缺失的 Rust 编译目标..." -ForegroundColor Yellow
     foreach ($t in $missing) {
       Write-Host "  rustup target add $t" -ForegroundColor Cyan
-      try {
-        Invoke-NativeStream -Block { & rustup target add $t }
-        if ($LASTEXITCODE -ne 0) { throw "exit $LASTEXITCODE" }
-      } catch { Write-Warn "  $t 安装失败，请手动运行：rustup target add $t" }
+      Invoke-NativeStream -Block { & rustup target add $t }
+      if ($LASTEXITCODE -ne 0) { Write-Warn "  $t 安装失败，请手动运行：rustup target add $t" }
     }
     Write-Ok "Rust Android 编译目标安装完成"
   } else {
