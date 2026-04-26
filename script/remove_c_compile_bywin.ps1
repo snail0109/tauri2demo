@@ -50,7 +50,7 @@ function Remove-Rustup {
   }
   if (-not (Confirm-Remove "完全卸载 rustup（移除所有 Rust 工具链、~\.cargo、~\.rustup）")) { return }
   if ($DryRun) { Write-Warn "DryRun: rustup self uninstall -y"; return }
-  try { Invoke-NativeStream -Block { & rustup self uninstall -y } } catch {}
+  Invoke-NativeStream -Block { & rustup self uninstall -y }
   if (Get-ExePath 'rustup.exe') { Write-Fail "rustup self uninstall 后仍能找到 rustup，可能需要重启 shell 或手动清理" }
   else { Write-Ok "rustup 已卸载" }
 }
@@ -66,7 +66,7 @@ function Remove-Msys2 {
 
   if ($DryRun) { Write-Warn "DryRun: winget uninstall MSYS2.MSYS2"; return }
   if (Get-ExePath 'winget.exe') {
-    try { Invoke-NativeStream -Block { & winget uninstall MSYS2.MSYS2 --silent } } catch {}
+    Invoke-NativeStream -Block { & winget uninstall MSYS2.MSYS2 --silent }
   }
   Start-Sleep -Seconds 2
   if (Test-Path -LiteralPath $msysRoot) {
@@ -96,10 +96,8 @@ function Remove-Msvc {
 
   $removed = $false
   foreach ($id in @('Microsoft.VisualStudio.2022.BuildTools', 'Microsoft.VisualStudio.2019.BuildTools')) {
-    try {
-      Invoke-NativeStream -Block { & winget uninstall $id --silent }
-      if ($LASTEXITCODE -eq 0) { Write-Ok "已请求卸载 $id"; $removed = $true }
-    } catch {}
+    Invoke-NativeStream -Block { & winget uninstall $id --silent }
+    if ($LASTEXITCODE -eq 0) { Write-Ok "已请求卸载 $id"; $removed = $true }
   }
   if (-not $removed) {
     Write-Warn "winget 未匹配到已安装的 Visual Studio Build Tools"
