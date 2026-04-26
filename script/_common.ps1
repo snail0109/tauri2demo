@@ -78,6 +78,36 @@ function Select-MenuOption {
   return 0
 }
 
+# ─── Native command helpers ──────────────────────────────────────────────────
+# 在 Windows PowerShell 5.1 下，native 命令通过 2>&1 把 stderr 合并到成功流时，
+# 每行 stderr 会被包装成 NativeCommandError；当 $ErrorActionPreference='Stop'
+# 时会被当作终止异常抛出（如 java/cl/gcc 把版本写到 stderr 就会炸）。
+# 下面两个助手在调用期间局部把 EAP 降到 Continue，避免误抛。
+
+function Invoke-NativeText {
+  # 捕获 native 命令的 stdout+stderr 为字符串数组（每行一项）。
+  param([string]$FilePath, [string[]]$Arguments = @())
+  $prev = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    & $FilePath @Arguments 2>&1 | ForEach-Object { "$_" }
+  } finally {
+    $ErrorActionPreference = $prev
+  }
+}
+
+function Invoke-NativeStream {
+  # 透传 native 命令的输出（一般用于 | Out-Host 显示安装日志）。
+  param([scriptblock]$Block)
+  $prev = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    & $Block
+  } finally {
+    $ErrorActionPreference = $prev
+  }
+}
+
 # ─── Path / process discovery ────────────────────────────────────────────────
 function Get-ExePath([string]$Name) {
   $cmd = Get-Command $Name -ErrorAction SilentlyContinue
@@ -198,7 +228,8 @@ function Resolve-AndroidNdk([string]$AndroidHome) {
 
 function Get-JavaMajorVersion {
   if ($null -eq (Get-ExePath 'java.exe')) { return $null }
-  $line = (& java -version 2>&1 | Select-Object -First 1)
+  $line = (Invoke-NativeText -FilePath 'java' -Arguments @('-version') | Select-Object -First 1)
+  if ([string]::IsNullOrWhiteSpace($line)) { return $null }
   $m = [regex]::Match($line, '([0-9]+)')
   if (-not $m.Success) { return $null }
   return [int]$m.Groups[1].Value

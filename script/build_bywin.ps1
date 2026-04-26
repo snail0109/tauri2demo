@@ -152,7 +152,7 @@ if (-not $hasMsvc -and -not $hasGnu) {
 
 if ($null -ne (Get-ExePath 'rustc.exe')) {
   try {
-    $ver = (& rustc --version 2>&1 | Select-Object -First 1)
+    $ver = (Invoke-NativeText -FilePath 'rustc' -Arguments @('--version') | Select-Object -First 1)
     Write-Ok "Rust 已安装：$ver"
   } catch {
     Write-Ok "Rust 已安装：rustc"

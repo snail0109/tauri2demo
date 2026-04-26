@@ -29,7 +29,7 @@ function Remove-RustToolchainAbi {
     return
   }
   if ($DryRun) { Write-Warn "DryRun: rustup toolchain uninstall $toolchain"; return }
-  try { & rustup toolchain uninstall $toolchain 2>&1 | Out-Host; Write-Ok "已卸载 $toolchain" } catch { Write-Fail "rustup toolchain uninstall $toolchain 失败" }
+  try { Invoke-NativeStream -Block { & rustup toolchain uninstall $toolchain 2>&1 | Out-Host }; Write-Ok "已卸载 $toolchain" } catch { Write-Fail "rustup toolchain uninstall $toolchain 失败" }
 }
 
 function Remove-AllRustToolchain {
@@ -39,7 +39,7 @@ function Remove-AllRustToolchain {
   if (-not (Confirm-Remove "卸载所有 Rust 工具链（共 $($toolchains.Count) 个）")) { return }
   foreach ($tc in $toolchains) {
     if ($DryRun) { Write-Warn "DryRun: rustup toolchain uninstall $tc"; continue }
-    try { & rustup toolchain uninstall $tc 2>&1 | Out-Host; Write-Ok "已卸载 $tc" } catch { Write-Fail "卸载 $tc 失败" }
+    try { Invoke-NativeStream -Block { & rustup toolchain uninstall $tc 2>&1 | Out-Host }; Write-Ok "已卸载 $tc" } catch { Write-Fail "卸载 $tc 失败" }
   }
 }
 
@@ -50,7 +50,7 @@ function Remove-Rustup {
   }
   if (-not (Confirm-Remove "完全卸载 rustup（移除所有 Rust 工具链、~\.cargo、~\.rustup）")) { return }
   if ($DryRun) { Write-Warn "DryRun: rustup self uninstall -y"; return }
-  try { & rustup self uninstall -y 2>&1 | Out-Host } catch {}
+  try { Invoke-NativeStream -Block { & rustup self uninstall -y 2>&1 | Out-Host } } catch {}
   if (Get-ExePath 'rustup.exe') { Write-Fail "rustup self uninstall 后仍能找到 rustup，可能需要重启 shell 或手动清理" }
   else { Write-Ok "rustup 已卸载" }
 }
@@ -66,7 +66,7 @@ function Remove-Msys2 {
 
   if ($DryRun) { Write-Warn "DryRun: winget uninstall MSYS2.MSYS2"; return }
   if (Get-ExePath 'winget.exe') {
-    try { & winget uninstall MSYS2.MSYS2 --silent 2>&1 | Out-Host } catch {}
+    try { Invoke-NativeStream -Block { & winget uninstall MSYS2.MSYS2 --silent 2>&1 | Out-Host } } catch {}
   }
   Start-Sleep -Seconds 2
   if (Test-Path -LiteralPath $msysRoot) {
@@ -97,7 +97,7 @@ function Remove-Msvc {
   $removed = $false
   foreach ($id in @('Microsoft.VisualStudio.2022.BuildTools', 'Microsoft.VisualStudio.2019.BuildTools')) {
     try {
-      & winget uninstall $id --silent 2>&1 | Out-Host
+      Invoke-NativeStream -Block { & winget uninstall $id --silent 2>&1 | Out-Host }
       if ($LASTEXITCODE -eq 0) { Write-Ok "已请求卸载 $id"; $removed = $true }
     } catch {}
   }
