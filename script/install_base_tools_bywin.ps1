@@ -365,7 +365,7 @@ function Uninstall-WingetTool {
     if ($winget) {
       Write-Host "  通过 winget 自卸载 ..." -ForegroundColor Cyan
       try {
-        Invoke-NativeStream -Block { & winget uninstall --id Microsoft.DesktopAppInstaller_8wekyb3d8bbwe --accept-source-agreements }
+        Invoke-NativeStream -Block { & winget uninstall --id Microsoft.DesktopAppInstaller_8wekyb3d8bbwe --source winget --accept-source-agreements }
         $uninstalled = $true
       } catch {
         Write-Warn "winget 自卸载失败：$($_.Exception.Message)"
@@ -443,7 +443,7 @@ function Install-WindowsTerminalTool {
   if (Get-ExePath 'winget.exe') {
     Write-Host "  通过 winget 安装 Windows 终端 ..." -ForegroundColor Cyan
     try {
-      Invoke-NativeStream -Block { & winget install --id Microsoft.WindowsTerminal --accept-package-agreements --accept-source-agreements }
+      Invoke-NativeStream -Block { & winget install --id Microsoft.WindowsTerminal --source winget --accept-package-agreements --accept-source-agreements }
       $installed = $true
     } catch {
       Write-Warn "winget 安装 Windows 终端失败：$($_.Exception.Message)"
@@ -556,7 +556,7 @@ function Uninstall-WindowsTerminalTool {
   if (-not $uninstalled -and (Get-ExePath 'winget.exe')) {
     Write-Host "  通过 winget 卸载 Windows 终端 ..." -ForegroundColor Cyan
     try {
-      Invoke-NativeStream -Block { & winget uninstall --id Microsoft.WindowsTerminal --accept-source-agreements }
+      Invoke-NativeStream -Block { & winget uninstall --id Microsoft.WindowsTerminal --source winget --accept-source-agreements }
       $uninstalled = $true
     } catch {
       Write-Warn "winget 卸载 Windows 终端失败：$($_.Exception.Message)"
