@@ -125,9 +125,7 @@ if ([string]::IsNullOrWhiteSpace($Command)) {
 }
 
 Write-Host ""
-Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  Android 环境检查（Windows PowerShell）  " -ForegroundColor Cyan
-Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
+Write-Banner -Title 'Android 环境检查（Windows PowerShell）  ' -Color Cyan
 Write-Host ""
 
 Write-Host "[1/8] C/C++ 编译工具 + Rust" -ForegroundColor Cyan
@@ -162,9 +160,7 @@ if ($null -ne (Get-ExePath 'rustc.exe')) {
 
 if ($Failed) {
   Write-Host ""
-  Write-Host "══════════════════════════════════════════" -ForegroundColor Red
-  Write-Host "  C/C++ 编译工具或 Rust 未就绪，已中止。 " -ForegroundColor Red
-  Write-Host "══════════════════════════════════════════" -ForegroundColor Red
+  Write-Banner -Title 'C/C++ 编译工具或 Rust 未就绪，已中止。 ' -Color Red
   exit 1
 }
 
@@ -326,9 +322,7 @@ Write-Host "  所有检查通过！" -ForegroundColor Green
 Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host ""
 
-Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  构建准备                                " -ForegroundColor Cyan
-Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
+Write-Banner -Title '构建准备                                ' -Color Cyan
 Write-Host ""
 
 $projectRoot = (Resolve-Path -LiteralPath (Join-Path $scriptDir '..')).Path

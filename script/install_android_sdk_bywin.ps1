@@ -118,9 +118,7 @@ function Invoke-SdkManager {
 }
 
 Write-Host ""
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  Android SDK 自动安装脚本（Windows PowerShell）       " -ForegroundColor Cyan
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Banner -Title 'Android SDK 自动安装脚本（Windows PowerShell）       ' -Color Cyan -Width 55
 Write-Host ""
 
 $sdkRootDefault = $SdkRoot
@@ -268,9 +266,7 @@ $env:Path = "$platformTools;$env:Path"
 Write-Ok "当前 shell 环境变量已生效（export）"
 
 Write-Host ""
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  Android SDK 安装 & 配置完成！                         " -ForegroundColor Green
-Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Banner -Title 'Android SDK 安装 & 配置完成！                         ' -Color Cyan -TitleColor Green -Width 55
 Write-Host ""
 Write-Host "  注意：写入的用户环境变量需要新开终端窗口才会生效" -ForegroundColor Yellow
 Write-Host ""

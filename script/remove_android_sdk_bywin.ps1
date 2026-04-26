@@ -114,9 +114,7 @@ function Show-DirChildren {
 }
 
 function Show-InstallationStatus {
-  Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
-  Write-Host "  当前安装状态检测                         " -ForegroundColor Cyan
-  Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
+  Write-Banner -Title '当前安装状态检测                         ' -Color Cyan
 
   Write-Host "[1/3] Android SDK" -ForegroundColor Cyan
   $sdk = Resolve-AndroidHome
@@ -167,9 +165,7 @@ function Show-InstallationStatus {
 }
 
 Write-Host ""
-Write-Host "══════════════════════════════════════════" -ForegroundColor Red
-Write-Host "  Android SDK 卸载（Windows PowerShell）  " -ForegroundColor Red
-Write-Host "══════════════════════════════════════════" -ForegroundColor Red
+Write-Banner -Title 'Android SDK 卸载（Windows PowerShell）  ' -Color Red
 Write-Host ""
 
 Show-InstallationStatus
@@ -212,9 +208,7 @@ switch ($selected) {
 }
 
 Write-Host ""
-Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  卸载结束摘要                            " -ForegroundColor Cyan
-Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
+Write-Banner -Title '卸载结束摘要                            ' -Color Cyan
 
 $sdkNow = Resolve-AndroidHome
 Write-RemovedStatus -Label 'Android SDK    ' -NotPresent (-not ($sdkNow -and (Test-Path -LiteralPath $sdkNow))) -Detail $sdkNow

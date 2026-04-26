@@ -42,6 +42,22 @@ function Write-RemovedStatus {
   Write-StatusLine -Label $Label -Ok:$NotPresent -OkText '已移除' -NotOkText $NotOkText -Detail $Detail
 }
 
+function Write-Banner {
+  # 输出 3 行横幅：上 ═ 条 + 标题 + 下 ═ 条。前后空行由调用方控制。
+  # TitleColor 缺省与 Color 一致；少数场合（如安装完成提示）用 Green 标题 + Cyan 边。
+  param(
+    [string]$Title,
+    [string]$Color = 'Cyan',
+    [string]$TitleColor,
+    [int]$Width = 42
+  )
+  if ([string]::IsNullOrWhiteSpace($TitleColor)) { $TitleColor = $Color }
+  $bar = '═' * $Width
+  Write-Host $bar -ForegroundColor $Color
+  Write-Host "  $Title" -ForegroundColor $TitleColor
+  Write-Host $bar -ForegroundColor $Color
+}
+
 # ─── Confirmations ───────────────────────────────────────────────────────────
 # 全局自动确认开关：一旦置位，本脚本进程内所有 Confirm-* 都直接返回 true。
 # 用于 -y 静默模式，以及"主菜单选择后子操作不再重复确认"场景。

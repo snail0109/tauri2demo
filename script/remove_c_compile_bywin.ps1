@@ -110,9 +110,7 @@ function Remove-Msvc {
 }
 
 Write-Host ""
-Write-Host "══════════════════════════════════════════" -ForegroundColor Red
-Write-Host "  C/C++ 编译工具卸载（Windows）          " -ForegroundColor Red
-Write-Host "══════════════════════════════════════════" -ForegroundColor Red
+Write-Banner -Title 'C/C++ 编译工具卸载（Windows）          ' -Color Red
 Write-Host ""
 Write-Warn "本脚本会卸载系统级开发工具，可能影响其它项目。请确认你了解每一步。"
 Write-Host ""
@@ -158,9 +156,7 @@ switch ($selected) {
 }
 
 Write-Host ""
-Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  卸载结束摘要                            " -ForegroundColor Cyan
-Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
+Write-Banner -Title '卸载结束摘要                            ' -Color Cyan
 
 $hasMsvc = $null -ne (Get-ExePath 'cl.exe')
 $hasGcc = $null -ne (Get-ExePath 'gcc.exe')

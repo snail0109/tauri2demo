@@ -186,9 +186,7 @@ function Install-RustToolchainAbi {
 
   Test-RustToolchain | Out-Null
   Write-Host ""
-  Write-Host "══════════════════════════════════════════" -ForegroundColor Green
-  Write-Host "  Rust 工具链已就绪" -ForegroundColor Green
-  Write-Host "══════════════════════════════════════════" -ForegroundColor Green
+  Write-Banner -Title 'Rust 工具链已就绪' -Color Green
   return $true
 }
 
@@ -326,9 +324,7 @@ function Write-EnvSummary {
 }
 
 Write-Host ""
-Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  C/C++ 编译工具检查与安装（Windows）    " -ForegroundColor Cyan
-Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
+Write-Banner -Title 'C/C++ 编译工具检查与安装（Windows）    ' -Color Cyan
 Write-Host ""
 
 Write-Host "[1/3] 检查 C/C++ 编译器" -ForegroundColor Cyan
@@ -337,9 +333,7 @@ $hasGnu = Test-Gnu
 
 if ($hasMsvc -or $hasGnu) {
   Write-Host ""
-  Write-Host "══════════════════════════════════════════" -ForegroundColor Green
-  Write-Host "  C/C++ 编译工具已就绪" -ForegroundColor Green
-  Write-Host "══════════════════════════════════════════" -ForegroundColor Green
+  Write-Banner -Title 'C/C++ 编译工具已就绪' -Color Green
 
   Write-Host ""
   Write-Host "[2/3] 检查 Rust 工具链" -ForegroundColor Cyan
