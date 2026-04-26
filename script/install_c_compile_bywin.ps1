@@ -132,16 +132,13 @@ function Install-Rustup {
   }
 
   $installer = Join-Path $env:TEMP ("rustup_init_{0}.exe" -f ([guid]::NewGuid().ToString('N')))
-  Write-Host "  正在下载 rustup-init.exe ..." -ForegroundColor Cyan
-  try {
-    Invoke-WebRequest -Uri 'https://win.rustup.rs/x86_64' -OutFile $installer -UseBasicParsing -TimeoutSec 30 | Out-Null
-  } catch {
+  if (-not (Save-WebFile -Urls @('https://win.rustup.rs/x86_64') -OutFile $installer)) {
     Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
     Write-Fail "下载 rustup-init.exe 失败"
     Write-Fail "请手动访问 https://rustup.rs 安装"
     return $false
   }
-  Write-Ok "下载完成，启动 rustup-init（默认 toolchain=none，由本脚本后续配置）..."
+  Write-Ok "启动 rustup-init（默认 toolchain=none，由本脚本后续配置）..."
   try {
     Start-Process -FilePath $installer -ArgumentList @('-y', '--default-toolchain', 'none', '--no-modify-path') -Wait -NoNewWindow | Out-Null
   } catch {}
@@ -216,17 +213,14 @@ function Install-Msvc {
   }
 
   $installerPath = Join-Path $env:TEMP ("vs_buildtools_{0}.exe" -f ([guid]::NewGuid().ToString('N')))
-  Write-Host "  正在下载 Visual Studio Build Tools 安装器 ..." -ForegroundColor Cyan
-  try {
-    Invoke-WebRequest -Uri 'https://aka.ms/vs/17/release/vs_BuildTools.exe' -OutFile $installerPath -UseBasicParsing -TimeoutSec 60 | Out-Null
-  } catch {
+  if (-not (Save-WebFile -Urls @('https://aka.ms/vs/17/release/vs_BuildTools.exe') -OutFile $installerPath -TimeoutSec 60)) {
     Remove-Item -LiteralPath $installerPath -Force -ErrorAction SilentlyContinue
     Write-Fail "下载 Visual Studio Build Tools 安装器失败"
     Write-Fail "请手动访问 https://visualstudio.microsoft.com/visual-cpp-build-tools/ 下载安装"
     return $false
   }
 
-  Write-Ok "下载完成，正在启动安装器 ..."
+  Write-Ok "正在启动安装器 ..."
   Write-Host "  请在安装器中勾选「使用 C++ 的桌面开发」工作负载" -ForegroundColor Yellow
   try {
     Start-Process -FilePath $installerPath -ArgumentList @('--add', 'Microsoft.VisualStudio.Workload.VCTools', '--includeRecommended', '--passive', '--wait') -Wait -NoNewWindow | Out-Null

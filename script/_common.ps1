@@ -204,6 +204,23 @@ function Set-UserEnvIfChanged {
   }
 }
 
+# ─── Web download ────────────────────────────────────────────────────────────
+function Save-WebFile {
+  # 依次尝试 $Urls 直到下载成功；下载失败时返回 $false，不抛异常。
+  param([string[]]$Urls, [string]$OutFile, [int]$TimeoutSec = 30)
+  foreach ($u in $Urls) {
+    Write-Host "  尝试下载：$u" -ForegroundColor Cyan
+    try {
+      Invoke-WebRequest -Uri $u -OutFile $OutFile -UseBasicParsing -TimeoutSec $TimeoutSec | Out-Null
+      Write-Ok "下载完成（来源：$u）"
+      return $true
+    } catch {
+      Write-Warn "下载失败，尝试下一个镜像 ..."
+    }
+  }
+  return $false
+}
+
 # ─── Android SDK / NDK discovery ─────────────────────────────────────────────
 function Get-AndroidSdkRootCandidate {
   # 候选 SDK 根（按探测优先级返回 string[]）：显式 -PreferredRoot → ANDROID_HOME →

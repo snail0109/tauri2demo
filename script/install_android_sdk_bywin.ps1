@@ -11,21 +11,6 @@ $ErrorActionPreference = 'Stop'
 
 if ($Yes) { Enable-AutoConfirm }
 
-function Save-WebFile {
-  param([string[]]$Urls, [string]$OutFile)
-  foreach ($u in $Urls) {
-    Write-Host "  尝试下载：$u" -ForegroundColor Cyan
-    try {
-      Invoke-WebRequest -Uri $u -OutFile $OutFile -UseBasicParsing -TimeoutSec 30 | Out-Null
-      Write-Ok "下载完成（来源：$u）"
-      return $true
-    } catch {
-      Write-Warn "下载失败，尝试下一个镜像 ..."
-    }
-  }
-  return $false
-}
-
 function Install-SdkManagerBootstrap {
   param([string]$SdkRootPath)
 
