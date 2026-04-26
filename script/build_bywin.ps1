@@ -97,21 +97,20 @@ function New-Keystore {
   }
   $storeDir = Split-Path -Parent $StoreFile
   if (-not [string]::IsNullOrWhiteSpace($storeDir)) { New-DirectoryIfMissing $storeDir }
-  try {
-    Invoke-NativeStream -Block {
-      & keytool -genkeypair -v `
-        -keystore $StoreFile `
-        -alias $Alias `
-        -keyalg RSA `
-        -keysize 2048 `
-        -validity 10000 `
-        -storepass $Password `
-        -keypass $Password `
-        -dname 'CN=Tauri2Demo, OU=Dev, O=Dev, L=Unknown, ST=Unknown, C=CN'
-    }
-    if ($LASTEXITCODE -ne 0) { throw "keytool exit $LASTEXITCODE" }
+  Invoke-NativeStream -Block {
+    & keytool -genkeypair -v `
+      -keystore $StoreFile `
+      -alias $Alias `
+      -keyalg RSA `
+      -keysize 2048 `
+      -validity 10000 `
+      -storepass $Password `
+      -keypass $Password `
+      -dname 'CN=Tauri2Demo, OU=Dev, O=Dev, L=Unknown, ST=Unknown, C=CN'
+  }
+  if ($LASTEXITCODE -eq 0) {
     Write-Ok "Keystore 已生成：$StoreFile"
-  } catch {
+  } else {
     Write-Fail "keytool 生成 keystore 失败"
     Write-Fail "请手动运行：keytool -genkeypair -v -keystore `"$StoreFile`" -alias $Alias -keyalg RSA -keysize 2048 -validity 10000"
   }
@@ -155,12 +154,8 @@ if (-not $hasMsvc -and -not $hasGnu) {
 }
 
 if ($null -ne (Get-ExePath 'rustc.exe')) {
-  try {
-    $ver = (Invoke-NativeText -FilePath 'rustc' -Arguments @('--version') | Select-Object -First 1)
-    Write-Ok "Rust 已安装：$ver"
-  } catch {
-    Write-Ok "Rust 已安装：rustc"
-  }
+  $ver = (Invoke-NativeText -FilePath 'rustc' -Arguments @('--version') | Select-Object -First 1)
+  Write-Ok "Rust 已安装：$ver"
 } else {
   Write-Fail "未检测到 rustc/rustup"
   Write-Fail "请先运行 .\script\install_c_compile_bywin.ps1 安装"
