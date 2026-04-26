@@ -6,35 +6,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$Failed = $false
 
-function Write-Ok([string]$Message) { Write-Host "  ✓  $Message" -ForegroundColor Green }
-function Write-Warn([string]$Message) { Write-Host "  ⚠  $Message" -ForegroundColor Yellow }
-function Write-Fail([string]$Message) { Write-Host "  ✗  $Message" -ForegroundColor Red; $script:Failed = $true }
+. (Join-Path $PSScriptRoot '_common.ps1')
 
-function Confirm-Continue([string]$Desc) {
-  if ($Yes) {
-    Write-Host "  自动确认：$Desc" -ForegroundColor Yellow
-    return $true
-  }
-  $ans = Read-Host "  ? $Desc 是否继续？[Y/n]"
-  if ($ans -match '^(n|no)$') { return $false }
-  return $true
-}
-
-function Get-ExePath([string]$Name) {
-  $cmd = Get-Command $Name -ErrorAction SilentlyContinue
-  if ($null -eq $cmd) { return $null }
-  return $cmd.Source
-}
-
-function Ensure-Directory([string]$Path) {
-  if (-not (Test-Path -LiteralPath $Path)) {
-    New-Item -ItemType Directory -Force -Path $Path | Out-Null
-  }
-}
-
-function Download-File([string[]]$Urls, [string]$OutFile) {
+function Save-WebFile {
+  param([string[]]$Urls, [string]$OutFile)
   foreach ($u in $Urls) {
     Write-Host "  尝试下载：$u" -ForegroundColor Cyan
     try {
@@ -48,7 +24,9 @@ function Download-File([string[]]$Urls, [string]$OutFile) {
   return $false
 }
 
-function Bootstrap-SdkManager([string]$SdkRootPath) {
+function Install-SdkManagerBootstrap {
+  param([string]$SdkRootPath)
+
   $zipName = 'commandlinetools-win-11076708_latest.zip'
   $urls = @(
     "https://mirrors.huaweicloud.com/android/repository/$zipName",
@@ -56,16 +34,20 @@ function Bootstrap-SdkManager([string]$SdkRootPath) {
     "https://dl.google.com/android/repository/$zipName"
   )
 
-  Ensure-Directory (Join-Path $SdkRootPath 'cmdline-tools')
+  New-DirectoryIfMissing (Join-Path $SdkRootPath 'cmdline-tools')
 
   $tmpZip = Join-Path $env:TEMP ("cmdline-tools_{0}.zip" -f ([guid]::NewGuid().ToString('N')))
   $tmpExtract = Join-Path $env:TEMP ("cmdline-tools_extract_{0}" -f ([guid]::NewGuid().ToString('N')))
-  Ensure-Directory $tmpExtract
+  New-DirectoryIfMissing $tmpExtract
 
-  if (-not (Download-File -Urls $urls -OutFile $tmpZip)) {
-    Write-Fail "所有镜像源下载失败"
+  $cleanup = {
     Remove-Item -LiteralPath $tmpZip -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $tmpExtract -Recurse -Force -ErrorAction SilentlyContinue
+  }
+
+  if (-not (Save-WebFile -Urls $urls -OutFile $tmpZip)) {
+    Write-Fail "所有镜像源下载失败"
+    & $cleanup
     return $false
   }
 
@@ -74,16 +56,14 @@ function Bootstrap-SdkManager([string]$SdkRootPath) {
     Expand-Archive -LiteralPath $tmpZip -DestinationPath $tmpExtract -Force
   } catch {
     Write-Fail "Expand-Archive 解压失败"
-    Remove-Item -LiteralPath $tmpZip -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $tmpExtract -Recurse -Force -ErrorAction SilentlyContinue
+    & $cleanup
     return $false
   }
 
   $extracted = Join-Path $tmpExtract 'cmdline-tools'
   if (-not (Test-Path -LiteralPath $extracted)) {
     Write-Fail "解压后未找到 cmdline-tools 目录"
-    Remove-Item -LiteralPath $tmpZip -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $tmpExtract -Recurse -Force -ErrorAction SilentlyContinue
+    & $cleanup
     return $false
   }
 
@@ -92,8 +72,7 @@ function Bootstrap-SdkManager([string]$SdkRootPath) {
     Remove-Item -LiteralPath $latest -Recurse -Force -ErrorAction SilentlyContinue
   }
   Move-Item -LiteralPath $extracted -Destination $latest -Force
-  Remove-Item -LiteralPath $tmpZip -Force -ErrorAction SilentlyContinue
-  Remove-Item -LiteralPath $tmpExtract -Recurse -Force -ErrorAction SilentlyContinue
+  & $cleanup
 
   $sdkmanager = Join-Path $latest 'bin\sdkmanager.bat'
   if (Test-Path -LiteralPath $sdkmanager) {
@@ -104,94 +83,30 @@ function Bootstrap-SdkManager([string]$SdkRootPath) {
   return $false
 }
 
-function Find-SdkManager([string]$SdkRootPath) {
-  $candidates = New-Object System.Collections.Generic.List[string]
-  if (-not [string]::IsNullOrWhiteSpace($SdkRootPath)) {
-    $candidates.Add((Join-Path $SdkRootPath 'cmdline-tools\latest\bin\sdkmanager.bat')) | Out-Null
-  }
-
-  $ah = $env:ANDROID_HOME
-  if ([string]::IsNullOrWhiteSpace($ah)) { $ah = $env:ANDROID_SDK_ROOT }
-  if (-not [string]::IsNullOrWhiteSpace($ah)) {
-    $candidates.Add((Join-Path $ah.Trim('"') 'cmdline-tools\latest\bin\sdkmanager.bat')) | Out-Null
-  }
-
-  if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-    $candidates.Add((Join-Path $env:LOCALAPPDATA 'Android\Sdk\cmdline-tools\latest\bin\sdkmanager.bat')) | Out-Null
-  }
-  $candidates.Add((Join-Path $HOME 'AppData\Local\Android\Sdk\cmdline-tools\latest\bin\sdkmanager.bat')) | Out-Null
-
-  foreach ($p in $candidates) {
-    if (Test-Path -LiteralPath $p) { return (Resolve-Path -LiteralPath $p).Path }
-  }
-  return $null
-}
-
-function Get-AndroidHomeFromSdkManager([string]$SdkManagerPath) {
-  $binDir = Split-Path -Parent $SdkManagerPath
-  $latestDir = Split-Path -Parent $binDir
-  $cmdlineDir = Split-Path -Parent $latestDir
-  $sdkRoot = Split-Path -Parent $cmdlineDir
-  return (Resolve-Path -LiteralPath $sdkRoot).Path
-}
-
-function Get-JavaMajorVersion() {
-  if ($null -eq (Get-ExePath 'java.exe')) { return $null }
-  $line = (& java -version 2>&1 | Select-Object -First 1)
-  $m = [regex]::Match($line, '([0-9]+)')
-  if (-not $m.Success) { return $null }
-  return [int]$m.Groups[1].Value
-}
-
-function Get-NdkHome([string]$AndroidHome) {
-  $ndkDir = Join-Path $AndroidHome 'ndk'
-  if (Test-Path -LiteralPath $ndkDir) {
-    $versions = Get-ChildItem -LiteralPath $ndkDir -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
-    if ($versions) {
-      $best = $versions | Sort-Object {
-        try { [version]($_ -replace '[^0-9\.]', '') } catch { [version]'0.0' }
-      } | Select-Object -Last 1
-      if ($best) { return (Join-Path $ndkDir $best) }
-    }
-  }
-  $bundle = Join-Path $AndroidHome 'ndk-bundle'
-  if (Test-Path -LiteralPath $bundle) { return $bundle }
-  return $null
-}
-
-function Set-UserEnv([string]$Name, [string]$ValueOrNull) {
+function Show-SdkManagerVersion([string]$SdkManagerPath) {
   try {
-    [Environment]::SetEnvironmentVariable($Name, $ValueOrNull, 'User')
-    return $true
+    $ver = (& cmd.exe /c "`"$SdkManagerPath`" --version" 2>$null | Where-Object { $_ -match '^[0-9]' } | Select-Object -First 1)
+    if ($ver) { Write-Ok "    版本：$ver" } else { Write-Warn "    无法读取 SDKManager 版本（可能 Java 未就绪，下一步会校验）" }
   } catch {
-    return $false
+    Write-Warn "    无法读取 SDKManager 版本（可能 Java 未就绪，下一步会校验）"
   }
 }
 
-function Set-UserPathAppend([string]$Segment) {
-  $seg = $Segment.Trim()
-  if ([string]::IsNullOrWhiteSpace($seg)) { return $true }
-  $userPath = [Environment]::GetEnvironmentVariable('PATH', 'User')
-  $parts = @()
-  if (-not [string]::IsNullOrWhiteSpace($userPath)) { $parts = $userPath -split ';' }
-  $exists = $false
-  foreach ($p in $parts) {
-    if ($p.Trim().ToLowerInvariant() -eq $seg.ToLowerInvariant()) { $exists = $true; break }
-  }
-  if ($exists) { return $true }
-  $new = if ([string]::IsNullOrWhiteSpace($userPath)) { $seg } else { "$userPath;$seg" }
-  return (Set-UserEnv -Name 'PATH' -ValueOrNull $new)
-}
-
-function Invoke-SdkManager([string]$SdkManagerPath, [string]$AndroidHome, [string[]]$Packages) {
+function Invoke-SdkManager {
+  param(
+    [string]$SdkManagerPath,
+    [string]$AndroidHome,
+    [string[]]$Packages
+  )
   $sdkRootArg = "--sdk_root=$AndroidHome"
+  $pkgArgs = ($Packages | ForEach-Object { '"{0}"' -f $_ }) -join ' '
+
   if ($Yes) {
     Write-Host "  静默模式：自动接受所有许可协议" -ForegroundColor Yellow
     Write-Host ""
     $yesFile = Join-Path $env:TEMP ("sdkmanager_yes_{0}.txt" -f ([guid]::NewGuid().ToString('N')))
     (1..2500 | ForEach-Object { 'y' }) | Set-Content -LiteralPath $yesFile -Encoding ASCII
     try {
-      $pkgArgs = ($Packages | ForEach-Object { '"{0}"' -f $_ }) -join ' '
       $cmd = "type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
       & cmd.exe /c $cmd | Out-Host
       if ($LASTEXITCODE -ne 0) { throw "sdkmanager exit code $LASTEXITCODE" }
@@ -209,7 +124,6 @@ function Invoke-SdkManager([string]$SdkManagerPath, [string]$AndroidHome, [strin
   Write-Host ""
 
   try {
-    $pkgArgs = ($Packages | ForEach-Object { '"{0}"' -f $_ }) -join ' '
     $cmd = "`"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
     & cmd.exe /c $cmd | Out-Host
     if ($LASTEXITCODE -ne 0) { throw "sdkmanager exit code $LASTEXITCODE" }
@@ -231,16 +145,11 @@ if ([string]::IsNullOrWhiteSpace($sdkRootDefault)) { $sdkRootDefault = $env:ANDR
 if ([string]::IsNullOrWhiteSpace($sdkRootDefault)) { $sdkRootDefault = 'C:\DevDisk\DevTools\AndroidSDK' }
 $sdkRootDefault = $sdkRootDefault.Trim('"')
 
-Write-Host "[1/4] 定位 SDKManager" -ForegroundColor Cyan
-$sdkmanager = Find-SdkManager -SdkRootPath $sdkRootDefault
+Write-Host "[1/6] 定位 SDKManager" -ForegroundColor Cyan
+$sdkmanager = Find-SdkManager -PreferredRoot $sdkRootDefault
 if ($sdkmanager) {
   Write-Ok "SDKManager 已找到：$sdkmanager"
-  try {
-    $ver = (& cmd.exe /c "`"$sdkmanager`" --version" 2>$null | Where-Object { $_ -match '^[0-9]' } | Select-Object -First 1)
-    if ($ver) { Write-Ok "    版本：$ver" } else { Write-Warn "    无法读取 SDKManager 版本（可能 Java 未就绪，下一步会校验）" }
-  } catch {
-    Write-Warn "    无法读取 SDKManager 版本（可能 Java 未就绪，下一步会校验）"
-  }
+  Show-SdkManagerVersion $sdkmanager
 } else {
   $expected = Join-Path $sdkRootDefault 'cmdline-tools\latest\bin\sdkmanager.bat'
   Write-Warn "SDKManager 未找到：$expected"
@@ -248,13 +157,13 @@ if ($sdkmanager) {
     Write-Fail "已跳过命令行工具包下载，无法继续"
     exit 1
   }
-  Ensure-Directory $sdkRootDefault
-  if (-not (Bootstrap-SdkManager -SdkRootPath $sdkRootDefault)) {
+  New-DirectoryIfMissing $sdkRootDefault
+  if (-not (Install-SdkManagerBootstrap -SdkRootPath $sdkRootDefault)) {
     Write-Fail "命令行工具包下载/安装失败"
     Write-Fail "请手动下载：https://developer.android.com/studio#command-tools"
     exit 1
   }
-  $sdkmanager = Find-SdkManager -SdkRootPath $sdkRootDefault
+  $sdkmanager = Find-SdkManager -PreferredRoot $sdkRootDefault
   if (-not $sdkmanager) {
     Write-Fail "安装后仍未找到 sdkmanager.bat"
     exit 1
@@ -265,7 +174,7 @@ $androidHome = Get-AndroidHomeFromSdkManager -SdkManagerPath $sdkmanager
 Write-Ok "ANDROID_HOME 推导为：$androidHome"
 $env:ANDROID_HOME = $androidHome
 
-Write-Host "[2/4] 检查 Java 环境" -ForegroundColor Cyan
+Write-Host "[2/6] 检查 Java 环境" -ForegroundColor Cyan
 $javaVer = Get-JavaMajorVersion
 if ($null -eq $javaVer) {
   Write-Fail "未找到 Java，sdkmanager 需要 JDK 17+ 才能运行。"
@@ -279,7 +188,7 @@ if ($javaVer -lt 17) {
 }
 Write-Ok "Java $javaVer 已安装：$(Get-ExePath 'java.exe')"
 
-Write-Host "[3/4] 准备安装的 Android SDK 组件" -ForegroundColor Cyan
+Write-Host "[3/6] 准备安装的 Android SDK 组件" -ForegroundColor Cyan
 $packages = @(
   'platform-tools',
   'ndk;27.0.12077973',
@@ -301,7 +210,7 @@ if (Test-Path -LiteralPath $latest2) {
 foreach ($p in $packages) { Write-Host "    $p" }
 Write-Host ""
 
-Write-Host "[4/4] 安装  Android SDK 组件" -ForegroundColor Cyan
+Write-Host "[4/6] 安装 Android SDK 组件" -ForegroundColor Cyan
 if (-not (Invoke-SdkManager -SdkManagerPath $sdkmanager -AndroidHome $androidHome -Packages $packages)) {
   exit 1
 }
@@ -310,7 +219,7 @@ Write-Host ""
 Write-Host "  ✓ Android SDK 组件安装完成！" -ForegroundColor Green
 Write-Host ""
 
-Write-Host "[额外] 安装 Rust Android 编译目标" -ForegroundColor Cyan
+Write-Host "[5/6] 安装 Rust Android 编译目标" -ForegroundColor Cyan
 $requiredTargets = @(
   'aarch64-linux-android',
   'armv7-linux-androideabi',
@@ -320,7 +229,7 @@ $requiredTargets = @(
 
 $cargoBin = Join-Path $HOME '.cargo\bin'
 if ($null -eq (Get-ExePath 'rustup.exe') -and (Test-Path -LiteralPath (Join-Path $cargoBin 'rustup.exe'))) {
-  $env:Path = "$cargoBin;$env:Path"
+  Add-PathPrefix $cargoBin
 }
 
 if ($null -ne (Get-ExePath 'rustup.exe')) {
@@ -352,21 +261,21 @@ if ($null -ne (Get-ExePath 'rustup.exe')) {
 }
 
 Write-Host "[6/6] 配置环境变量" -ForegroundColor Cyan
-$androidHomeWin = $androidHome
-$ndkHome = Get-NdkHome -AndroidHome $androidHome
-$platformTools = Join-Path $androidHomeWin 'platform-tools'
+$ndkInfo = Resolve-AndroidNdk -AndroidHome $androidHome
+$ndkHome = if ($ndkInfo) { $ndkInfo.Path } else { $null }
+$platformTools = Join-Path $androidHome 'platform-tools'
 
 $currentAhUser = [Environment]::GetEnvironmentVariable('ANDROID_HOME', 'User')
-if ([string]::IsNullOrWhiteSpace($currentAhUser) -or ($currentAhUser.Trim('"') -ne $androidHomeWin)) {
-  if (Set-UserEnv -Name 'ANDROID_HOME' -ValueOrNull $androidHomeWin) {
-    Write-Ok "ANDROID_HOME 已写入用户环境变量：$androidHomeWin"
+if ([string]::IsNullOrWhiteSpace($currentAhUser) -or ($currentAhUser.Trim('"') -ne $androidHome)) {
+  if (Set-UserEnv -Name 'ANDROID_HOME' -ValueOrNull $androidHome) {
+    Write-Ok "ANDROID_HOME 已写入用户环境变量：$androidHome"
     Write-Ok "（新开终端窗口后生效）"
   } else {
     Write-Warn "写入 ANDROID_HOME 失败，请手动设置"
-    Write-Warn "  系统设置 → 环境变量 → 用户变量 → 新建 ANDROID_HOME = $androidHomeWin"
+    Write-Warn "  系统设置 → 环境变量 → 用户变量 → 新建 ANDROID_HOME = $androidHome"
   }
 } else {
-  Write-Ok "ANDROID_HOME 环境变量已正确设置：$androidHomeWin"
+  Write-Ok "ANDROID_HOME 环境变量已正确设置：$androidHome"
 }
 
 if ($ndkHome) {
@@ -386,8 +295,7 @@ if ($ndkHome) {
   Write-Warn "未检测到 NDK 版本，跳过 ANDROID_NDK_HOME 设置"
 }
 
-$pathOk = Set-UserPathAppend -Segment $platformTools
-if ($pathOk) {
+if (Add-UserPathSegment -Segment $platformTools) {
   Write-Ok "PATH 已追加：$platformTools"
   Write-Ok "（新开终端窗口后生效）"
 } else {
@@ -395,22 +303,18 @@ if ($pathOk) {
   Write-Warn "  系统设置 → 环境变量 → 用户变量 → 编辑 PATH → 添加 $platformTools"
 }
 
-Write-Host "[修复] 检查并修复环境变量中的引号问题" -ForegroundColor Cyan
-$fixNeeded = $false
+# 修复历史遗留：旧版脚本曾用 setx 写入带引号的值
 $ahRaw = [Environment]::GetEnvironmentVariable('ANDROID_HOME', 'User')
-if ($ahRaw -and $ahRaw.StartsWith('"')) { Write-Warn "ANDROID_HOME 值包含多余引号：$ahRaw"; $fixNeeded = $true }
 $ndkRaw = [Environment]::GetEnvironmentVariable('ANDROID_NDK_HOME', 'User')
-if ($ndkRaw -and $ndkRaw.StartsWith('"')) { Write-Warn "ANDROID_NDK_HOME 值包含多余引号：$ndkRaw"; $fixNeeded = $true }
+$fixNeeded = ($ahRaw -and $ahRaw.StartsWith('"')) -or ($ndkRaw -and $ndkRaw.StartsWith('"'))
 if ($fixNeeded) {
-  Write-Host "  正在修复环境变量（去掉引号）..." -ForegroundColor Yellow
-  Set-UserEnv -Name 'ANDROID_HOME' -ValueOrNull ($androidHomeWin.Trim('"')) | Out-Null
-  if ($ndkHome) { Set-UserEnv -Name 'ANDROID_NDK_HOME' -ValueOrNull ($ndkHome.Trim('"')) | Out-Null }
+  Write-Warn "检测到环境变量值包含多余引号，正在修复 ..."
+  Set-UserEnv -Name 'ANDROID_HOME' -ValueOrNull $androidHome | Out-Null
+  if ($ndkHome) { Set-UserEnv -Name 'ANDROID_NDK_HOME' -ValueOrNull $ndkHome | Out-Null }
   Write-Ok "环境变量引号问题已修复（新开终端窗口后生效）"
-} else {
-  Write-Ok "环境变量值无引号问题"
 }
 
-$env:ANDROID_HOME = $androidHomeWin
+$env:ANDROID_HOME = $androidHome
 if ($ndkHome) { $env:ANDROID_NDK_HOME = $ndkHome }
 $env:Path = "$platformTools;$env:Path"
 Write-Ok "当前 shell 环境变量已生效（export）"

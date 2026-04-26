@@ -11,84 +11,105 @@ param(
 $ErrorActionPreference = 'Stop'
 $Failed = $false
 
-function Write-Ok([string]$Message) {
-  Write-Host "  ✓  $Message" -ForegroundColor Green
-}
+. (Join-Path $PSScriptRoot '_common.ps1')
 
-function Write-Warn([string]$Message) {
-  Write-Host "  ⚠  $Message" -ForegroundColor Yellow
-}
+$DefaultKeystoreLines = @(
+  'keyAlias=tauri2demo_key',
+  'password=abc009988',
+  'storeFile="C:\SyncData\release.keystore"'
+)
 
-function Write-Fail([string]$Message) {
-  Write-Host "  ✗  $Message" -ForegroundColor Red
-  $script:Failed = $true
-}
-
-function Confirm-Install([string]$Desc) {
-  if ($Yes) {
-    Write-Host "  自动确认：$Desc" -ForegroundColor Yellow
-    return $true
+function Test-AndroidProjectComplete([string]$GenAndroidDir) {
+  $required = @(
+    'settings.gradle.kts',
+    'gradlew',
+    'app\src\main\java'
+  )
+  foreach ($r in $required) {
+    if (-not (Test-Path -LiteralPath (Join-Path $GenAndroidDir $r))) {
+      Write-Warn "$r 缺失"
+      return $false
+    }
   }
-  $ans = Read-Host "  ? $Desc 是否自动安装？[Y/n]"
-  if ($ans -match '^(n|no)$') { return $false }
   return $true
 }
 
-function Get-ExePath([string]$Name) {
-  $cmd = Get-Command $Name -ErrorAction SilentlyContinue
-  if ($null -eq $cmd) { return $null }
-  return $cmd.Source
-}
+function Restore-AndroidProject {
+  param([string]$ProjectRoot, [string]$GenAndroidDir, [string]$ScriptDir)
 
-function Ensure-PathPrefix([string]$Prefix) {
-  if ([string]::IsNullOrWhiteSpace($Prefix)) { return }
-  $parts = $env:Path -split ';'
-  if ($parts -contains $Prefix) { return }
-  $env:Path = "$Prefix;$env:Path"
-}
-
-function Resolve-AndroidHome() {
-  $cand = $env:ANDROID_HOME
-  if ([string]::IsNullOrWhiteSpace($cand)) { $cand = $env:ANDROID_SDK_ROOT }
-  if (-not [string]::IsNullOrWhiteSpace($cand)) {
-    $cand = $cand.Trim('"')
-    if (Test-Path -LiteralPath $cand) { return (Resolve-Path -LiteralPath $cand).Path }
+  $keystorePropsInGen = Join-Path $GenAndroidDir 'keystore.properties'
+  $keystoreBackup = $null
+  if (Test-Path -LiteralPath $keystorePropsInGen) {
+    $keystoreBackup = [System.IO.Path]::GetTempFileName()
+    Copy-Item -LiteralPath $keystorePropsInGen -Destination $keystoreBackup -Force
+    Write-Warn "已备份 keystore.properties"
   }
-  $candidates = @(
-    'C:\DevDisk\DevTools\AndroidSDK',
-    (Join-Path $env:LOCALAPPDATA 'Android\Sdk'),
-    (Join-Path $HOME 'AppData\Local\Android\Sdk')
+
+  Write-Warn "正在删除不完整的 gen\android 目录 ..."
+  if (Test-Path -LiteralPath $GenAndroidDir) {
+    Remove-Item -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue
+  }
+
+  Write-Warn "正在运行 pnpm tauri android init ..."
+  Push-Location $ProjectRoot
+  try { & pnpm tauri android init | Out-Host } finally { Pop-Location }
+
+  if ($keystoreBackup -and (Test-Path -LiteralPath $keystoreBackup)) {
+    Copy-Item -LiteralPath $keystoreBackup -Destination $keystorePropsInGen -Force
+    Remove-Item -LiteralPath $keystoreBackup -Force -ErrorAction SilentlyContinue
+    Write-Ok "keystore.properties 已恢复"
+  } elseif (-not (Test-Path -LiteralPath $keystorePropsInGen)) {
+    Write-Warn "正在写入 keystore.properties ..."
+    New-DirectoryIfMissing (Split-Path -Parent $keystorePropsInGen)
+    $DefaultKeystoreLines | Set-Content -LiteralPath $keystorePropsInGen -Encoding UTF8
+    Write-Ok "keystore.properties 已写入"
+  }
+
+  $genAndroidApp = Join-Path $GenAndroidDir 'app'
+  Write-Host "  替换 Android 签名和权限文件" -ForegroundColor Cyan
+
+  $copies = @(
+    @{ Src = Join-Path $ScriptDir 'android-permission-sign\build.gradle.kts'; Dst = Join-Path $genAndroidApp 'build.gradle.kts'; Label = 'build.gradle.kts' },
+    @{ Src = Join-Path $ScriptDir 'android-permission-sign\AndroidManifest.xml'; Dst = Join-Path $genAndroidApp 'src\main\AndroidManifest.xml'; Label = 'AndroidManifest.xml' }
   )
-  foreach ($p in $candidates) {
-    if (-not [string]::IsNullOrWhiteSpace($p) -and (Test-Path -LiteralPath $p)) { return (Resolve-Path -LiteralPath $p).Path }
+  foreach ($c in $copies) {
+    if (Test-Path -LiteralPath $c.Src) {
+      New-DirectoryIfMissing (Split-Path -Parent $c.Dst)
+      Copy-Item -LiteralPath $c.Src -Destination $c.Dst -Force
+      Write-Ok "$($c.Label) 已替换"
+    } else {
+      Write-Warn "$($c.Label) 源文件不存在，跳过替换"
+    }
   }
-  return $null
+
+  Write-Ok "pnpm tauri android init 完成"
 }
 
-function Resolve-Ndk([string]$AndroidHome) {
-  $ndkDir = Join-Path $AndroidHome 'ndk'
-  if (Test-Path -LiteralPath $ndkDir) {
-    $versions = Get-ChildItem -LiteralPath $ndkDir -Directory -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name
-    if ($versions) {
-      $best = $versions | Sort-Object {
-        try { [version]($_ -replace '[^0-9\.]', '') } catch { [version]'0.0' }
-      } | Select-Object -Last 1
-      if ($best) { return @{ Path = (Join-Path $ndkDir $best); Version = $best; Kind = 'ndk' } }
-    }
+function New-Keystore {
+  [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'Password', Justification = 'keystore.properties stores password as plain text by design; this script merely passes it to keytool')]
+  param([string]$StoreFile, [string]$Alias, [string]$Password)
+  if ($null -eq (Get-ExePath 'keytool.exe')) {
+    Write-Fail "keytool 未找到，无法自动生成 keystore"
+    Write-Fail "请手动运行：keytool -genkeypair -v -keystore `"$StoreFile`" -alias $Alias -keyalg RSA -keysize 2048 -validity 10000"
+    return
   }
-  $bundle = Join-Path $AndroidHome 'ndk-bundle'
-  if (Test-Path -LiteralPath $bundle) {
-    $ver = 'ndk-bundle'
-    $prop = Join-Path $bundle 'source.properties'
-    if (Test-Path -LiteralPath $prop) {
-      $line = (Get-Content -LiteralPath $prop -ErrorAction SilentlyContinue | Where-Object { $_ -match '^Pkg\.Revision\s*=' } | Select-Object -First 1)
-      if ($line) {
-        $ver = ($line -split '=' | Select-Object -Last 1).Trim()
-      }
-    }
-    return @{ Path = $bundle; Version = $ver; Kind = 'ndk-bundle' }
+  $storeDir = Split-Path -Parent $StoreFile
+  if (-not [string]::IsNullOrWhiteSpace($storeDir)) { New-DirectoryIfMissing $storeDir }
+  try {
+    & keytool -genkeypair -v `
+      -keystore $StoreFile `
+      -alias $Alias `
+      -keyalg RSA `
+      -keysize 2048 `
+      -validity 10000 `
+      -storepass $Password `
+      -keypass $Password `
+      -dname 'CN=Tauri2Demo, OU=Dev, O=Dev, L=Unknown, ST=Unknown, C=CN' | Out-Host
+    Write-Ok "Keystore 已生成：$StoreFile"
+  } catch {
+    Write-Fail "keytool 生成 keystore 失败"
+    Write-Fail "请手动运行：keytool -genkeypair -v -keystore `"$StoreFile`" -alias $Alias -keyalg RSA -keysize 2048 -validity 10000"
   }
-  return $null
 }
 
 if ([string]::IsNullOrWhiteSpace($Command)) {
@@ -150,23 +171,15 @@ if ($Failed) {
 }
 
 Write-Host "[2/8] Java JDK（17+）" -ForegroundColor Cyan
-if ($null -ne (Get-ExePath 'java.exe')) {
-  $line = (& java -version 2>&1 | Select-Object -First 1)
-  $m = [regex]::Match($line, '([0-9]+)')
-  if ($m.Success) {
-    $javaVer = [int]$m.Groups[1].Value
-    if ($javaVer -ge 17) {
-      Write-Ok "Java $javaVer 已安装：$(Get-ExePath 'java.exe')"
-    } else {
-      Write-Fail "检测到 Java $javaVer，但需要 JDK 17+"
-      Write-Fail "请从 https://adoptium.net/ 下载，或运行：winget install EclipseAdoptium.Temurin.17.JDK"
-    }
-  } else {
-    Write-Warn "无法解析 Java 版本，但已检测到 java.exe：$(Get-ExePath 'java.exe')"
-  }
-} else {
+$javaVer = Get-JavaMajorVersion
+if ($null -eq $javaVer) {
   Write-Fail "未找到 Java"
   Write-Fail "请从 https://adoptium.net/ 下载 JDK 17+，或运行：winget install EclipseAdoptium.Temurin.17.JDK"
+} elseif ($javaVer -lt 17) {
+  Write-Fail "检测到 Java $javaVer，但需要 JDK 17+"
+  Write-Fail "请从 https://adoptium.net/ 下载，或运行：winget install EclipseAdoptium.Temurin.17.JDK"
+} else {
+  Write-Ok "Java $javaVer 已安装：$(Get-ExePath 'java.exe')"
 }
 
 Write-Host "[3/8] ANDROID_HOME" -ForegroundColor Cyan
@@ -199,10 +212,7 @@ if ($androidHome) {
 }
 
 Write-Host "[5/8] Android NDK" -ForegroundColor Cyan
-$ndkInfo = $null
-if ($androidHome) {
-  $ndkInfo = Resolve-Ndk $androidHome
-}
+$ndkInfo = if ($androidHome) { Resolve-AndroidNdk $androidHome } else { $null }
 if ($ndkInfo) {
   if ([string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) { $env:ANDROID_NDK_HOME = $ndkInfo.Path }
   Write-Ok "NDK 版本：$($ndkInfo.Version) → $($ndkInfo.Path)"
@@ -265,10 +275,8 @@ if ($null -eq (Get-ExePath 'rustup.exe')) {
 }
 
 Write-Host "[7/8] pnpm" -ForegroundColor Cyan
-if ($null -ne (Get-ExePath 'pnpm.cmd')) {
-  $v = (& pnpm --version 2>&1 | Select-Object -First 1)
-  Write-Ok "pnpm $v 已安装"
-} elseif ($null -ne (Get-ExePath 'pnpm.exe')) {
+$pnpmExe = (Get-ExePath 'pnpm.cmd'), (Get-ExePath 'pnpm.exe') | Where-Object { $_ } | Select-Object -First 1
+if ($pnpmExe) {
   $v = (& pnpm --version 2>&1 | Select-Object -First 1)
   Write-Ok "pnpm $v 已安装"
 } else {
@@ -278,9 +286,8 @@ if ($null -ne (Get-ExePath 'pnpm.cmd')) {
       & npm install -g pnpm | Out-Host
       $v = (& pnpm --version 2>&1 | Select-Object -First 1)
       Write-Ok "pnpm $v 安装成功"
-      $script:Failed = $false
     } catch {
-      Write-Warn "npm install -g pnpm 失败"
+      Write-Fail "npm install -g pnpm 失败"
     }
   } else {
     Write-Fail "请手动安装：npm install -g pnpm"
@@ -294,16 +301,11 @@ $keystoreProps = Join-Path $scriptDir '..\backend\src-tauri\gen\android\keystore
 if (Test-Path -LiteralPath $keystoreProps) {
   Write-Ok "keystore.properties 已找到：$keystoreProps"
 } else {
-  Write-Fail "keystore.properties 未找到：$keystoreProps"
+  Write-Warn "keystore.properties 未找到：$keystoreProps"
   if (Confirm-Install "创建默认 keystore.properties 文件") {
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $keystoreProps) | Out-Null
-    @(
-      'keyAlias=tauri2demo_key',
-      'password=abc009988',
-      'storeFile="C:\SyncData\release.keystore"'
-    ) | Set-Content -LiteralPath $keystoreProps -Encoding UTF8
+    New-DirectoryIfMissing (Split-Path -Parent $keystoreProps)
+    $DefaultKeystoreLines | Set-Content -LiteralPath $keystoreProps -Encoding UTF8
     Write-Ok "keystore.properties 已创建：$keystoreProps"
-    $script:Failed = $false
   } else {
     Write-Warn "请手动创建该文件，内容如下："
     Write-Host "    storeFile=C:\path\to\release.keystore"
@@ -340,82 +342,15 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'node_modules')) {
 } else {
   Write-Warn "node_modules 不存在，正在运行 pnpm install ..."
   Push-Location $projectRoot
-  try {
-    & pnpm install | Out-Host
-  } finally {
-    Pop-Location
-  }
+  try { & pnpm install | Out-Host } finally { Pop-Location }
   Write-Ok "pnpm install 完成"
 }
 
 Write-Host "[准备 2/4] Tauri Android 项目" -ForegroundColor Cyan
-$androidInitNeeded = $false
-if (-not (Test-Path -LiteralPath (Join-Path $genAndroidDir 'settings.gradle.kts'))) { Write-Warn "settings.gradle.kts 缺失"; $androidInitNeeded = $true }
-if (-not (Test-Path -LiteralPath (Join-Path $genAndroidDir 'gradlew'))) { Write-Warn "gradlew 缺失"; $androidInitNeeded = $true }
-if (-not (Test-Path -LiteralPath (Join-Path $genAndroidDir 'app\src\main\java'))) { Write-Warn "app\src\main\java\ 缺失"; $androidInitNeeded = $true }
-
-if ($androidInitNeeded) {
-  $keystorePropsInGen = Join-Path $genAndroidDir 'keystore.properties'
-  $keystoreBackup = $null
-  if (Test-Path -LiteralPath $keystorePropsInGen) {
-    $keystoreBackup = [System.IO.Path]::GetTempFileName()
-    Copy-Item -LiteralPath $keystorePropsInGen -Destination $keystoreBackup -Force
-    Write-Warn "已备份 keystore.properties"
-  }
-
-  Write-Warn "正在删除不完整的 gen\android 目录 ..."
-  if (Test-Path -LiteralPath $genAndroidDir) {
-    Remove-Item -LiteralPath $genAndroidDir -Recurse -Force -ErrorAction SilentlyContinue
-  }
-
-  Write-Warn "正在运行 pnpm tauri android init ..."
-  Push-Location $projectRoot
-  try {
-    & pnpm tauri android init | Out-Host
-  } finally {
-    Pop-Location
-  }
-
-  if ($keystoreBackup -and (Test-Path -LiteralPath $keystoreBackup)) {
-    Copy-Item -LiteralPath $keystoreBackup -Destination $keystorePropsInGen -Force
-    Remove-Item -LiteralPath $keystoreBackup -Force -ErrorAction SilentlyContinue
-    Write-Ok "keystore.properties 已恢复"
-  } else {
-    if (-not (Test-Path -LiteralPath $keystorePropsInGen)) {
-      Write-Warn "正在写入 keystore.properties ..."
-      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $keystorePropsInGen) | Out-Null
-      @(
-        'keyAlias=tauri2demo_key',
-        'password=abc009988',
-        'storeFile="C:\SyncData\release.keystore"'
-      ) | Set-Content -LiteralPath $keystorePropsInGen -Encoding UTF8
-      Write-Ok "keystore.properties 已写入"
-    }
-  }
-
-  $genAndroidApp = Join-Path $genAndroidDir 'app'
-  Write-Host "  替换 Android 签名和权限文件" -ForegroundColor Cyan
-  $srcGradle = Join-Path $scriptDir 'android-permission-sign\build.gradle.kts'
-  if (Test-Path -LiteralPath $srcGradle) {
-    Copy-Item -LiteralPath $srcGradle -Destination (Join-Path $genAndroidApp 'build.gradle.kts') -Force
-    Write-Ok "build.gradle.kts 已替换"
-  } else {
-    Write-Warn "android-permission-sign\build.gradle.kts 不存在，跳过替换"
-  }
-
-  $srcManifest = Join-Path $scriptDir 'android-permission-sign\AndroidManifest.xml'
-  $dstManifest = Join-Path $genAndroidApp 'src\main\AndroidManifest.xml'
-  if (Test-Path -LiteralPath $srcManifest) {
-    New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dstManifest) | Out-Null
-    Copy-Item -LiteralPath $srcManifest -Destination $dstManifest -Force
-    Write-Ok "AndroidManifest.xml 已替换"
-  } else {
-    Write-Warn "android-permission-sign\AndroidManifest.xml 不存在，跳过替换"
-  }
-
-  Write-Ok "pnpm tauri android init 完成"
-} else {
+if (Test-AndroidProjectComplete $genAndroidDir) {
   Write-Ok "gen\android 项目完整"
+} else {
+  Restore-AndroidProject -ProjectRoot $projectRoot -GenAndroidDir $genAndroidDir -ScriptDir $scriptDir
 }
 
 Write-Host "[准备 3/4] 前端构建" -ForegroundColor Cyan
@@ -424,11 +359,7 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'frontend\dist')) {
 } else {
   Write-Warn "frontend\dist 不存在，正在运行前端构建 ..."
   Push-Location $projectRoot
-  try {
-    & pnpm build | Out-Host
-  } finally {
-    Pop-Location
-  }
+  try { & pnpm build | Out-Host } finally { Pop-Location }
   Write-Ok "前端构建完成"
 }
 
@@ -436,43 +367,18 @@ Write-Host "[准备 4/4] Keystore 签名文件" -ForegroundColor Cyan
 $keystoreProps2 = Join-Path $genAndroidDir 'keystore.properties'
 if (Test-Path -LiteralPath $keystoreProps2) {
   $props = Get-Content -LiteralPath $keystoreProps2 -ErrorAction SilentlyContinue
-  $storeFileRaw = (($props | Where-Object { $_ -match '^storeFile=' } | Select-Object -First 1) -replace '^storeFile=', '').Trim().Trim('"').Trim("'")
-  $keyAlias = (($props | Where-Object { $_ -match '^keyAlias=' } | Select-Object -First 1) -replace '^keyAlias=', '').Trim().Trim('"').Trim("'")
-  $keyPassword = (($props | Where-Object { $_ -match '^password=' } | Select-Object -First 1) -replace '^password=', '').Trim().Trim('"').Trim("'")
+  $storeFileRaw = Get-PropValue -Lines $props -Key 'storeFile'
+  $keyAlias = Get-PropValue -Lines $props -Key 'keyAlias'
+  $keyPassword = Get-PropValue -Lines $props -Key 'password'
 
   if (-not [string]::IsNullOrWhiteSpace($storeFileRaw) -and (Test-Path -LiteralPath $storeFileRaw)) {
     Write-Ok "Keystore 文件已存在：$storeFileRaw"
   } elseif (-not [string]::IsNullOrWhiteSpace($storeFileRaw)) {
     Write-Warn "Keystore 文件不存在：$storeFileRaw"
     Write-Warn "正在自动生成 keystore ..."
-    $aliasToUse = $keyAlias
-    if ([string]::IsNullOrWhiteSpace($aliasToUse)) { $aliasToUse = 'tauri2demo_key' }
-    $passwordToUse = $keyPassword
-    if ([string]::IsNullOrWhiteSpace($passwordToUse)) { $passwordToUse = 'changeit' }
-    $storeDir = Split-Path -Parent $storeFileRaw
-    if (-not [string]::IsNullOrWhiteSpace($storeDir)) {
-      New-Item -ItemType Directory -Force -Path $storeDir | Out-Null
-    }
-    if ($null -ne (Get-ExePath 'keytool.exe')) {
-      try {
-        & keytool -genkeypair -v `
-          -keystore $storeFileRaw `
-          -alias $aliasToUse `
-          -keyalg RSA `
-          -keysize 2048 `
-          -validity 10000 `
-          -storepass $passwordToUse `
-          -keypass $passwordToUse `
-          -dname 'CN=Tauri2Demo, OU=Dev, O=Dev, L=Unknown, ST=Unknown, C=CN' | Out-Host
-        Write-Ok "Keystore 已生成：$storeFileRaw"
-      } catch {
-        Write-Fail "keytool 生成 keystore 失败"
-        Write-Fail "请手动运行：keytool -genkeypair -v -keystore `"$storeFileRaw`" -alias $aliasToUse -keyalg RSA -keysize 2048 -validity 10000"
-      }
-    } else {
-      Write-Fail "keytool 未找到，无法自动生成 keystore"
-      Write-Fail "请手动运行：keytool -genkeypair -v -keystore `"$storeFileRaw`" -alias $aliasToUse -keyalg RSA -keysize 2048 -validity 10000"
-    }
+    $aliasToUse = if ([string]::IsNullOrWhiteSpace($keyAlias)) { 'tauri2demo_key' } else { $keyAlias }
+    $passwordToUse = if ([string]::IsNullOrWhiteSpace($keyPassword)) { 'changeit' } else { $keyPassword }
+    New-Keystore -StoreFile $storeFileRaw -Alias $aliasToUse -Password $passwordToUse
   } else {
     Write-Warn "keystore.properties 中未找到 storeFile=，跳过 keystore 文件检查"
   }
@@ -485,9 +391,8 @@ Write-Host "  构建准备完成！" -ForegroundColor Green
 Write-Host ""
 
 $env:ANDROID_HOME = $androidHome
-if ($ndkInfo) { $env:ANDROID_NDK_HOME = $ndkInfo.Path }
-Ensure-PathPrefix (Join-Path $androidHome 'platform-tools')
-Ensure-PathPrefix (Join-Path $androidHome 'tools')
+Add-PathPrefix (Join-Path $androidHome 'platform-tools')
+Add-PathPrefix (Join-Path $androidHome 'tools')
 
 if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) {
   $toolchainBin = Join-Path $env:ANDROID_NDK_HOME 'toolchains\llvm\prebuilt\windows-x86_64\bin'
@@ -507,9 +412,8 @@ if ($null -ne (Get-ExePath 'rustup.exe')) {
     if (-not [string]::IsNullOrWhiteSpace($rustcPath)) {
       $toolchainRoot = Split-Path -Parent (Split-Path -Parent $rustcPath)
       $selfContained = Join-Path $toolchainRoot 'lib\rustlib\x86_64-pc-windows-gnu\bin\self-contained'
-      $dlltool = Join-Path $selfContained 'dlltool.exe'
-      if (Test-Path -LiteralPath $dlltool) {
-        Ensure-PathPrefix $selfContained
+      if (Test-Path -LiteralPath (Join-Path $selfContained 'dlltool.exe')) {
+        Add-PathPrefix $selfContained
         Write-Ok "Rust dlltool 已加入 PATH：$selfContained"
       } else {
         Write-Warn "Rust GNU 工具链 self-contained 目录未找到：$selfContained"
@@ -527,6 +431,7 @@ Write-Host ""
 Write-Host "执行：pnpm tauri android $Command" -ForegroundColor Cyan
 Write-Host ""
 
+$code = 1
 Push-Location $projectRoot
 try {
   & pnpm tauri android $Command
