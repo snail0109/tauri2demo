@@ -245,16 +245,71 @@ function Set-UserEnvIfChanged {
 
 # ─── Web download ────────────────────────────────────────────────────────────
 function Save-WebFile {
-  # 依次尝试 $Urls 直到下载成功；下载失败时返回 $false，不抛异常。
+  # 依次尝试 $Urls 直到下载成功；失败时返回 $false 不抛异常。
+  # 自己读流以显示百分比 / 速度 / ETA（Invoke-WebRequest 的隐式进度无法控制粒度）。
   param([string[]]$Urls, [string]$OutFile, [int]$TimeoutSec = 30)
+
+  $useProgressBar = -not [Console]::IsOutputRedirected
   foreach ($u in $Urls) {
     Write-Host "  尝试下载：$u" -ForegroundColor Cyan
+    $resp = $null; $stream = $null; $out = $null
     try {
-      Invoke-WebRequest -Uri $u -OutFile $OutFile -UseBasicParsing -TimeoutSec $TimeoutSec | Out-Null
-      Write-Ok "下载完成（来源：$u）"
+      $req = [System.Net.HttpWebRequest]::Create($u)
+      $req.Timeout = $TimeoutSec * 1000
+      $req.ReadWriteTimeout = $TimeoutSec * 1000
+      $req.UserAgent = 'PowerShell/Save-WebFile'
+      $resp = $req.GetResponse()
+      $total = $resp.ContentLength  # -1 表示服务器未回 Content-Length
+      $stream = $resp.GetResponseStream()
+      $out = [System.IO.File]::Create($OutFile)
+
+      $buf = New-Object byte[] 81920
+      [long]$read = 0
+      $sw = [System.Diagnostics.Stopwatch]::StartNew()
+      $lastReport = 0L
+      $lastLineLen = 0
+      while (($n = $stream.Read($buf, 0, $buf.Length)) -gt 0) {
+        $out.Write($buf, 0, $n)
+        $read += $n
+        $now = $sw.ElapsedMilliseconds
+        if ($now - $lastReport -lt 200) { continue }
+        $lastReport = $now
+        $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
+        $speedMB = ($read / $sec) / 1MB
+        if ($total -gt 0) {
+          $pct = [int](($read / $total) * 100)
+          $etaSec = if ($speedMB -gt 0) { [int](($total - $read) / 1MB / $speedMB) } else { 0 }
+          $status = '{0,3}%  {1,6:N1} / {2,6:N1} MB  {3,6:N2} MB/s  ETA {4}s' -f $pct, ($read/1MB), ($total/1MB), $speedMB, $etaSec
+        } else {
+          $status = '{0,6:N1} MB  {1,6:N2} MB/s' -f ($read/1MB), $speedMB
+        }
+        if ($useProgressBar) {
+          if ($total -gt 0) { Write-Progress -Activity "下载中：$u" -Status $status -PercentComplete $pct }
+          else { Write-Progress -Activity "下载中：$u" -Status $status }
+        } else {
+          $line = "    $status"
+          $pad = [Math]::Max(0, $lastLineLen - $line.Length)
+          [Console]::Write("`r" + $line + (' ' * $pad))
+          $lastLineLen = $line.Length
+        }
+      }
+      if ($useProgressBar) { Write-Progress -Activity '下载中' -Completed }
+      else { [Console]::Write("`r" + (' ' * $lastLineLen) + "`r") }
+
+      $sw.Stop()
+      $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
+      $avgMB = ($read / $sec) / 1MB
+      Write-Ok ("下载完成（{0:N1} MB，{1:N2} MB/s，来源：{2}）" -f ($read/1MB), $avgMB, $u)
       return $true
     } catch {
-      Write-Warn "下载失败，尝试下一个镜像 ..."
+      if ($useProgressBar) { Write-Progress -Activity '下载中' -Completed }
+      Write-Warn "下载失败：$($_.Exception.Message)"
+      Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+      Write-Warn "尝试下一个镜像 ..."
+    } finally {
+      if ($out) { $out.Close() }
+      if ($stream) { $stream.Close() }
+      if ($resp) { $resp.Close() }
     }
   }
   return $false
