@@ -316,15 +316,10 @@ function Test-Gnu {
     if (Test-Path -LiteralPath $MingwGccExe) { Add-PathPrefix $MingwBin; $gcc = $MingwGccExe }
   }
   if (-not $gcc) { return $false }
-  try {
-    $info = (Invoke-NativeText -FilePath 'gcc' -Arguments @('--version') | Select-Object -First 1)
-    Write-Ok "GNU GCC 编译器已安装"
-    Write-Host "    路径：$gcc"
-    Write-Host "    版本：$info"
-  } catch {
-    Write-Ok "GNU GCC 编译器已安装"
-    Write-Host "    路径：$gcc"
-  }
+  $info = (Invoke-NativeText -FilePath 'gcc' -Arguments @('--version') | Select-Object -First 1)
+  Write-Ok "GNU GCC 编译器已安装"
+  Write-Host "    路径：$gcc"
+  if (-not [string]::IsNullOrWhiteSpace($info)) { Write-Host "    版本：$info" }
 
   if (-not (Get-ExePath 'g++.exe')) { Write-Warn "GCC 已找到但 G++ 未找到，部分 C++ 依赖可能编译失败" }
 
