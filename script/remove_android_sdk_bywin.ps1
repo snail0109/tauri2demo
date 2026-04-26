@@ -15,10 +15,10 @@ function Stop-AndroidProcess {
   Write-Warn "正在结束 adb / Android Studio / Gradle 相关进程..."
   $names = @('adb', 'studio64', 'studio', 'gradle', 'gradlew', 'fsnotifier')
   foreach ($n in $names) {
-    try {
-      Get-Process -Name $n -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
-      Write-Ok "已结束 $n"
-    } catch {}
+    $procs = Get-Process -Name $n -ErrorAction SilentlyContinue
+    if (-not $procs) { continue }
+    $procs | Stop-Process -Force -ErrorAction SilentlyContinue
+    Write-Ok "已结束 $n"
   }
   Start-Sleep -Seconds 1
   Write-Ok "进程清理完成"
