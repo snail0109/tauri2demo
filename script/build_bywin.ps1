@@ -357,13 +357,16 @@ Add-PathPrefix (Join-Path $androidHome 'platform-tools')
 if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) {
   $toolchainBin = Join-Path $env:ANDROID_NDK_HOME 'toolchains\llvm\prebuilt\windows-x86_64\bin'
   if (Test-Path -LiteralPath $toolchainBin) {
-    # 为每个 Android 目标设置 CC 环境变量，指向 NDK clang。
+    # 为每个 Android 目标设置 CC / CXX / AR 环境变量，指向 NDK 工具。
     # 不将 NDK toolchain bin 加入 PATH，避免干扰 host 端 (gnu) 链接器。
+    $llvmAr = Join-Path $toolchainBin 'llvm-ar.exe'
     foreach ($t in (Get-AndroidRustTarget)) {
-      $varName = 'CC_' + ($t -replace '-', '_')
-      Set-Item -Path "env:$varName" -Value (Join-Path $toolchainBin "$t21-clang.cmd")
+      $underscore = $t -replace '-', '_'
+      Set-Item -Path "env:CC_$underscore" -Value (Join-Path $toolchainBin "$t21-clang.cmd")
+      Set-Item -Path "env:CXX_$underscore" -Value (Join-Path $toolchainBin "$t21-clang++.cmd")
+      Set-Item -Path "env:AR_$underscore" -Value $llvmAr
     }
-    Write-Ok "NDK clang 已配置（CC_<target> 环境变量）：$toolchainBin"
+    Write-Ok "NDK clang/clang++/llvm-ar 已配置（CC/CXX/AR_<target>）：$toolchainBin"
   }
   else {
     Write-Warn "NDK toolchain 目录未找到：$toolchainBin"
