@@ -227,10 +227,7 @@ $requiredTargets = @(
   'x86_64-linux-android'
 )
 
-$cargoBin = Join-Path $HOME '.cargo\bin'
-if ($null -eq (Get-ExePath 'rustup.exe') -and (Test-Path -LiteralPath (Join-Path $cargoBin 'rustup.exe'))) {
-  Add-PathPrefix $cargoBin
-}
+if ($null -eq (Get-ExePath 'rustup.exe')) { Add-CargoBinPath }
 
 if ($null -ne (Get-ExePath 'rustup.exe')) {
   $installedTargets = Get-RustupInstalledTarget

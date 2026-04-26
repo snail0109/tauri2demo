@@ -153,6 +153,12 @@ function Add-PathPrefix([string]$Prefix) {
   $env:Path = "$Prefix;$env:Path"
 }
 
+function Add-CargoBinPath {
+  # 若 ~/.cargo/bin 存在则前置到当前 shell PATH，便于随后 Get-ExePath 命中 rustup/rustc。
+  $p = Join-Path $HOME '.cargo\bin'
+  if (Test-Path -LiteralPath $p) { Add-PathPrefix $p }
+}
+
 # ─── User environment writers ────────────────────────────────────────────────
 function Set-UserEnv([string]$Name, [string]$ValueOrNull) {
   try {

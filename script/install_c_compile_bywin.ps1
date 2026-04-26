@@ -88,9 +88,8 @@ function Install-GnuAssembler {
 function Test-RustToolchain {
   $rustc = Get-ExePath 'rustc.exe'
   if (-not $rustc) {
-    $cargoBin = Join-Path $HOME '.cargo\bin'
-    $cand = Join-Path $cargoBin 'rustc.exe'
-    if (Test-Path -LiteralPath $cand) { Add-PathPrefix $cargoBin; $rustc = $cand }
+    Add-CargoBinPath
+    $rustc = Get-ExePath 'rustc.exe'
   }
   if (-not $rustc) { return $false }
   $script:RustcVersion = (Invoke-NativeText -FilePath 'rustc' -Arguments @('--version') | Select-Object -First 1)
@@ -116,8 +115,7 @@ function Install-Rustup {
   if (Get-ExePath 'winget.exe') {
     Write-Host "  尝试通过 winget 安装 Rustlang.Rustup ..." -ForegroundColor Cyan
     Invoke-NativeStream -Block { & winget install --id Rustlang.Rustup --accept-package-agreements --accept-source-agreements --silent }
-    $cargoBin = Join-Path $HOME '.cargo\bin'
-    if (Test-Path -LiteralPath $cargoBin) { Add-PathPrefix $cargoBin }
+    Add-CargoBinPath
     if (Get-ExePath 'rustup.exe') {
       $v = (Invoke-NativeText -FilePath 'rustup' -Arguments @('--version') | Select-Object -First 1)
       Write-Ok "rustup 安装成功：$v"
@@ -142,8 +140,7 @@ function Install-Rustup {
   } catch {}
   Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
 
-  $cargoBin = Join-Path $HOME '.cargo\bin'
-  if (Test-Path -LiteralPath $cargoBin) { Add-PathPrefix $cargoBin }
+  Add-CargoBinPath
 
   if (Get-ExePath 'rustup.exe') {
     $v = (Invoke-NativeText -FilePath 'rustup' -Arguments @('--version') | Select-Object -First 1)
