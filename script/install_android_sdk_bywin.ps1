@@ -267,7 +267,7 @@ $ndkHome = if ($ndkInfo) { $ndkInfo.Path } else { $null }
 $platformTools = Join-Path $androidHome 'platform-tools'
 
 $currentAhUser = [Environment]::GetEnvironmentVariable('ANDROID_HOME', 'User')
-if ([string]::IsNullOrWhiteSpace($currentAhUser) -or ($currentAhUser.Trim('"') -ne $androidHome)) {
+if ($currentAhUser -ne $androidHome) {
   if (Set-UserEnv -Name 'ANDROID_HOME' -ValueOrNull $androidHome) {
     Write-Ok "ANDROID_HOME 已写入用户环境变量：$androidHome"
     Write-Ok "（新开终端窗口后生效）"
@@ -281,7 +281,7 @@ if ([string]::IsNullOrWhiteSpace($currentAhUser) -or ($currentAhUser.Trim('"') -
 
 if ($ndkHome) {
   $currentNdkUser = [Environment]::GetEnvironmentVariable('ANDROID_NDK_HOME', 'User')
-  if ([string]::IsNullOrWhiteSpace($currentNdkUser) -or ($currentNdkUser.Trim('"') -ne $ndkHome)) {
+  if ($currentNdkUser -ne $ndkHome) {
     if (Set-UserEnv -Name 'ANDROID_NDK_HOME' -ValueOrNull $ndkHome) {
       Write-Ok "ANDROID_NDK_HOME 已写入用户环境变量：$ndkHome"
       Write-Ok "（新开终端窗口后生效）"
@@ -302,17 +302,6 @@ if (Add-UserPathSegment -Segment $platformTools) {
 } else {
   Write-Warn "写入用户 PATH 失败，请手动添加"
   Write-Warn "  系统设置 → 环境变量 → 用户变量 → 编辑 PATH → 添加 $platformTools"
-}
-
-# 修复历史遗留：旧版脚本曾用 setx 写入带引号的值
-$ahRaw = [Environment]::GetEnvironmentVariable('ANDROID_HOME', 'User')
-$ndkRaw = [Environment]::GetEnvironmentVariable('ANDROID_NDK_HOME', 'User')
-$fixNeeded = ($ahRaw -and $ahRaw.StartsWith('"')) -or ($ndkRaw -and $ndkRaw.StartsWith('"'))
-if ($fixNeeded) {
-  Write-Warn "检测到环境变量值包含多余引号，正在修复 ..."
-  Set-UserEnv -Name 'ANDROID_HOME' -ValueOrNull $androidHome | Out-Null
-  if ($ndkHome) { Set-UserEnv -Name 'ANDROID_NDK_HOME' -ValueOrNull $ndkHome | Out-Null }
-  Write-Ok "环境变量引号问题已修复（新开终端窗口后生效）"
 }
 
 $env:ANDROID_HOME = $androidHome
