@@ -36,6 +36,12 @@ function Write-StatusLine {
   Write-Host $line -ForegroundColor $color
 }
 
+function Write-RemovedStatus {
+  # remove_*.ps1 卸载摘要专用包装：固定 OkText='已移除' / NotOkText 默认 '仍存在'。
+  param([string]$Label, [bool]$NotPresent, [string]$Detail = '', [string]$NotOkText = '仍存在')
+  Write-StatusLine -Label $Label -Ok:$NotPresent -OkText '已移除' -NotOkText $NotOkText -Detail $Detail
+}
+
 # ─── Confirmations ───────────────────────────────────────────────────────────
 # 全局自动确认开关：一旦置位，本脚本进程内所有 Confirm-* 都直接返回 true。
 # 用于 -y 静默模式，以及"主菜单选择后子操作不再重复确认"场景。

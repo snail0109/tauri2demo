@@ -217,19 +217,19 @@ Write-Host "  卸载结束摘要                            " -ForegroundColor C
 Write-Host "══════════════════════════════════════════" -ForegroundColor Cyan
 
 $sdkNow = Resolve-AndroidHome
-Write-StatusLine -Label 'Android SDK    ' -Ok:(-not ($sdkNow -and (Test-Path -LiteralPath $sdkNow))) -OkText '已移除' -NotOkText '仍存在' -Detail $sdkNow
+Write-RemovedStatus -Label 'Android SDK    ' -NotPresent (-not ($sdkNow -and (Test-Path -LiteralPath $sdkNow))) -Detail $sdkNow
 
 if (Get-ExePath 'rustup.exe') {
   $remain = (Get-RustupInstalledTarget | Where-Object { $_ -match 'linux-android' }).Count
-  Write-StatusLine -Label 'Rust targets   ' -Ok:($remain -eq 0) -OkText '已移除' -NotOkText "仍存在 $remain 个"
+  Write-RemovedStatus -Label 'Rust targets   ' -NotPresent ($remain -eq 0) -NotOkText "仍存在 $remain 个"
 } else {
   Write-Warn "  Rust targets   ：rustup 未检测到，无法确认"
 }
 
 $envAh = [Environment]::GetEnvironmentVariable('ANDROID_HOME', 'User')
 $envNdk = [Environment]::GetEnvironmentVariable('ANDROID_NDK_HOME', 'User')
-Write-StatusLine -Label 'ANDROID_HOME   ' -Ok:([string]::IsNullOrWhiteSpace($envAh)) -OkText '已移除' -NotOkText '仍存在' -Detail $envAh
-Write-StatusLine -Label 'ANDROID_NDK_HOME' -Ok:([string]::IsNullOrWhiteSpace($envNdk)) -OkText '已移除' -NotOkText '仍存在' -Detail $envNdk
+Write-RemovedStatus -Label 'ANDROID_HOME   ' -NotPresent ([string]::IsNullOrWhiteSpace($envAh)) -Detail $envAh
+Write-RemovedStatus -Label 'ANDROID_NDK_HOME' -NotPresent ([string]::IsNullOrWhiteSpace($envNdk)) -Detail $envNdk
 
 Write-Host ""
 if (-not $Failed) { Write-Host "  卸载完成！" -ForegroundColor Green }

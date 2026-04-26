@@ -167,10 +167,10 @@ $hasGcc = $null -ne (Get-ExePath 'gcc.exe')
 $hasRustup = $null -ne (Get-ExePath 'rustup.exe')
 $hasMsys2 = Test-Path -LiteralPath 'C:\msys64'
 
-Write-StatusLine -Label 'MSVC      ' -Ok:(-not $hasMsvc) -OkText '已移除' -NotOkText '仍存在'
-Write-StatusLine -Label 'GNU GCC   ' -Ok:(-not $hasGcc) -OkText '已移除' -NotOkText '仍存在'
-Write-StatusLine -Label 'rustup    ' -Ok:(-not $hasRustup) -OkText '已移除' -NotOkText '仍存在'
-Write-StatusLine -Label 'MSYS2     ' -Ok:(-not $hasMsys2) -OkText '已移除' -NotOkText '仍存在'
+Write-RemovedStatus -Label 'MSVC      ' -NotPresent (-not $hasMsvc)
+Write-RemovedStatus -Label 'GNU GCC   ' -NotPresent (-not $hasGcc)
+Write-RemovedStatus -Label 'rustup    ' -NotPresent (-not $hasRustup)
+Write-RemovedStatus -Label 'MSYS2     ' -NotPresent (-not $hasMsys2)
 
 Write-Host ""
 if (-not $Failed) { Write-Host "  卸载完成！" -ForegroundColor Green }
