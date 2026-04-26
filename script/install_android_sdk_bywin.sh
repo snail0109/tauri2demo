@@ -257,7 +257,7 @@ else
 fi
 
 # ─── 3. Define SDK packages ──────────────────────────────────────────────────
-echo -e "${CYAN}[3/4] 准备安装的 SDK 组件${RESET}"
+echo -e "${CYAN}[3/4] 准备安装的 Android SDK 组件${RESET}"
 
 # Tauri 2 Android 编译所需组件（对应 build_bywin.sh 的检查项）
 # - platform-tools: 提供 adb（检查项 4）
@@ -268,11 +268,24 @@ echo -e "${CYAN}[3/4] 准备安装的 SDK 组件${RESET}"
 
 SDK_PACKAGES=(
   "platform-tools"
-  "cmdline-tools;latest"
   "ndk;27.0.12077973"
   "platforms;android-34"
   "build-tools;34.0.0"
 )
+
+# 仅当 cmdline-tools/latest 不存在时才让 sdkmanager 安装它；
+# 否则 sdkmanager 会因目标目录已存在而把包装到 latest-2/，并报"组件安装失败"。
+# 我们的 bootstrap_sdkmanager 已把 cmdline-tools 放到 latest/，所以正常情况下不需要再安装。
+if [[ ! -f "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager.bat" ]]; then
+  SDK_PACKAGES=("cmdline-tools;latest" "${SDK_PACKAGES[@]}")
+fi
+
+# 清理之前失败遗留的 latest-2（若存在）
+if [[ -d "${ANDROID_HOME}/cmdline-tools/latest-2" ]]; then
+  warn "检测到遗留目录 cmdline-tools/latest-2，正在清理 ..."
+  rm -rf "${ANDROID_HOME}/cmdline-tools/latest-2"
+  ok "已清理 cmdline-tools/latest-2"
+fi
 
 for pkg in "${SDK_PACKAGES[@]}"; do
   echo "    $pkg"
@@ -280,7 +293,7 @@ done
 echo ""
 
 # ─── 4. Install ───────────────────────────────────────────────────────────────
-echo -e "${CYAN}[4/4] 安装 SDK 组件${RESET}"
+echo -e "${CYAN}[4/4] 安装  Android SDK 组件${RESET}"
 
 # sdkmanager 是 .bat 文件，在 Git Bash 中需要通过 cmd.exe /c 调用
 # 但 MSYS2/Git Bash 会自动将 /c /s 等参数转成 Windows 路径，导致 cmd.exe 行为异常
@@ -303,7 +316,7 @@ if [[ "$AUTO_ACCEPT" -eq 1 ]]; then
   echo -e "${YELLOW}  静默模式：自动接受所有许可协议${RESET}"
   echo ""
   yes | cmd.exe /c "$SDKMANAGER_WIN" --sdk_root="$SDK_ROOT_WIN" $INSTALL_ARGS || {
-    fail "SDK 组件安装失败"
+    fail "Android SDK 组件安装失败"
     exit 1
   }
 else
@@ -311,13 +324,13 @@ else
   echo -e "${YELLOW}  （如需自动接受，请使用 -y 参数重新运行）${RESET}"
   echo ""
   cmd.exe /c "$SDKMANAGER_WIN" --sdk_root="$SDK_ROOT_WIN" $INSTALL_ARGS || {
-    fail "SDK 组件安装失败"
+    fail "Android SDK 组件安装失败"
     exit 1
   }
 fi
 
 echo ""
-echo -e "${GREEN}  ✓ SDK 组件安装完成！${RESET}"
+echo -e "${GREEN}  ✓ Android SDK 组件安装完成！${RESET}"
 echo ""
 
 # ─── 5. Install Rust Android targets ─────────────────────────────────────────
