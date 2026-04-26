@@ -295,27 +295,24 @@ echo ""
 # ─── 4. Install ───────────────────────────────────────────────────────────────
 echo -e "${CYAN}[4/4] 安装  Android SDK 组件${RESET}"
 
-# sdkmanager 是 .bat 文件，在 Git Bash 中需要通过 cmd.exe /c 调用
-# 但 MSYS2/Git Bash 会自动将 /c /s 等参数转成 Windows 路径，导致 cmd.exe 行为异常
-# 解决方案：设置 MSYS_NO_PATHCONV=1 禁止 MSYS 路径自动转换
+# Java 已在 [2/4] 校验，Git Bash 可直接调用 .bat，不需要 cmd.exe /c 包裹
+# 设置 MSYS_NO_PATHCONV=1 防止 --sdk_root=C:/... 被 MSYS 二次转换
 export MSYS_NO_PATHCONV=1
 
-# 将 Unix 路径转换为 Windows 路径
-SDKMANAGER_WIN="$(cygpath -w "$SDKMANAGER" 2>/dev/null || echo "$SDKMANAGER")"
+# 将 Unix 路径转换为 Windows 路径（sdkmanager 内部需要 Windows 风格 SDK 根）
 SDK_ROOT_WIN="$(cygpath -w "$ANDROID_HOME" 2>/dev/null || echo "$ANDROID_HOME")"
 
-# 构建安装参数（空格分隔）
-INSTALL_ARGS="${SDK_PACKAGES[*]}"
-
-# sdkmanager 需要接受许可协议：
-#   - 交互模式：用户手动输入 y
-#   - 静默模式：通过 yes 管道自动输入 y
-# 注意：使用 yes 管道而非 <<< "y"，因为 cmd.exe 不支持 bash stdin 重定向
+# 注意：使用 `yes |` 自动接受许可时，sdkmanager 关闭 stdin 后 yes 会收到 SIGPIPE
+# 退出码 141。在 `set -o pipefail` 下整条管道也会被判定为失败。
+# 因此把管道放进开了 `set +o pipefail` 的子 shell，外层只取 sdkmanager 真实退出码。
 
 if [[ "$AUTO_ACCEPT" -eq 1 ]]; then
   echo -e "${YELLOW}  静默模式：自动接受所有许可协议${RESET}"
   echo ""
-  yes | cmd.exe /c "$SDKMANAGER_WIN" --sdk_root="$SDK_ROOT_WIN" $INSTALL_ARGS || {
+  (
+    set +o pipefail
+    yes | "$SDKMANAGER" --sdk_root="$SDK_ROOT_WIN" "${SDK_PACKAGES[@]}"
+  ) || {
     fail "Android SDK 组件安装失败"
     exit 1
   }
@@ -323,7 +320,7 @@ else
   echo -e "${YELLOW}  交互模式：安装过程中需要手动接受许可协议${RESET}"
   echo -e "${YELLOW}  （如需自动接受，请使用 -y 参数重新运行）${RESET}"
   echo ""
-  cmd.exe /c "$SDKMANAGER_WIN" --sdk_root="$SDK_ROOT_WIN" $INSTALL_ARGS || {
+  "$SDKMANAGER" --sdk_root="$SDK_ROOT_WIN" "${SDK_PACKAGES[@]}" || {
     fail "Android SDK 组件安装失败"
     exit 1
   }
