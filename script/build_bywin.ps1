@@ -357,9 +357,10 @@ Add-PathPrefix (Join-Path $androidHome 'platform-tools')
 if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) {
   $toolchainBin = Join-Path $env:ANDROID_NDK_HOME 'toolchains\llvm\prebuilt\windows-x86_64\bin'
   if (Test-Path -LiteralPath $toolchainBin) {
-    $env:CC = Join-Path $toolchainBin 'clang.exe'
-    $env:CXX = Join-Path $toolchainBin 'clang++.exe'
-    Write-Host "  使用 NDK clang：$toolchainBin" -ForegroundColor Yellow
+    # cc crate 按目标三元组查找编译器（如 aarch64-linux-android-clang），
+    # 必须把 NDK toolchain bin 目录加入 PATH 才能找到。
+    Add-PathPrefix $toolchainBin
+    Write-Ok "NDK clang 已加入 PATH：$toolchainBin"
   }
   else {
     Write-Warn "NDK toolchain 目录未找到：$toolchainBin"
