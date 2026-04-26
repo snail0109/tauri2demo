@@ -25,9 +25,9 @@ RESET='\033[0m'
 
 FAILED=0
 
-ok()   { echo -e "${GREEN}  ✓ ${RESET} $*"; }
-warn() { echo -e "${YELLOW}  ⚠ ${RESET} $*"; }
-fail() { echo -e "${RED}  ✗ ${RESET} $*"; FAILED=1; }
+ok()   { printf '%b  ✓ %b %s\n' "$GREEN" "$RESET" "$*"; }
+warn() { printf '%b  ⚠ %b %s\n' "$YELLOW" "$RESET" "$*"; }
+fail() { printf '%b  ✗ %b %s\n' "$RED" "$RESET" "$*"; FAILED=1; }
 
 # 卸载默认 NO（与安装脚本相反），避免误操作
 confirm_remove() {
@@ -300,7 +300,7 @@ print_installation_status() {
     for t in "${REQUIRED_TARGETS[@]}"; do
       if echo "$installed" | grep -q "^${t}$"; then
         ok "  $t"
-        ((INSTALLED_RUST_COUNT++))
+        INSTALLED_RUST_COUNT=$((INSTALLED_RUST_COUNT + 1))
       else
         warn "  $t（未装）"
       fi

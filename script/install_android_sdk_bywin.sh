@@ -19,9 +19,9 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 RESET='\033[0m'
 
-ok()   { echo -e "${GREEN}  ✓ ${RESET} $*"; }
-warn() { echo -e "${YELLOW}  ⚠ ${RESET} $*"; }
-fail() { echo -e "${RED}  ✗ ${RESET} $*"; }
+ok()   { printf '%b  ✓ %b %s\n' "$GREEN" "$RESET" "$*"; }
+warn() { printf '%b  ⚠ %b %s\n' "$YELLOW" "$RESET" "$*"; }
+fail() { printf '%b  ✗ %b %s\n' "$RED" "$RESET" "$*"; }
 
 # ─── Parse args ───────────────────────────────────────────────────────────────
 # 用法：./install_android_sdk_bywin.sh [-y|--yes] [--sdk-root <path>]
