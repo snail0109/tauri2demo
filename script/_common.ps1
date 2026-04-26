@@ -331,6 +331,25 @@ function Get-JavaMajorVersion {
   return [int]$m.Groups[1].Value
 }
 
+function Assert-Java17 {
+  # 检查 Java >= 17。OK 时 Write-Ok 并返回 $true；不满足时 Write-Fail 两条提示并返回 $false。
+  # 由调用方决定是 exit 1 还是仅累积 $Failed。
+  $ver = Get-JavaMajorVersion
+  $hint = '请从 https://adoptium.net/ 下载 JDK 17+，或运行：winget install EclipseAdoptium.Temurin.17.JDK'
+  if ($null -eq $ver) {
+    Write-Fail "未找到 Java，需要 JDK 17+"
+    Write-Fail $hint
+    return $false
+  }
+  if ($ver -lt 17) {
+    Write-Fail "检测到 Java $ver，但需要 JDK 17+"
+    Write-Fail $hint
+    return $false
+  }
+  Write-Ok "Java $ver 已安装：$(Get-ExePath 'java.exe')"
+  return $true
+}
+
 # ─── Misc helpers ────────────────────────────────────────────────────────────
 function Get-PropValue {
   param([string[]]$Lines, [string]$Key)

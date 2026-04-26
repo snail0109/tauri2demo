@@ -156,18 +156,7 @@ Write-Ok "ANDROID_HOME 推导为：$androidHome"
 $env:ANDROID_HOME = $androidHome
 
 Write-Host "[2/6] 检查 Java 环境" -ForegroundColor Cyan
-$javaVer = Get-JavaMajorVersion
-if ($null -eq $javaVer) {
-  Write-Fail "未找到 Java，sdkmanager 需要 JDK 17+ 才能运行。"
-  Write-Fail "请从 https://adoptium.net/ 下载 JDK 17+"
-  exit 1
-}
-if ($javaVer -lt 17) {
-  Write-Fail "检测到 Java $javaVer，但 sdkmanager 需要 JDK 17+。"
-  Write-Fail "请从 https://adoptium.net/ 下载 JDK 17+"
-  exit 1
-}
-Write-Ok "Java $javaVer 已安装：$(Get-ExePath 'java.exe')"
+if (-not (Assert-Java17)) { exit 1 }
 
 Write-Host "[3/6] 准备安装的 Android SDK 组件" -ForegroundColor Cyan
 $packages = @(

@@ -165,16 +165,7 @@ if ($Failed) {
 }
 
 Write-Host "[2/8] Java JDK（17+）" -ForegroundColor Cyan
-$javaVer = Get-JavaMajorVersion
-if ($null -eq $javaVer) {
-  Write-Fail "未找到 Java"
-  Write-Fail "请从 https://adoptium.net/ 下载 JDK 17+，或运行：winget install EclipseAdoptium.Temurin.17.JDK"
-} elseif ($javaVer -lt 17) {
-  Write-Fail "检测到 Java $javaVer，但需要 JDK 17+"
-  Write-Fail "请从 https://adoptium.net/ 下载，或运行：winget install EclipseAdoptium.Temurin.17.JDK"
-} else {
-  Write-Ok "Java $javaVer 已安装：$(Get-ExePath 'java.exe')"
-}
+Assert-Java17 | Out-Null
 
 Write-Host "[3/8] ANDROID_HOME" -ForegroundColor Cyan
 $androidHome = Resolve-AndroidHome
