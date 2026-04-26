@@ -59,7 +59,8 @@ function Restore-AndroidProject {
     Copy-Item -LiteralPath $keystoreBackup -Destination $keystorePropsInGen -Force
     Remove-Item -LiteralPath $keystoreBackup -Force -ErrorAction SilentlyContinue
     Write-Ok "keystore.properties 已恢复"
-  } elseif (-not (Test-Path -LiteralPath $keystorePropsInGen)) {
+  }
+  elseif (-not (Test-Path -LiteralPath $keystorePropsInGen)) {
     Write-Warn "正在写入 keystore.properties ..."
     New-DirectoryIfMissing (Split-Path -Parent $keystorePropsInGen)
     $DefaultKeystoreLines | Set-Content -LiteralPath $keystorePropsInGen -Encoding UTF8
@@ -78,7 +79,8 @@ function Restore-AndroidProject {
       New-DirectoryIfMissing (Split-Path -Parent $c.Dst)
       Copy-Item -LiteralPath $c.Src -Destination $c.Dst -Force
       Write-Ok "$($c.Label) 已替换"
-    } else {
+    }
+    else {
       Write-Warn "$($c.Label) 源文件不存在，跳过替换"
     }
   }
@@ -109,7 +111,8 @@ function New-Keystore {
   }
   if ($LASTEXITCODE -eq 0) {
     Write-Ok "Keystore 已生成：$StoreFile"
-  } else {
+  }
+  else {
     Write-Fail "keytool 生成 keystore 失败"
     Write-Fail "请手动运行：keytool -genkeypair -v -keystore `"$StoreFile`" -alias $Alias -keyalg RSA -keysize 2048 -validity 10000"
   }
@@ -143,7 +146,8 @@ Write-Host "[2/8] Rust" -ForegroundColor Cyan
 if ($null -ne (Get-ExePath 'rustc.exe')) {
   $ver = (Invoke-NativeText -FilePath 'rustc' -Arguments @('--version') | Select-Object -First 1)
   Write-Ok "Rust 已安装：$ver"
-} else {
+}
+else {
   Write-Fail "未检测到 rustc/rustup"
   Write-Fail "请运行 .\script\install_c_compile_bywin.ps1 安装"
 }
@@ -166,10 +170,12 @@ if ($null -ne $androidHome) {
         $platVer = if (Test-Path -LiteralPath $sp) { (Get-PropValue -Lines (Get-Content -LiteralPath $sp) -Key 'Platform.Version') } else { '' }
         if ($platVer) { "API $api (Android $platVer)" } else { "API $api" }
       })
-  } else { @() }
+  }
+  else { @() }
   $sdkStr = if ($sdkDetails.Count -gt 0) { $sdkDetails -join ', ' } else { '无 platform' }
   Write-Ok "Android SDK：$sdkStr（$androidHome）"
-} else {
+}
+else {
   Write-Fail "ANDROID_HOME 未设置且未检测到 Android SDK"
   Write-Fail "请运行 .\script\install_android_sdk_bywin.ps1 安装"
 }
@@ -182,7 +188,8 @@ if ($ndkInfo) {
   $ndkProp = Join-Path $ndkInfo.Path 'source.properties'
   $ndkVer = if (Test-Path -LiteralPath $ndkProp) { (Get-PropValue -Lines (Get-Content -LiteralPath $ndkProp) -Key 'Pkg.Revision') } else { $ndkInfo.Version }
   Write-Ok "Android NDK：$ndkVer（$($ndkInfo.Path)）"
-} else {
+}
+else {
   Write-Fail "未找到 Android NDK"
   Write-Fail "请运行 .\script\install_android_sdk_bywin.ps1 安装"
 }
@@ -192,7 +199,8 @@ $requiredTargets = Get-AndroidRustTarget
 if ($null -eq (Get-ExePath 'rustup.exe')) {
   Write-Fail "未找到 rustup"
   Write-Fail "请运行 .\script\install_c_compile_bywin.ps1 安装"
-} else {
+}
+else {
   $installedTargets = Get-RustupInstalledTarget
   $missing = @($requiredTargets | Where-Object { $installedTargets -notcontains $_ })
   foreach ($t in $requiredTargets) {
@@ -209,7 +217,8 @@ $pnpmExe = Get-PnpmExe
 if ($pnpmExe) {
   $v = (Invoke-NativeText -FilePath $pnpmExe -Arguments @('--version') | Select-Object -First 1)
   Write-Ok "pnpm $v 已安装"
-} else {
+}
+else {
   Write-Fail "未找到 pnpm，请手动运行：npm install -g pnpm"
 }
 
@@ -219,13 +228,15 @@ $keystoreProps = Join-Path $scriptDir '..\backend\src-tauri\gen\android\keystore
 
 if (Test-Path -LiteralPath $keystoreProps) {
   Write-Ok "keystore.properties 已找到：$keystoreProps"
-} else {
+}
+else {
   Write-Warn "keystore.properties 未找到：$keystoreProps"
   if (Confirm-Install "创建默认 keystore.properties 文件") {
     New-DirectoryIfMissing (Split-Path -Parent $keystoreProps)
     $DefaultKeystoreLines | Set-Content -LiteralPath $keystoreProps -Encoding UTF8
     Write-Ok "keystore.properties 已创建：$keystoreProps"
-  } else {
+  }
+  else {
     Write-Warn "请手动创建该文件，内容如下："
     Write-Host "    storeFile=C:\path\to\release.keystore"
     Write-Host "    storePassword=your_store_password"
@@ -241,9 +252,12 @@ if ($Failed) {
   Write-Banner -Title '环境检查未通过，请修复以上问题后重试。' -Color Cyan -TitleColor Red
   exit 1
 }
-Write-Banner -Title '所有检查通过！' -Color Cyan -TitleColor Green
-Write-Host ""
-if ($Command -eq 'check') { exit 0 }
+
+if ($Command -eq 'check') {
+  Write-Banner -Title '所有检查通过！' -Color Cyan -TitleColor Green
+  Write-Host ""
+  exit 0
+}
 
 Write-Banner -Title '构建准备                                ' -Color Cyan
 Write-Host ""
@@ -254,7 +268,8 @@ $genAndroidDir = Join-Path $projectRoot 'backend\src-tauri\gen\android'
 Write-Host "[准备 1/4] npm 依赖" -ForegroundColor Cyan
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'node_modules')) {
   Write-Ok "node_modules 已存在"
-} else {
+}
+else {
   Write-Warn "node_modules 不存在，正在运行 pnpm install ..."
   Invoke-NativeStreamIn -Path $projectRoot -Block { & pnpm install }
   Write-Ok "pnpm install 完成"
@@ -263,14 +278,16 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'node_modules')) {
 Write-Host "[准备 2/4] Tauri Android 项目" -ForegroundColor Cyan
 if (Test-AndroidProjectComplete $genAndroidDir) {
   Write-Ok "gen\android 项目完整"
-} else {
+}
+else {
   Restore-AndroidProject -ProjectRoot $projectRoot -GenAndroidDir $genAndroidDir -ScriptDir $scriptDir
 }
 
 Write-Host "[准备 3/4] 前端构建" -ForegroundColor Cyan
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'frontend\dist')) {
   Write-Ok "frontend\dist 已存在"
-} else {
+}
+else {
   Write-Warn "frontend\dist 不存在，正在运行前端构建 ..."
   Invoke-NativeStreamIn -Path $projectRoot -Block { & pnpm build }
   Write-Ok "前端构建完成"
@@ -293,16 +310,19 @@ if (Test-Path -LiteralPath $keystoreProps2) {
 
   if (-not [string]::IsNullOrWhiteSpace($storeFileRaw) -and (Test-Path -LiteralPath $storeFileResolved)) {
     Write-Ok "Keystore 文件已存在：$storeFileResolved"
-  } elseif (-not [string]::IsNullOrWhiteSpace($storeFileRaw)) {
+  }
+  elseif (-not [string]::IsNullOrWhiteSpace($storeFileRaw)) {
     Write-Warn "Keystore 文件不存在：$storeFileResolved"
     Write-Warn "正在自动生成 keystore ..."
     $aliasToUse = if ([string]::IsNullOrWhiteSpace($keyAlias)) { 'tauri2demo_key' } else { $keyAlias }
     $passwordToUse = if ([string]::IsNullOrWhiteSpace($keyPassword)) { 'changeit' } else { $keyPassword }
     New-Keystore -StoreFile $storeFileResolved -Alias $aliasToUse -Password $passwordToUse
-  } else {
+  }
+  else {
     Write-Warn "keystore.properties 中未找到 storeFile=，跳过 keystore 文件检查"
   }
-} else {
+}
+else {
   Write-Warn "keystore.properties 不存在，跳过 keystore 文件检查"
 }
 
@@ -318,7 +338,8 @@ if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) {
     $env:CC = Join-Path $toolchainBin 'clang.exe'
     $env:CXX = Join-Path $toolchainBin 'clang++.exe'
     Write-Host "  使用 NDK clang：$toolchainBin" -ForegroundColor Yellow
-  } else {
+  }
+  else {
     Write-Warn "NDK toolchain 目录未找到：$toolchainBin"
     Write-Warn "将使用系统默认编译器"
   }
@@ -332,7 +353,8 @@ if ($null -ne (Get-ExePath 'rustup.exe')) {
     if (Test-Path -LiteralPath (Join-Path $selfContained 'dlltool.exe')) {
       Add-PathPrefix $selfContained
       Write-Ok "Rust dlltool 已加入 PATH：$selfContained"
-    } else {
+    }
+    else {
       Write-Warn "Rust GNU 工具链 self-contained 目录未找到：$selfContained"
       Write-Warn "交叉编译 Android 时可能因找不到 dlltool 而失败"
     }
@@ -352,7 +374,8 @@ Push-Location $projectRoot
 try {
   & pnpm tauri android $Command
   $code = $LASTEXITCODE
-} finally {
+}
+finally {
   Pop-Location
 }
 exit $code
