@@ -259,7 +259,8 @@ if ($null -eq (Get-ExePath 'rustup.exe')) {
       foreach ($t in $missing) {
         Write-Host "  rustup target add $t" -ForegroundColor Cyan
         try {
-          & rustup target add $t | Out-Host
+          Invoke-NativeStream -Block { & rustup target add $t }
+          if ($LASTEXITCODE -ne 0) { throw "exit $LASTEXITCODE" }
           Write-Ok "  $t 安装成功"
         } catch {
           Write-Warn "  $t 安装失败，请手动运行：rustup target add $t"

@@ -248,7 +248,10 @@ if ($null -ne (Get-ExePath 'rustup.exe')) {
     Write-Host "  正在安装缺失的 Rust 编译目标..." -ForegroundColor Yellow
     foreach ($t in $missing) {
       Write-Host "  rustup target add $t" -ForegroundColor Cyan
-      try { & rustup target add $t | Out-Host } catch { Write-Warn "  $t 安装失败，请手动运行：rustup target add $t" }
+      try {
+        Invoke-NativeStream -Block { & rustup target add $t }
+        if ($LASTEXITCODE -ne 0) { throw "exit $LASTEXITCODE" }
+      } catch { Write-Warn "  $t 安装失败，请手动运行：rustup target add $t" }
     }
     Write-Ok "Rust Android 编译目标安装完成"
   } else {
