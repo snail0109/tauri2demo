@@ -279,7 +279,8 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'node_modules')) {
 else {
   Write-Warn "node_modules 不存在，正在运行 pnpm install ..."
   Invoke-NativeStreamIn -Path $projectRoot -Block { & pnpm install }
-  Write-Ok "pnpm install 完成"
+  if ($LASTEXITCODE -ne 0) { Write-Fail "pnpm install 失败" }
+  else { Write-Ok "pnpm install 完成" }
 }
 
 Write-Host "[准备 2/4] Tauri Android 项目" -ForegroundColor Cyan
@@ -288,6 +289,10 @@ if (Test-AndroidProjectComplete $genAndroidDir) {
 }
 else {
   Restore-AndroidProject -ProjectRoot $projectRoot -GenAndroidDir $genAndroidDir -ScriptDir $scriptDir
+  if ($Failed) {
+    Write-Fail "gen\android 项目初始化失败，无法继续"
+    exit 1
+  }
 }
 
 Write-Host "[准备 3/4] 前端构建" -ForegroundColor Cyan
@@ -297,7 +302,8 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'frontend\dist')) {
 else {
   Write-Warn "frontend\dist 不存在，正在运行前端构建 ..."
   Invoke-NativeStreamIn -Path $projectRoot -Block { & pnpm build }
-  Write-Ok "前端构建完成"
+  if ($LASTEXITCODE -ne 0) { Write-Fail "前端构建失败" }
+  else { Write-Ok "前端构建完成" }
 }
 
 Write-Host "[准备 4/4] Keystore 签名文件" -ForegroundColor Cyan
