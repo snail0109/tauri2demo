@@ -151,11 +151,20 @@ if ($null -ne (Get-ExePath 'rustc.exe')) {
 Write-Host "[3/8] Java JDK（17+）" -ForegroundColor Cyan
 Assert-Java17 | Out-Null
 
-Write-Host "[4/8] ANDROID_HOME" -ForegroundColor Cyan
+Write-Host "[4/8] Android SDK" -ForegroundColor Cyan
 $androidHome = Resolve-AndroidHome
 if ($null -ne $androidHome) {
   $env:ANDROID_HOME = $androidHome
-  Write-Ok "ANDROID_HOME=$androidHome"
+  # 从 platforms/android-<N> 目录名提取已安装的 API 版本
+  $platformsDir = Join-Path $androidHome 'platforms'
+  $apiLevels = if (Test-Path -LiteralPath $platformsDir) {
+    @(Get-ChildItem -LiteralPath $platformsDir -Directory -ErrorAction SilentlyContinue |
+      Where-Object { $_.Name -match '^android-(\d+)$' } |
+      ForEach-Object { $Matches[1] } |
+      Sort-Object { [int]$_ })
+  } else { @() }
+  $apiStr = if ($apiLevels.Count -gt 0) { "API $($apiLevels -join ', ')" } else { "无 platform" }
+  Write-Ok "Android SDK：$apiStr（$androidHome）"
 } else {
   Write-Fail "ANDROID_HOME 未设置且未检测到 Android SDK"
   Write-Fail "请运行 .\script\install_android_sdk_bywin.ps1 安装"
@@ -165,9 +174,9 @@ Write-Host "[5/8] Android NDK" -ForegroundColor Cyan
 $ndkInfo = if ($androidHome) { Resolve-AndroidNdk $androidHome } else { $null }
 if ($ndkInfo) {
   if ([string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) { $env:ANDROID_NDK_HOME = $ndkInfo.Path }
-  Write-Ok "NDK 版本：$($ndkInfo.Version)"
+  Write-Ok "Android NDK 版本：$($ndkInfo.Version)"
 } else {
-  Write-Fail "未找到 NDK"
+  Write-Fail "未找到 Android NDK"
   Write-Fail "请运行 .\script\install_android_sdk_bywin.ps1 安装"
 }
 
