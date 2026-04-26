@@ -262,6 +262,7 @@ if ($null -eq (Get-ExePath 'rustup.exe')) {
   if ($missing.Count -gt 0) {
     Write-Host ""
     if (Confirm-Install "安装缺失的 Rust Android 编译目标（$($missing.Count) 个）") {
+      Enable-AutoConfirm
       foreach ($t in $missing) {
         Write-Host "  rustup target add $t" -ForegroundColor Cyan
         try {
@@ -287,6 +288,7 @@ if ($pnpmExe) {
 } else {
   Write-Fail "未找到 pnpm"
   if (Confirm-Install "通过 npm 全局安装 pnpm") {
+    Enable-AutoConfirm
     try {
       Invoke-NativeStream -Block { & npm install -g pnpm }
       if ($LASTEXITCODE -ne 0) { throw "exit $LASTEXITCODE" }
