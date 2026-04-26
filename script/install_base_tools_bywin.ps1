@@ -55,56 +55,60 @@ function Resolve-WinGetModuleVersion {
 
 function Initialize-WinGetMode {
   # 根据 -WingetMode 参数初始化：module 模式加载模块，cli 模式跳过。
-  # 模块版本匹配由 Install-WingetTool 在安装 winget 时处理。
+  # 模块版本必须与 winget CLI 版本匹配，否则报错。
   if ($WingetMode -ne 'module') { return }
 
-  # 模块已加载则跳过
-  if (Get-Module -Name 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue) { return }
+  # 获取 winget CLI 版本
+  $wingetVer = ''
+  try {
+    $winget = Get-ExePath 'winget.exe'
+    if ($winget) {
+      $verStr = (Invoke-NativeText -FilePath $winget -Arguments @('--version') | Select-Object -First 1).Trim()
+      if ($verStr -match '^v?(\d+\.\d+)') { $wingetVer = $Matches[1] }
+    }
+  } catch {}
 
-  # 尝试加载已安装的模块
+  # 确定期望的模块版本前缀
+  $moduleVerPrefix = if ($wingetVer -and $wingetVer.StartsWith('1.5')) { '0.2' } elseif ($wingetVer) { $wingetVer }
+
+  # 检查已安装的模块版本是否匹配
   $existingModule = Get-Module -ListAvailable -Name 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue |
     Sort-Object Version -Descending | Select-Object -First 1
   if ($existingModule) {
-    Import-Module 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue
-    if (Get-Module -Name 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue) {
-      Write-Ok "Microsoft.WinGet.Client 模块 v$($existingModule.Version) 已加载"
-      return
+    $installed = "$($existingModule.Version)"
+    if ($moduleVerPrefix -and $installed.StartsWith($moduleVerPrefix)) {
+      # 版本匹配，直接加载
+      Import-Module 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue
+      if (Get-Module -Name 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue) {
+        Write-Ok "Microsoft.WinGet.Client 模块 v$installed 已加载（匹配 winget v$wingetVer）"
+        return
+      }
     }
+    # 版本不匹配，卸载旧版本后安装匹配版本
+    Write-Warn "已安装模块 v$installed 与 winget v$wingetVer 不兼容，需要 v$moduleVerPrefix.x"
   }
 
-  # winget 已存在但模块未安装：根据 winget 版本安装匹配模块
-  if (Test-Winget) {
-    $wingetVer = ''
-    try {
-      $verStr = (Invoke-NativeText -FilePath 'winget' -Arguments @('--version') | Select-Object -First 1).Trim()
-      if ($verStr -match '^v?(\d+\.\d+)') { $wingetVer = $Matches[1] }
-    } catch {}
-
-    $moduleVerPrefix = if ($wingetVer -and $wingetVer.StartsWith('1.5')) { '0.2' } elseif ($wingetVer) { $wingetVer }
-
-    Write-Host "  安装 Microsoft.WinGet.Client 模块（匹配 winget v$wingetVer）..." -ForegroundColor Cyan
-    try {
-      if ($moduleVerPrefix) {
-        $allVersions = Find-Module -Name 'Microsoft.WinGet.Client' -AllVersions -ErrorAction Stop |
-          Sort-Object Version -Descending
-        $matched = $allVersions | Where-Object { "$($_.Version)".StartsWith($moduleVerPrefix) } | Select-Object -First 1
-        if ($matched) {
-          Install-Module -Name 'Microsoft.WinGet.Client' -RequiredVersion $matched.Version -Force -Scope CurrentUser -ErrorAction Stop
-          Write-Ok "已安装模块 v$($matched.Version)（匹配 winget v$wingetVer）"
-        } else {
-          Write-Warn "未找到匹配 winget v$wingetVer 的模块版本，安装最新版"
-          Install-Module -Name 'Microsoft.WinGet.Client' -Force -Scope CurrentUser -ErrorAction Stop
-        }
+  # 安装匹配版本的模块
+  Write-Host "  安装 Microsoft.WinGet.Client 模块（匹配 winget v$wingetVer）..." -ForegroundColor Cyan
+  try {
+    if ($moduleVerPrefix) {
+      $allVersions = Find-Module -Name 'Microsoft.WinGet.Client' -AllVersions -ErrorAction Stop |
+        Sort-Object Version -Descending
+      $matched = $allVersions | Where-Object { "$($_.Version)".StartsWith($moduleVerPrefix) } | Select-Object -First 1
+      if ($matched) {
+        Install-Module -Name 'Microsoft.WinGet.Client' -RequiredVersion $matched.Version -Force -Scope CurrentUser -ErrorAction Stop
+        Write-Ok "已安装模块 v$($matched.Version)（匹配 winget v$wingetVer）"
       } else {
-        Install-Module -Name 'Microsoft.WinGet.Client' -Force -Scope CurrentUser -ErrorAction Stop
+        Write-Fail "未找到匹配 winget v$wingetVer 的模块版本（需要 v$moduleVerPrefix.x）"
+        return
       }
-      Import-Module 'Microsoft.WinGet.Client' -ErrorAction Stop
-      Write-Ok "Microsoft.WinGet.Client 模块安装完成"
-    } catch {
-      Write-Fail "模块安装失败：$($_.Exception.Message)"
+    } else {
+      Install-Module -Name 'Microsoft.WinGet.Client' -Force -Scope CurrentUser -ErrorAction Stop
     }
-  } else {
-    Write-Fail "winget 未安装，无法加载 Microsoft.WinGet.Client 模块"
+    Import-Module 'Microsoft.WinGet.Client' -ErrorAction Stop
+    Write-Ok "Microsoft.WinGet.Client 模块安装完成"
+  } catch {
+    Write-Fail "模块安装失败：$($_.Exception.Message)"
   }
 }
 
