@@ -281,11 +281,12 @@ $projectRoot = (Resolve-Path -LiteralPath (Join-Path $scriptDir '..')).Path
 $genAndroidDir = Join-Path $projectRoot 'backend\src-tauri\gen\android'
 
 Write-Host "[准备 1/4] npm 依赖" -ForegroundColor Cyan
-if (Test-Path -LiteralPath (Join-Path $projectRoot 'node_modules')) {
-  Write-Ok "node_modules 已存在"
+$tauriBin = Join-Path $projectRoot 'node_modules\.bin\tauri.cmd'
+if ((Test-Path -LiteralPath (Join-Path $projectRoot 'node_modules')) -and (Test-Path -LiteralPath $tauriBin)) {
+  Write-Ok "node_modules 已存在且 tauri CLI 可用"
 }
 else {
-  Write-Warn "node_modules 不存在，正在运行 pnpm install ..."
+  Write-Warn "正在运行 pnpm install ..."
   Invoke-NativeStreamIn -Path $projectRoot -Block { & pnpm install }
   if ($LASTEXITCODE -ne 0) { Write-Fail "pnpm install 失败" }
   else { Write-Ok "pnpm install 完成" }
