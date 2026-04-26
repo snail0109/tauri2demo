@@ -239,16 +239,23 @@ function Install-Msvc {
   return $true
 }
 
+function Confirm-MingwGccReady {
+  # 找到 gcc.exe 后的统一收尾：把 mingw64\bin 前置到 PATH，跑一次自检，
+  # 然后顺手安装/确认 stable-x86_64-pc-windows-gnu 工具链。3 处共用。
+  param([string]$SuccessMessage)
+  Add-PathPrefix $MingwBin
+  Write-Ok $SuccessMessage
+  Test-Gnu | Out-Null
+  Install-RustToolchainAbi -Abi 'gnu' | Out-Null
+  return $true
+}
+
 function Install-MsysGcc {
   if (-not (Confirm-Install "通过 MSYS2 pacman 安装 mingw-w64-x86_64-gcc")) { return $false }
   Set-Msys2ChinaMirror | Out-Null
   Invoke-NativeStream -Block { & $MsysBash -lc "pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" }
   if (Test-Path -LiteralPath $MingwGccExe) {
-    Add-PathPrefix $MingwBin
-    Write-Ok "mingw-w64-x86_64-gcc 安装成功"
-    Test-Gnu | Out-Null
-    Install-RustToolchainAbi -Abi 'gnu' | Out-Null
-    return $true
+    return (Confirm-MingwGccReady -SuccessMessage "mingw-w64-x86_64-gcc 安装成功")
   }
   Write-Warn "pacman 安装完成但未找到 gcc.exe，可能需要更新 MSYS2："
   Write-Warn "  pacman -Syu --noconfirm && pacman -S --noconfirm mingw-w64-x86_64-gcc"
@@ -263,11 +270,7 @@ function Install-Gnu {
   if (Test-Path -LiteralPath $MsysRoot) {
     Write-Ok "检测到 MSYS2 已安装在 $MsysRoot"
     if (Test-Path -LiteralPath $MingwGccExe) {
-      Add-PathPrefix $MingwBin
-      Write-Ok "gcc 已存在于 $MingwBin，已添加到 PATH"
-      Test-Gnu | Out-Null
-      Install-RustToolchainAbi -Abi 'gnu' | Out-Null
-      return $true
+      return (Confirm-MingwGccReady -SuccessMessage "gcc 已存在于 $MingwBin，已添加到 PATH")
     }
     if (Install-MsysGcc) { return $true }
   } else {
@@ -282,11 +285,7 @@ function Install-Gnu {
       Set-Msys2ChinaMirror | Out-Null
       Invoke-NativeStream -Block { & $MsysBash -lc "pacman-key --init && pacman-key --populate msys2 && pacman -Sy --noconfirm archlinux-msys2-keyring && pacman -Su --noconfirm && pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" }
       if (Test-Path -LiteralPath $MingwGccExe) {
-        Add-PathPrefix $MingwBin
-        Write-Ok "MSYS2 + mingw-w64-gcc 安装成功"
-        Test-Gnu | Out-Null
-        Install-RustToolchainAbi -Abi 'gnu' | Out-Null
-        return $true
+        return (Confirm-MingwGccReady -SuccessMessage "MSYS2 + mingw-w64-gcc 安装成功")
       }
       Write-Warn "MSYS2 已安装但 gcc 安装可能不完整，请手动执行："
       Write-Warn "  $MsysBash -lc 'pacman -S --noconfirm mingw-w64-x86_64-gcc'"
