@@ -267,6 +267,81 @@ function Install-WingetTool {
   return $false
 }
 
+function Uninstall-WingetTool {
+  Write-Host ""
+  Write-Host "═══ 卸载 winget ═══" -ForegroundColor Cyan
+  Write-Host ""
+
+  if (-not (Test-Winget)) {
+    Write-Host ""
+    Write-Banner -Title 'winget 未安装，无需卸载' -Color Green
+    return $true
+  }
+
+  Write-Host ""
+  if (-not (Confirm-Continue "确认卸载 winget（Windows 包管理器）")) { return $false }
+
+  $uninstalled = $false
+
+  # 方式一：通过 Remove-AppxPackage 卸载 Microsoft.DesktopAppInstaller
+  $appInstaller = Get-AppxPackage -Name 'Microsoft.DesktopAppInstaller' -ErrorAction SilentlyContinue
+  if ($appInstaller) {
+    Write-Host "  通过 Remove-AppxPackage 卸载 Microsoft.DesktopAppInstaller ..." -ForegroundColor Cyan
+    try {
+      Remove-AppxPackage -Package $appInstaller.PackageFullName -ErrorAction Stop
+      Write-Ok "Microsoft.DesktopAppInstaller 已卸载"
+      $uninstalled = $true
+    } catch {
+      Write-Warn "Remove-AppxPackage 卸载失败：$($_.Exception.Message)"
+    }
+  }
+
+  # 方式二：通过 winget 自卸载（如果方式一失败）
+  if (-not $uninstalled) {
+    $winget = Get-ExePath 'winget.exe'
+    if ($winget) {
+      Write-Host "  通过 winget 自卸载 ..." -ForegroundColor Cyan
+      try {
+        Invoke-NativeStream -Block { & winget uninstall --id Microsoft.DesktopAppInstaller_8wekyb3d8bbwe --accept-source-agreements }
+        $uninstalled = $true
+      } catch {
+        Write-Warn "winget 自卸载失败：$($_.Exception.Message)"
+      }
+    }
+  }
+
+  # 方式三：打开 Microsoft Store 卸载
+  if (-not $uninstalled) {
+    Write-Host "  尝试通过 Microsoft Store 卸载 ..." -ForegroundColor Cyan
+    try {
+      Start-Process 'ms-windows-store://pdp/?ProductId=9NBLGGH4NNS1'
+      Write-Warn "已打开 Microsoft Store 页面，请在 Store 中点击「卸载」"
+      Write-Warn "卸载完成后按 Enter 继续 ..."
+      Read-Host
+      $uninstalled = -not (Get-ExePath 'winget.exe')
+    } catch {
+      Write-Warn "无法打开 Microsoft Store：$($_.Exception.Message)"
+    }
+  }
+
+  Write-Host ""
+  if (-not (Get-ExePath 'winget.exe')) {
+    Write-Banner -Title 'winget 卸载成功' -Color Green
+    return $true
+  }
+  if ($uninstalled) {
+    Write-Warn "winget 卸载流程已执行，但当前 shell 仍检测到 winget"
+    Write-Warn "请重新打开终端后再次运行此脚本验证"
+    return $false
+  }
+  Write-Fail "winget 自动卸载失败"
+  Write-Fail "请手动卸载 winget："
+  Write-Fail "  • 打开 Microsoft Store 搜索「应用安装程序」并卸载"
+  Write-Fail "  • 或在「设置 → 应用」中找到「应用安装程序」并卸载"
+  Write-Fail "  • 或运行：Get-AppxPackage Microsoft.DesktopAppInstaller | Remove-AppxPackage"
+  return $false
+}
+
 # ─── Windows 终端 ─────────────────────────────────────────────────────────────
 
 function Test-WindowsTerminal {
@@ -385,6 +460,78 @@ function Install-WindowsTerminalTool {
   return $false
 }
 
+function Uninstall-WindowsTerminalTool {
+  Write-Host ""
+  Write-Host "═══ 卸载 Windows 终端 ═══" -ForegroundColor Cyan
+  Write-Host ""
+
+  if (-not (Test-WindowsTerminal)) {
+    Write-Host ""
+    Write-Banner -Title 'Windows 终端 未安装，无需卸载' -Color Green
+    return $true
+  }
+
+  Write-Host ""
+  if (-not (Confirm-Continue "确认卸载 Windows 终端")) { return $false }
+
+  $uninstalled = $false
+
+  # 方式一：通过 Remove-AppxPackage 卸载
+  $wtPackage = Get-AppxPackage -Name 'Microsoft.WindowsTerminal' -ErrorAction SilentlyContinue
+  if ($wtPackage) {
+    Write-Host "  通过 Remove-AppxPackage 卸载 Windows 终端 ..." -ForegroundColor Cyan
+    try {
+      Remove-AppxPackage -Package $wtPackage.PackageFullName -ErrorAction Stop
+      Write-Ok "Windows 终端已卸载"
+      $uninstalled = $true
+    } catch {
+      Write-Warn "Remove-AppxPackage 卸载失败：$($_.Exception.Message)"
+    }
+  }
+
+  # 方式二：通过 winget 卸载
+  if (-not $uninstalled -and (Get-ExePath 'winget.exe')) {
+    Write-Host "  通过 winget 卸载 Windows 终端 ..." -ForegroundColor Cyan
+    try {
+      Invoke-NativeStream -Block { & winget uninstall --id Microsoft.WindowsTerminal --accept-source-agreements }
+      $uninstalled = $true
+    } catch {
+      Write-Warn "winget 卸载 Windows 终端失败：$($_.Exception.Message)"
+    }
+  }
+
+  # 方式三：打开 Microsoft Store 卸载
+  if (-not $uninstalled) {
+    Write-Host "  尝试通过 Microsoft Store 卸载 ..." -ForegroundColor Cyan
+    try {
+      Start-Process 'ms-windows-store://pdp/?ProductId=9n0dx20hk701'
+      Write-Warn "已打开 Microsoft Store 页面，请在 Store 中点击「卸载」"
+      Write-Warn "卸载完成后按 Enter 继续 ..."
+      Read-Host
+      $uninstalled = -not (Test-WindowsTerminal)
+    } catch {
+      Write-Warn "无法打开 Microsoft Store：$($_.Exception.Message)"
+    }
+  }
+
+  Write-Host ""
+  if (-not (Test-WindowsTerminal)) {
+    Write-Banner -Title 'Windows 终端 卸载成功' -Color Green
+    return $true
+  }
+  if ($uninstalled) {
+    Write-Warn "Windows 终端卸载流程已执行，但当前 shell 仍检测到 wt.exe"
+    Write-Warn "请重新打开终端后再次运行此脚本验证"
+    return $false
+  }
+  Write-Fail "Windows 终端自动卸载失败"
+  Write-Fail "请手动卸载 Windows 终端："
+  Write-Fail "  • 打开 Microsoft Store 搜索「Windows 终端」并卸载"
+  Write-Fail "  • 或在「设置 → 应用」中找到「Windows 终端」并卸载"
+  Write-Fail "  • 或运行：Get-AppxPackage Microsoft.WindowsTerminal | Remove-AppxPackage"
+  return $false
+}
+
 # ─── 工具调度 ─────────────────────────────────────────────────────────────────
 
 # Id → Install 函数 的映射
@@ -393,14 +540,22 @@ $ToolInstallers = @{
   'terminal' = ${function:Install-WindowsTerminalTool}
 }
 
+# Id → Uninstall 函数 的映射
+$ToolUninstallers = @{
+  'winget'   = ${function:Uninstall-WingetTool}
+  'terminal' = ${function:Uninstall-WindowsTerminalTool}
+}
+
 function Write-Usage {
   Write-Host ""
-  Write-Banner -Title '基础工具安装（Windows）    ' -Color Cyan
+  Write-Banner -Title '基础工具管理（Windows）    ' -Color Cyan
   Write-Host ""
   Write-Host "用法：" -ForegroundColor Cyan
-  Write-Host "  .\install_base_tools_bywin.ps1 -AddTools <工具1,工具2,...>  安装指定工具"
-  Write-Host "  .\install_base_tools_bywin.ps1 -AddTools all               安装所有工具"
-  Write-Host "  .\install_base_tools_bywin.ps1 -y -AddTools all            静默安装所有工具"
+  Write-Host "  .\install_base_tools_bywin.ps1 -AddTools <工具1,工具2,...>     安装指定工具"
+  Write-Host "  .\install_base_tools_bywin.ps1 -AddTools all                  安装所有工具"
+  Write-Host "  .\install_base_tools_bywin.ps1 -y -AddTools all               静默安装所有工具"
+  Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools <工具1,工具2,...>  卸载指定工具"
+  Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools all               卸载所有工具"
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools winget -WingetMethod psgallery  指定 winget 安装方式"
   Write-Host ""
   Write-Host "可用工具：" -ForegroundColor Cyan
@@ -419,6 +574,9 @@ function Write-Usage {
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools winget"
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools winget,terminal"
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools all"
+  Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools winget"
+  Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools winget,terminal"
+  Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools all"
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools winget -WingetMethod psgallery"
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools winget -WingetMethod onescript"
   Write-Host ""
@@ -426,59 +584,125 @@ function Write-Usage {
 
 # ─── 主流程 ───────────────────────────────────────────────────────────────────
 
-if (-not $AddTools -or $AddTools.Count -eq 0) {
+if ((-not $AddTools -or $AddTools.Count -eq 0) -and (-not $RemoveTools -or $RemoveTools.Count -eq 0)) {
   Write-Usage
   exit 0
 }
 
 # 展开别名：all → 所有工具 Id
 $validIds = $ToolDefs | ForEach-Object { $_.Id }
-if ($AddTools -contains 'all') {
-  $AddTools = @($validIds)
+
+# 校验 -AddTools 参数
+if ($AddTools -and $AddTools.Count -gt 0) {
+  if ($AddTools -contains 'all') {
+    $AddTools = @($validIds)
+  }
+  $unknown = $AddTools | Where-Object { $_ -notin $validIds }
+  if ($unknown) {
+    Write-Fail "未知工具（-AddTools）：$($unknown -join ', ')"
+    Write-Host ""
+    Write-Host "可用工具：$($validIds -join ', ')" -ForegroundColor Yellow
+    exit 1
+  }
 }
 
-# 校验参数
-$unknown = $AddTools | Where-Object { $_ -notin $validIds }
-if ($unknown) {
-  Write-Fail "未知工具：$($unknown -join ', ')"
+# 校验 -RemoveTools 参数
+if ($RemoveTools -and $RemoveTools.Count -gt 0) {
+  if ($RemoveTools -contains 'all') {
+    $RemoveTools = @($validIds)
+  }
+  $unknown = $RemoveTools | Where-Object { $_ -notin $validIds }
+  if ($unknown) {
+    Write-Fail "未知工具（-RemoveTools）：$($unknown -join ', ')"
+    Write-Host ""
+    Write-Host "可用工具：$($validIds -join ', ')" -ForegroundColor Yellow
+    exit 1
+  }
+}
+
+# 不允许同时安装和卸载同一工具
+if ($AddTools -and $RemoveTools) {
+  $conflict = $AddTools | Where-Object { $_ -in $RemoveTools }
+  if ($conflict) {
+    Write-Fail "不能同时安装和卸载同一工具：$($conflict -join ', ')"
+    exit 1
+  }
+}
+
+Write-Host ""
+Write-Banner -Title '基础工具管理（Windows）    ' -Color Cyan
+Write-Host ""
+
+# ── 卸载流程 ──
+if ($RemoveTools -and $RemoveTools.Count -gt 0) {
+  # 卸载 winget 时，如果其他工具也依赖 winget，提示先卸载依赖工具
+  if ('winget' -in $RemoveTools) {
+    $dependents = $RemoveTools | Where-Object { $_ -ne 'winget' }
+    if ($dependents) {
+      Write-Warn "winget 是其他工具的依赖，建议先卸载依赖工具再卸载 winget"
+    }
+  }
+
+  $step = 0
+  $total = $RemoveTools.Count
+  $removeResults = @{}
+
+  foreach ($id in $RemoveTools) {
+    $step++
+    $def = $ToolDefs | Where-Object { $_.Id -eq $id } | Select-Object -First 1
+    Write-Host "[$step/$total] 卸载 $($def.Name)" -ForegroundColor Cyan
+    $removeResults[$id] = & $ToolUninstallers[$id]
+    Write-Host ""
+  }
+
+  # 卸载摘要
+  Write-Host "═══ 卸载摘要 ═══" -ForegroundColor Cyan
+  foreach ($id in $RemoveTools) {
+    $def = $ToolDefs | Where-Object { $_.Id -eq $id } | Select-Object -First 1
+    Write-StatusLine -Label $def.Name -Ok:$removeResults[$id]
+  }
   Write-Host ""
-  Write-Host "可用工具：$($validIds -join ', ')" -ForegroundColor Yellow
-  exit 1
-}
 
-Write-Host ""
-Write-Banner -Title '基础工具安装（Windows）    ' -Color Cyan
-Write-Host ""
-
-# winget 是其他工具的前置依赖，如果选了非 winget 工具但缺少 winget，自动前置安装
-$needsWinget = $AddTools | Where-Object { $_ -ne 'winget' }
-if ($needsWinget -and -not (Get-ExePath 'winget.exe') -and 'winget' -notin $AddTools) {
-  Write-Warn "安装其他工具需要 winget，将先安装 winget"
-  $AddTools = @('winget') + @($AddTools)
-}
-
-$step = 0
-$total = $AddTools.Count
-$results = @{}
-
-foreach ($id in $AddTools) {
-  $step++
-  $def = $ToolDefs | Where-Object { $_.Id -eq $id } | Select-Object -First 1
-  Write-Host "[$step/$total] $($def.Name)" -ForegroundColor Cyan
-  $results[$id] = & $ToolInstallers[$id]
+  if ($removeResults.Values -notcontains $false) {
+    Write-Host "  所有工具卸载完成！" -ForegroundColor Green
+  } else {
+    Write-Host "  部分工具卸载未成功，请查看上方日志。" -ForegroundColor Yellow
+  }
   Write-Host ""
 }
 
-# 摘要
-Write-Host "═══ 安装摘要 ═══" -ForegroundColor Cyan
-foreach ($id in $AddTools) {
-  $def = $ToolDefs | Where-Object { $_.Id -eq $id } | Select-Object -First 1
-  Write-StatusLine -Label $def.Name -Ok:$results[$id]
-}
-Write-Host ""
+# ── 安装流程 ──
+if ($AddTools -and $AddTools.Count -gt 0) {
+  # winget 是其他工具的前置依赖，如果选了非 winget 工具但缺少 winget，自动前置安装
+  $needsWinget = $AddTools | Where-Object { $_ -ne 'winget' }
+  if ($needsWinget -and -not (Get-ExePath 'winget.exe') -and 'winget' -notin $AddTools) {
+    Write-Warn "安装其他工具需要 winget，将先安装 winget"
+    $AddTools = @('winget') + @($AddTools)
+  }
 
-if ($results.Values -notcontains $false) {
-  Write-Host "  所有工具安装完成！" -ForegroundColor Green
-} else {
-  Write-Host "  部分工具安装未成功，请查看上方日志。" -ForegroundColor Yellow
+  $step = 0
+  $total = $AddTools.Count
+  $addResults = @{}
+
+  foreach ($id in $AddTools) {
+    $step++
+    $def = $ToolDefs | Where-Object { $_.Id -eq $id } | Select-Object -First 1
+    Write-Host "[$step/$total] 安装 $($def.Name)" -ForegroundColor Cyan
+    $addResults[$id] = & $ToolInstallers[$id]
+    Write-Host ""
+  }
+
+  # 安装摘要
+  Write-Host "═══ 安装摘要 ═══" -ForegroundColor Cyan
+  foreach ($id in $AddTools) {
+    $def = $ToolDefs | Where-Object { $_.Id -eq $id } | Select-Object -First 1
+    Write-StatusLine -Label $def.Name -Ok:$addResults[$id]
+  }
+  Write-Host ""
+
+  if ($addResults.Values -notcontains $false) {
+    Write-Host "  所有工具安装完成！" -ForegroundColor Green
+  } else {
+    Write-Host "  部分工具安装未成功，请查看上方日志。" -ForegroundColor Yellow
+  }
 }
