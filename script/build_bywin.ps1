@@ -129,26 +129,53 @@ Write-Host ""
 Write-Banner -Title 'Android 构建环境检查（Windows PowerShell）' -Color Cyan
 Write-Host ""
 
-# 静默解析 ANDROID_HOME / NDK：后续 $env:ANDROID_HOME / ANDROID_NDK_HOME / CC / CXX 都依赖它们。
-# C/C++ 编译器、Rust、Java、SDK 工具的体检放在 install_c_compile_bywin.ps1 / install_android_sdk_bywin.ps1，
-# 本脚本不再重复，只在必需路径缺失时给出明确的"请去跑哪个脚本"提示。
+Write-Host "[1/8] C/C++ 编译工具" -ForegroundColor Cyan
+$cl = Get-ExePath 'cl.exe'
+if ($cl) { Write-Ok "MSVC cl.exe：$cl" }
+$gcc = Get-ExePath 'gcc.exe'
+if ($gcc) { Write-Ok "GNU gcc：$gcc" }
+if (-not $cl -and -not $gcc) {
+  Write-Fail "未检测到 C/C++ 编译器（MSVC 或 GNU gcc）"
+  Write-Fail "请运行 .\script\install_c_compile_bywin.ps1 安装"
+}
+
+Write-Host "[2/8] Rust" -ForegroundColor Cyan
+if ($null -ne (Get-ExePath 'rustc.exe')) {
+  $ver = (Invoke-NativeText -FilePath 'rustc' -Arguments @('--version') | Select-Object -First 1)
+  Write-Ok "Rust 已安装：$ver"
+} else {
+  Write-Fail "未检测到 rustc/rustup"
+  Write-Fail "请运行 .\script\install_c_compile_bywin.ps1 安装"
+}
+
+Write-Host "[3/8] Java JDK（17+）" -ForegroundColor Cyan
+Assert-Java17 | Out-Null
+
+Write-Host "[4/8] ANDROID_HOME" -ForegroundColor Cyan
 $androidHome = Resolve-AndroidHome
-if ($null -eq $androidHome) {
+if ($null -ne $androidHome) {
+  $env:ANDROID_HOME = $androidHome
+  Write-Ok "ANDROID_HOME=$androidHome"
+} else {
   Write-Fail "ANDROID_HOME 未设置且未检测到 Android SDK"
-  Write-Fail "请先运行 .\script\install_android_sdk_bywin.ps1"
-  exit 1
-}
-$env:ANDROID_HOME = $androidHome
-
-$ndkInfo = Resolve-AndroidNdk $androidHome
-if ($ndkInfo -and [string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) {
-  $env:ANDROID_NDK_HOME = $ndkInfo.Path
+  Write-Fail "请运行 .\script\install_android_sdk_bywin.ps1 安装"
 }
 
-Write-Host "[1/3] Rust Android 编译目标" -ForegroundColor Cyan
+Write-Host "[5/8] Android NDK" -ForegroundColor Cyan
+$ndkInfo = if ($androidHome) { Resolve-AndroidNdk $androidHome } else { $null }
+if ($ndkInfo) {
+  if ([string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) { $env:ANDROID_NDK_HOME = $ndkInfo.Path }
+  Write-Ok "NDK 版本：$($ndkInfo.Version)"
+} else {
+  Write-Fail "未找到 NDK"
+  Write-Fail "请运行 .\script\install_android_sdk_bywin.ps1 安装"
+}
+
+Write-Host "[6/8] Rust Android 编译目标" -ForegroundColor Cyan
 $requiredTargets = Get-AndroidRustTarget
 if ($null -eq (Get-ExePath 'rustup.exe')) {
-  Write-Fail "未找到 rustup，请先运行 .\script\install_c_compile_bywin.ps1"
+  Write-Fail "未找到 rustup"
+  Write-Fail "请运行 .\script\install_c_compile_bywin.ps1 安装"
 } else {
   $installedTargets = Get-RustupInstalledTarget
   $missing = @($requiredTargets | Where-Object { $installedTargets -notcontains $_ })
@@ -156,11 +183,12 @@ if ($null -eq (Get-ExePath 'rustup.exe')) {
     if ($installedTargets -contains $t) { Write-Ok "  $t" } else { Write-Fail "  $t（未安装）" }
   }
   if ($missing.Count -gt 0) {
-    Write-Fail "缺少 $($missing.Count) 个 Rust Android 编译目标，请运行 .\script\install_android_sdk_bywin.ps1 安装"
+    Write-Fail "缺少 $($missing.Count) 个 Rust Android 编译目标"
+    Write-Fail "请运行 .\script\install_android_sdk_bywin.ps1 安装"
   }
 }
 
-Write-Host "[2/3] pnpm" -ForegroundColor Cyan
+Write-Host "[7/8] pnpm" -ForegroundColor Cyan
 $pnpmExe = Get-PnpmExe
 if ($pnpmExe) {
   $v = (Invoke-NativeText -FilePath $pnpmExe -Arguments @('--version') | Select-Object -First 1)
@@ -169,7 +197,7 @@ if ($pnpmExe) {
   Write-Fail "未找到 pnpm，请手动运行：npm install -g pnpm"
 }
 
-Write-Host "[3/3] keystore.properties" -ForegroundColor Cyan
+Write-Host "[8/8] keystore.properties" -ForegroundColor Cyan
 $scriptDir = $PSScriptRoot
 $keystoreProps = Join-Path $scriptDir '..\backend\src-tauri\gen\android\keystore.properties'
 
