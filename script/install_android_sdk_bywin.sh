@@ -24,9 +24,51 @@ warn() { echo -e "${YELLOW}  ⚠${RESET} $*"; }
 fail() { echo -e "${RED}  ✗${RESET} $*"; }
 
 # ─── Parse args ───────────────────────────────────────────────────────────────
+# 用法：./install_android_sdk_bywin.sh [-y|--yes] [--sdk-root <path>]
+#   -y / --yes        : 静默模式（自动接受所有许可）
+#   --sdk-root <path> : 指定 Android SDK 根目录（默认 C:/DevDisk/DevTools/AndroidSDK）
 AUTO_ACCEPT=0
-if [[ "${1:-}" == "-y" || "${1:-}" == "--yes" ]]; then
-  AUTO_ACCEPT=1
+SDK_ROOT_ARG=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -y|--yes)
+      AUTO_ACCEPT=1
+      shift
+      ;;
+    --sdk-root)
+      if [[ -z "${2:-}" ]]; then
+        echo "错误：--sdk-root 需要一个路径参数" >&2
+        exit 1
+      fi
+      SDK_ROOT_ARG="$2"
+      shift 2
+      ;;
+    --sdk-root=*)
+      SDK_ROOT_ARG="${1#--sdk-root=}"
+      shift
+      ;;
+    -h|--help)
+      echo "用法：$0 [-y|--yes] [--sdk-root <path>]"
+      echo "  -y / --yes        静默模式（自动接受许可）"
+      echo "  --sdk-root <path> 指定 Android SDK 根目录"
+      exit 0
+      ;;
+    *)
+      echo "错误：未知参数 $1" >&2
+      echo "用法：$0 [-y|--yes] [--sdk-root <path>]" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# SDK 根目录：命令行 > 环境变量 ANDROID_HOME > 默认路径
+SDK_ROOT_DEFAULT="${SDK_ROOT_ARG:-${ANDROID_HOME:-C:/DevDisk/DevTools/AndroidSDK}}"
+# 清理可能的引号 + Windows 路径转 Unix
+SDK_ROOT_DEFAULT="${SDK_ROOT_DEFAULT#\"}"
+SDK_ROOT_DEFAULT="${SDK_ROOT_DEFAULT%\"}"
+if [[ "$SDK_ROOT_DEFAULT" == *'\\'* ]] || [[ "$SDK_ROOT_DEFAULT" =~ ^[A-Za-z]: ]]; then
+  SDK_ROOT_DEFAULT="$(cygpath -u "$SDK_ROOT_DEFAULT" 2>/dev/null || echo "$SDK_ROOT_DEFAULT")"
 fi
 
 # ─── Confirm helper ──────────────────────────────────────────────────────────
@@ -130,10 +172,10 @@ echo -e "${CYAN}═════════════════════�
 echo ""
 
 # ─── 1. Locate sdkmanager ─────────────────────────────────────────────────────
-echo -e "${CYAN}[1/4] 定位 sdkmanager${RESET}"
+echo -e "${CYAN}[1/4] 定位 SDKManager${RESET}"
 
-# 优先使用用户指定的路径
-SDKMANAGER="C:/DevDisk/DevTools/AndroidSDK/cmdline-tools/latest/bin/sdkmanager.bat"
+# 优先使用命令行 / 环境变量 / 默认路径解析出的 SDK 根目录
+SDKMANAGER="${SDK_ROOT_DEFAULT}/cmdline-tools/latest/bin/sdkmanager.bat"
 
 # 如果指定路径不存在，尝试 ANDROID_HOME 下的路径
 if [[ ! -f "$SDKMANAGER" ]]; then
@@ -159,11 +201,17 @@ if [[ ! -f "$SDKMANAGER" ]]; then
 fi
 
 if [[ -f "$SDKMANAGER" ]]; then
-  ok "sdkmanager 已找到：$SDKMANAGER"
+  ok "SDKManager 已找到：$SDKMANAGER"
+  # 尝试显示 SDKManager 版本（依赖 Java；失败则静默跳过）
+  SDKMANAGER_WIN_TMP="$(cygpath -w "$SDKMANAGER" 2>/dev/null || echo "$SDKMANAGER")"
+  SDKMANAGER_VER="$(MSYS_NO_PATHCONV=1 cmd.exe /c "\"$SDKMANAGER_WIN_TMP\" --version" 2>/dev/null | tr -d '\r' | grep -E '^[0-9]' | head -1 || true)"
+  if [[ -n "$SDKMANAGER_VER" ]]; then
+    ok "    版本：$SDKMANAGER_VER"
+  else
+    warn "    无法读取 SDKManager 版本（可能 Java 未就绪，下一步会校验）"
+  fi
 else
-  warn "sdkmanager 未找到：$SDKMANAGER"
-  # 默认 SDK 根目录（与脚本顶部默认路径一致）
-  SDK_ROOT_DEFAULT="C:/DevDisk/DevTools/AndroidSDK"
+  warn "SDKManager 未找到：$SDKMANAGER"
   if confirm_install "自动下载 Android 命令行工具包到 ${SDK_ROOT_DEFAULT}"; then
     if bootstrap_sdkmanager "$SDK_ROOT_DEFAULT"; then
       SDKMANAGER="${SDK_ROOT_DEFAULT}/cmdline-tools/latest/bin/sdkmanager.bat"
