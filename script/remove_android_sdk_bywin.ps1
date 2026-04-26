@@ -44,7 +44,8 @@ function Remove-RustAndroidTarget {
   }
   foreach ($t in $present) {
     if ($DryRun) { Write-Warn "DryRun: rustup target remove $t"; continue }
-    try { Invoke-NativeStream -Block { & rustup target remove $t }; Write-Ok "已卸载 $t" } catch { Write-Fail "rustup target remove $t 失败" }
+    Invoke-NativeStream -Block { & rustup target remove $t }
+    if ($LASTEXITCODE -eq 0) { Write-Ok "已卸载 $t" } else { Write-Fail "rustup target remove $t 失败" }
   }
 }
 

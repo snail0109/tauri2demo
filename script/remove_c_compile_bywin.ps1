@@ -31,7 +31,8 @@ function Remove-RustToolchainAbi {
     return
   }
   if ($DryRun) { Write-Warn "DryRun: rustup toolchain uninstall $toolchain"; return }
-  try { Invoke-NativeStream -Block { & rustup toolchain uninstall $toolchain }; Write-Ok "已卸载 $toolchain" } catch { Write-Fail "rustup toolchain uninstall $toolchain 失败" }
+  Invoke-NativeStream -Block { & rustup toolchain uninstall $toolchain }
+  if ($LASTEXITCODE -eq 0) { Write-Ok "已卸载 $toolchain" } else { Write-Fail "rustup toolchain uninstall $toolchain 失败" }
 }
 
 function Remove-AllRustToolchain {
@@ -41,7 +42,8 @@ function Remove-AllRustToolchain {
   if (-not (Confirm-Remove "卸载所有 Rust 工具链（共 $($toolchains.Count) 个）")) { return }
   foreach ($tc in $toolchains) {
     if ($DryRun) { Write-Warn "DryRun: rustup toolchain uninstall $tc"; continue }
-    try { Invoke-NativeStream -Block { & rustup toolchain uninstall $tc }; Write-Ok "已卸载 $tc" } catch { Write-Fail "卸载 $tc 失败" }
+    Invoke-NativeStream -Block { & rustup toolchain uninstall $tc }
+    if ($LASTEXITCODE -eq 0) { Write-Ok "已卸载 $tc" } else { Write-Fail "卸载 $tc 失败" }
   }
 }
 
