@@ -5,7 +5,9 @@ param(
 
   [Parameter(Position = 1)]
   [Alias('y')]
-  [switch]$Yes
+  [switch]$Yes,
+
+  [switch]$CheckOnly
 )
 
 $ErrorActionPreference = 'Stop'
@@ -115,12 +117,13 @@ function New-Keystore {
   }
 }
 
-if ([string]::IsNullOrWhiteSpace($Command)) {
-  Write-Host "用法：$($MyInvocation.MyCommand.Name) <dev|build> [-y]" -ForegroundColor Cyan
+if ([string]::IsNullOrWhiteSpace($Command) -and -not $CheckOnly) {
+  Write-Host "用法：$($MyInvocation.MyCommand.Name) <dev|build> [-y] [-CheckOnly]" -ForegroundColor Cyan
   Write-Host ""
-  Write-Host "  dev    启动 Tauri Android 开发模式（热重载）"
-  Write-Host "  build  构建 Android APK/AAB 发布包"
-  Write-Host "  -y     自动确认所有安装提示（静默模式）"
+  Write-Host "  dev        启动 Tauri Android 开发模式（热重载）"
+  Write-Host "  build      构建 Android APK/AAB 发布包"
+  Write-Host "  -y         自动确认所有安装提示（静默模式）"
+  Write-Host "  -CheckOnly 仅检查环境，不执行构建"
   exit 1
 }
 
@@ -198,6 +201,7 @@ if ($Failed) {
 }
 Write-Banner -Title '所有检查通过！' -Color Cyan -TitleColor Green
 Write-Host ""
+if ($CheckOnly) { exit 0 }
 
 Write-Banner -Title '构建准备                                ' -Color Cyan
 Write-Host ""
