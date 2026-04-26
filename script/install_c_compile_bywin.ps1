@@ -116,15 +116,18 @@ function Install-Rustup {
     return $false
   }
 
+  $verifyInstalled = {
+    Add-CargoBinPath
+    if (-not (Get-ExePath 'rustup.exe')) { return $false }
+    $v = (Invoke-NativeText -FilePath 'rustup' -Arguments @('--version') | Select-Object -First 1)
+    Write-Ok "rustup 安装成功：$v"
+    return $true
+  }
+
   if (Get-ExePath 'winget.exe') {
     Write-Host "  尝试通过 winget 安装 Rustlang.Rustup ..." -ForegroundColor Cyan
     Invoke-NativeStream -Block { & winget install --id Rustlang.Rustup --accept-package-agreements --accept-source-agreements --silent }
-    Add-CargoBinPath
-    if (Get-ExePath 'rustup.exe') {
-      $v = (Invoke-NativeText -FilePath 'rustup' -Arguments @('--version') | Select-Object -First 1)
-      Write-Ok "rustup 安装成功：$v"
-      return $true
-    }
+    if (& $verifyInstalled) { return $true }
     Write-Warn "winget 未生效或未找到 rustup，改用 rustup-init.exe ..."
   }
 
@@ -144,13 +147,7 @@ function Install-Rustup {
   } catch {}
   Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
 
-  Add-CargoBinPath
-
-  if (Get-ExePath 'rustup.exe') {
-    $v = (Invoke-NativeText -FilePath 'rustup' -Arguments @('--version') | Select-Object -First 1)
-    Write-Ok "rustup 安装成功：$v"
-    return $true
-  }
+  if (& $verifyInstalled) { return $true }
 
   Write-Fail "rustup 自动安装失败，请手动访问 https://rustup.rs 安装"
   return $false
