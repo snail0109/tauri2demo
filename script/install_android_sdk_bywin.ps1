@@ -222,7 +222,7 @@ if (-not (Invoke-SdkManager -SdkManagerPath $sdkmanager -AndroidHome $androidHom
 }
 
 Write-Host ""
-Write-Host "  ✓ Android SDK 组件安装完成！" -ForegroundColor Green
+Write-Ok "Android SDK 组件安装完成！"
 Write-Host ""
 
 Write-Host "[5/6] 安装 Rust Android 编译目标" -ForegroundColor Cyan
