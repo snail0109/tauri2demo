@@ -372,10 +372,10 @@ function Save-WebFile {
     Write-Host ("    {0}) {1}" -f ($i + 1), $urlList[$i]) -ForegroundColor Cyan
   }
 
-  # ── 阶段一：并发竞速 ──
+  # ── 竞速阶段：并发连接 + 读取，统一计时 ──
   Write-Host "  并发竞速 ${RaceSec}s，选择最快源 ..." -ForegroundColor Cyan
 
-  # 为每个 URL 创建并发下载上下文
+  # 为每个 URL 创建下载上下文
   $contexts = @()
   foreach ($u in $urlList) {
     $ctx = @{
@@ -388,6 +388,7 @@ function Save-WebFile {
       ContentLength = -1L
       Error         = $null
       Done          = $false
+      Connected     = $false
     }
     $contexts += $ctx
   }
@@ -396,7 +397,7 @@ function Save-WebFile {
   foreach ($ctx in $contexts) {
     try {
       $req = [System.Net.HttpWebRequest]::Create($ctx.Url)
-      $req.Timeout = $TimeoutSec * 1000
+      $req.Timeout = [Math]::Max($RaceSec, $TimeoutSec) * 1000
       $req.ReadWriteTimeout = $TimeoutSec * 1000
       $req.UserAgent = 'PowerShell/Save-WebFile'
       $req.AllowAutoRedirect = $true
@@ -409,60 +410,40 @@ function Save-WebFile {
     }
   }
 
-  # 并发等待所有连接建立（统一超时，避免串行等待）
-  $connectTimeout = [Math]::Min($TimeoutSec * 1000, 15000)
-  $connectSw = [System.Diagnostics.Stopwatch]::StartNew()
-  while ($connectSw.ElapsedMilliseconds -lt $connectTimeout) {
-    $allDone = $true
-    foreach ($ctx in $contexts) {
-      if ($ctx.Done -or $null -ne $ctx.Response) { continue }
-      $allDone = $false
-      if ($ctx.AsyncResult.AsyncWaitHandle.WaitOne(0)) {
-        try {
-          $req = $ctx['_Request']
-          $resp = $req.EndGetResponse($ctx.AsyncResult)
-          $ctx.Response = $resp
-          $ctx.ContentLength = $resp.ContentLength
-          $ctx.Stream = $resp.GetResponseStream()
-          $ctx.Writer = [System.IO.File]::Create($ctx.TmpFile)
-        }
-        catch {
-          $ctx.Error = $_.Exception.Message
-          $ctx.Done = $true
-        }
-      }
-    }
-    if ($allDone) { break }
-    Start-Sleep -Milliseconds 200
-  }
-  # 超时未建立连接的标记失败
-  foreach ($ctx in $contexts) {
-    if ($ctx.Done -or $null -ne $ctx.Response) { continue }
-    $ctx.Error = '连接超时'
-    $ctx.Done = $true
-    try { $ctx['_Request'].Abort() } catch {}
-  }
-
-  # 并发异步读取循环
-  foreach ($ctx in $contexts) {
-    if ($ctx.Done -or $ctx.Error) { continue }
-    $ctx['_Buf'] = New-Object byte[] 81920
-    $ctx['_AsyncRead'] = $null
-    try {
-      $ctx['_AsyncRead'] = $ctx.Stream.BeginRead($ctx['_Buf'], 0, $ctx['_Buf'].Length, $null, $null)
-    }
-    catch {
-      $ctx.Error = $_.Exception.Message
-      $ctx.Done = $true
-    }
-  }
-
+  # 统一竞速循环：连接建立 + 异步读取，总时间不超过 RaceSec
   $raceSw = [System.Diagnostics.Stopwatch]::StartNew()
   $lastDisplay = 0L
   while ($raceSw.ElapsedMilliseconds -lt ($RaceSec * 1000)) {
     $anyActive = $false
+
     foreach ($ctx in $contexts) {
       if ($ctx.Done) { continue }
+
+      # 尚未连接：检查连接是否完成
+      if (-not $ctx.Connected) {
+        $anyActive = $true
+        if ($ctx.AsyncResult.AsyncWaitHandle.WaitOne(0)) {
+          try {
+            $req = $ctx['_Request']
+            $resp = $req.EndGetResponse($ctx.AsyncResult)
+            $ctx.Response = $resp
+            $ctx.ContentLength = $resp.ContentLength
+            $ctx.Stream = $resp.GetResponseStream()
+            $ctx.Writer = [System.IO.File]::Create($ctx.TmpFile)
+            $ctx.Connected = $true
+            # 立即发起第一次异步读取
+            $ctx['_Buf'] = New-Object byte[] 81920
+            $ctx['_AsyncRead'] = $ctx.Stream.BeginRead($ctx['_Buf'], 0, $ctx['_Buf'].Length, $null, $null)
+          }
+          catch {
+            $ctx.Error = $_.Exception.Message
+            $ctx.Done = $true
+          }
+        }
+        continue
+      }
+
+      # 已连接：检查异步读取是否完成
       $anyActive = $true
       if ($null -ne $ctx['_AsyncRead'] -and $ctx['_AsyncRead'].IsCompleted) {
         try {
@@ -483,6 +464,7 @@ function Save-WebFile {
         }
       }
     }
+
     if (-not $anyActive) { break }
 
     # 每 2 秒刷新一次竞速进度
@@ -498,8 +480,9 @@ function Save-WebFile {
         } catch { $shortName = $ctx.Url }
         if ($ctx.Error) {
           $parts += "${shortName}: ✗"
+        } elseif (-not $ctx.Connected) {
+          $parts += "${shortName}: ..."
         } else {
-          $kb = [int]($ctx.Bytes / 1KB)
           $spd = [int](($ctx.Bytes / $elapsed) / 1KB)
           $parts += "${shortName}: ${spd}KB/s"
         }
@@ -509,6 +492,14 @@ function Save-WebFile {
     }
 
     Start-Sleep -Milliseconds 50
+  }
+
+  # 超时未连接的标记失败
+  foreach ($ctx in $contexts) {
+    if ($ctx.Done -or $ctx.Connected) { continue }
+    $ctx.Error = '连接超时'
+    $ctx.Done = $true
+    try { $ctx['_Request'].Abort() } catch {}
   }
 
   # 显示竞速结果
