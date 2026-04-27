@@ -398,13 +398,17 @@ function Save-WebFile {
       $elapsed = [Math]::Max($raceSw.Elapsed.TotalSeconds, 0.001)
       $parts = @()
       foreach ($ctx in $contexts) {
-        $shortUrl = if ($ctx.Url.Length -gt 40) { $ctx.Url.Substring(0, 40) + '...' } else { $ctx.Url }
+        # 提取域名部分（如 gh-proxy.org）
+        try {
+          $uri = [System.Uri]::new($ctx.Url)
+          $shortName = $uri.Host
+        } catch { $shortName = $ctx.Url }
         if ($ctx.Error) {
-          $parts += "${shortUrl}: ✗"
+          $parts += "${shortName}: ✗"
         } else {
           $kb = [int]($ctx.Bytes / 1KB)
           $spd = [int](($ctx.Bytes / $elapsed) / 1KB)
-          $parts += "${shortUrl}: ${kb}KB ${spd}KB/s"
+          $parts += "${shortName}: ${kb}KB ${spd}KB/s"
         }
       }
       $raceDisplay = "    [{0:N0}s] {1}   " -f ([int]$raceSw.Elapsed.TotalSeconds), ($parts -join ' | ')
