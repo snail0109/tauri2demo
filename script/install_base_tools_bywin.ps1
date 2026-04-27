@@ -6,9 +6,6 @@ param(
 
   [string[]]$RemoveTools,
 
-  [ValidateSet('module', 'cli')]
-  [string]$WingetMode = 'cli',
-
   [ValidateSet('auto', 'appx', 'store', 'psgallery', 'onescript')]
   [string]$WingetMethod = 'auto'
 )
@@ -50,65 +47,6 @@ function Resolve-WinGetModuleVersion {
   } catch {
     Write-Warn "查询 Microsoft.WinGet.Client 模块版本失败：$($_.Exception.Message)"
     return $null
-  }
-}
-
-function Initialize-WinGetMode {
-  # 根据 -WingetMode 参数初始化：module 模式加载模块，cli 模式跳过。
-  # 模块版本必须与 winget CLI 版本匹配，否则报错。
-  if ($WingetMode -ne 'module') { return }
-
-  # 获取 winget CLI 版本
-  $wingetVer = ''
-  try {
-    $winget = Get-ExePath 'winget.exe'
-    if ($winget) {
-      $verStr = (Invoke-NativeText -FilePath $winget -Arguments @('--version') | Select-Object -First 1).Trim()
-      if ($verStr -match '^v?(\d+\.\d+)') { $wingetVer = $Matches[1] }
-    }
-  } catch {}
-
-  # 确定期望的模块版本前缀
-  $moduleVerPrefix = if ($wingetVer -and $wingetVer.StartsWith('1.5')) { '0.2' } elseif ($wingetVer) { $wingetVer }
-
-  # 检查已安装的模块版本是否匹配
-  $existingModule = Get-Module -ListAvailable -Name 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue |
-    Sort-Object Version -Descending | Select-Object -First 1
-  if ($existingModule) {
-    $installed = "$($existingModule.Version)"
-    if ($moduleVerPrefix -and $installed.StartsWith($moduleVerPrefix)) {
-      # 版本匹配，直接加载
-      Import-Module 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue
-      if (Get-Module -Name 'Microsoft.WinGet.Client' -ErrorAction SilentlyContinue) {
-        Write-Ok "Microsoft.WinGet.Client 模块 v$installed 已加载（匹配 winget v$wingetVer）"
-        return
-      }
-    }
-    # 版本不匹配，卸载旧版本后安装匹配版本
-    Write-Warn "已安装模块 v$installed 与 winget v$wingetVer 不兼容，需要 v$moduleVerPrefix.x"
-  }
-
-  # 安装匹配版本的模块
-  Write-Host "  安装 Microsoft.WinGet.Client 模块（匹配 winget v$wingetVer）..." -ForegroundColor Cyan
-  try {
-    if ($moduleVerPrefix) {
-      $allVersions = Find-Module -Name 'Microsoft.WinGet.Client' -AllVersions -ErrorAction Stop |
-        Sort-Object Version -Descending
-      $matched = $allVersions | Where-Object { "$($_.Version)".StartsWith($moduleVerPrefix) } | Select-Object -First 1
-      if ($matched) {
-        Install-Module -Name 'Microsoft.WinGet.Client' -RequiredVersion $matched.Version -Force -Scope CurrentUser -ErrorAction Stop
-        Write-Ok "已安装模块 v$($matched.Version)（匹配 winget v$wingetVer）"
-      } else {
-        Write-Fail "未找到匹配 winget v$wingetVer 的模块版本（需要 v$moduleVerPrefix.x）"
-        return
-      }
-    } else {
-      Install-Module -Name 'Microsoft.WinGet.Client' -Force -Scope CurrentUser -ErrorAction Stop
-    }
-    Import-Module 'Microsoft.WinGet.Client' -ErrorAction Stop
-    Write-Ok "Microsoft.WinGet.Client 模块安装完成"
-  } catch {
-    Write-Fail "模块安装失败：$($_.Exception.Message)"
   }
 }
 
@@ -336,7 +274,6 @@ function Install-WingetTool {
   if (Test-Winget) {
     Write-Host ""
     Add-WingetMirrorSource
-    Initialize-WinGetMode
     Write-Banner -Title 'winget 已就绪' -Color Green
     return $true
   }
@@ -410,7 +347,6 @@ function Install-WingetTool {
   Write-Host ""
   if (Test-Winget) {
     Add-WingetMirrorSource
-    Initialize-WinGetMode
     Write-Banner -Title 'winget 安装成功' -Color Green
     return $true
   }
@@ -524,20 +460,11 @@ function Install-WindowsTerminalTool {
   # 方式一：通过 winget 安装
   if (Get-ExePath 'winget.exe') {
     Write-Host "  通过 winget 安装 Windows 终端 ..." -ForegroundColor Cyan
-    if ($WingetMode -eq 'module') {
-      try {
-        Install-WinGetPackage -Id Microsoft.WindowsTerminal -Source winget -AcceptPackageAgreements -AcceptSourceAgreements | Out-Null
-        $installed = $true
-      } catch {
-        Write-Fail "WinGet 模块安装失败：$($_.Exception.Message)"
-      }
-    } else {
-      try {
-        Invoke-NativeStream -Block { & winget install --id Microsoft.WindowsTerminal --source winget --accept-package-agreements --accept-source-agreements }
-        $installed = $true
-      } catch {
-        Write-Fail "winget 命令行安装失败：$($_.Exception.Message)"
-      }
+    try {
+      Invoke-NativeStream -Block { & winget install --id Microsoft.WindowsTerminal --source winget --accept-package-agreements --accept-source-agreements }
+      $installed = $true
+    } catch {
+      Write-Fail "winget 安装失败：$($_.Exception.Message)"
     }
     if ($installed -and -not (Test-WindowsTerminal)) {
       Write-Warn "winget 报告成功但未检测到 wt.exe"
@@ -645,20 +572,11 @@ function Uninstall-WindowsTerminalTool {
   # 方式二：通过 winget 卸载
   if (-not $uninstalled -and (Get-ExePath 'winget.exe')) {
     Write-Host "  通过 winget 卸载 Windows 终端 ..." -ForegroundColor Cyan
-    if ($WingetMode -eq 'module') {
-      try {
-        Uninstall-WinGetPackage -Id Microsoft.WindowsTerminal -Source winget | Out-Null
-        $uninstalled = $true
-      } catch {
-        Write-Fail "WinGet 模块卸载失败：$($_.Exception.Message)"
-      }
-    } else {
-      try {
-        Invoke-NativeStream -Block { & winget uninstall --id Microsoft.WindowsTerminal --source winget --accept-source-agreements }
-        $uninstalled = $true
-      } catch {
-        Write-Fail "winget 命令行卸载失败：$($_.Exception.Message)"
-      }
+    try {
+      Invoke-NativeStream -Block { & winget uninstall --id Microsoft.WindowsTerminal --source winget --accept-source-agreements }
+      $uninstalled = $true
+    } catch {
+      Write-Fail "winget 卸载失败：$($_.Exception.Message)"
     }
   }
 
@@ -719,7 +637,6 @@ function Write-Usage {
   Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools <工具1,工具2,...>  卸载指定工具"
   Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools all               卸载所有工具"
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools winget -WingetMethod psgallery  指定 winget 安装方式"
-  Write-Host "  .\install_base_tools_bywin.ps1 -AddTools terminal -WingetMode cli        使用 winget 命令行模式"
   Write-Host ""
   Write-Host "可用工具：" -ForegroundColor Cyan
   foreach ($t in $ToolDefs) {
@@ -733,11 +650,6 @@ function Write-Usage {
   Write-Host "  psgallery  通过 PowerShell Gallery 安装（无需 GitHub）"
   Write-Host "  onescript  通过一键脚本 irm asheroto.com/winget | iex 安装（无需 GitHub）"
   Write-Host ""
-  Write-Host "WingetMode 参数（安装/卸载其他工具时生效）：" -ForegroundColor Cyan
-  Write-Host "  cli        通过 winget 命令行调用（默认）"
-  Write-Host "  module     通过 Microsoft.WinGet.Client PowerShell 模块调用"
-  Write-Host "             安装 winget 时会自动匹配模块版本，找不到匹配版本则报错退出"
-  Write-Host ""
   Write-Host "示例：" -ForegroundColor Cyan
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools winget"
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools winget,terminal"
@@ -747,7 +659,6 @@ function Write-Usage {
   Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools all"
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools winget -WingetMethod psgallery"
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools winget -WingetMethod onescript"
-  Write-Host "  .\install_base_tools_bywin.ps1 -AddTools terminal -WingetMode cli"
   Write-Host ""
 }
 
