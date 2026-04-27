@@ -416,16 +416,23 @@ function Save-WebFile {
     }
   }
 
-  # 等待连接建立
+  # 等待连接建立（带超时，避免某个 URL 卡住整个流程）
+  $connectTimeout = [Math]::Min($TimeoutSec * 1000, 15000)
   foreach ($ctx in $contexts) {
     if ($ctx.Done) { continue }
     try {
       $req = $ctx['_Request']
-      $resp = $req.EndGetResponse($ctx.AsyncResult)
-      $ctx.Response = $resp
-      $ctx.ContentLength = $resp.ContentLength
-      $ctx.Stream = $resp.GetResponseStream()
-      $ctx.Writer = [System.IO.File]::Create($ctx.TmpFile)
+      if ($ctx.AsyncResult.AsyncWaitHandle.WaitOne($connectTimeout)) {
+        $resp = $req.EndGetResponse($ctx.AsyncResult)
+        $ctx.Response = $resp
+        $ctx.ContentLength = $resp.ContentLength
+        $ctx.Stream = $resp.GetResponseStream()
+        $ctx.Writer = [System.IO.File]::Create($ctx.TmpFile)
+      } else {
+        $ctx.Error = '连接超时'
+        $ctx.Done = $true
+        try { $req.Abort() } catch {}
+      }
     }
     catch {
       $ctx.Error = $_.Exception.Message
