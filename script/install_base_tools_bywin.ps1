@@ -134,17 +134,81 @@ function Install-WingetTool {
 
   if (-not (Confirm-Install "安装 winget（Windows 包管理器）")) { return $false }
 
-  Write-Host "  安装 winget ..." -ForegroundColor Cyan
+  $installed = $false
+
+  # 方式一：从 GitHub 下载最新版 App Installer msixbundle 安装
+  Write-Host "  下载 winget 安装包 ..." -ForegroundColor Cyan
+  $wingetInstaller = Join-Path $env:TEMP ("Microsoft.DesktopAppInstaller_{0}.msixbundle" -f ([guid]::NewGuid().ToString('N')))
   try {
-    Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe -ForceApplicationShutdown -ErrorAction Stop
-    Write-Ok "winget 安装成功"
+    # 尝试从 GitHub API 获取最新版下载地址
+    $downloadUrl = $null
+    try {
+      $prev = $ErrorActionPreference
+      $ErrorActionPreference = 'Continue'
+      $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/microsoft/winget-cli/releases/latest' -TimeoutSec 15
+      $asset = $release.assets | Where-Object { $_.name -like 'Microsoft.DesktopAppInstaller_*.msixbundle' } | Select-Object -First 1
+      if ($asset) { $downloadUrl = $asset.browser_download_url }
+      $ErrorActionPreference = $prev
+    }
+    catch {
+      Write-Warn "无法获取 winget 最新版下载地址，使用固定版本 ..."
+    }
+
+    # 构建下载 URL 列表：优先 gh-proxy.org 加速镜像，再尝试直连
+    $urls = @()
+    if ($downloadUrl) {
+      $urls += "https://gh-proxy.org/$downloadUrl"
+      $urls += $downloadUrl
+    }
+    # 固定版本兜底
+    $fixedUrl = 'https://github.com/microsoft/winget-cli/releases/download/v1.10.340/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
+    $urls += "https://gh-proxy.org/$fixedUrl"
+    $urls += $fixedUrl
+
+    if (Save-WebFile -Urls $urls -OutFile $wingetInstaller -TimeoutSec 120) {
+      try {
+        Add-AppxPackage -Path $wingetInstaller -ErrorAction Stop
+        Write-Ok "winget 安装成功"
+        $installed = $true
+      }
+      catch {
+        Write-Fail "winget 安装失败：$($_.Exception.Message)"
+      }
+    }
+    else {
+      Write-Fail "下载 winget 安装包失败"
+    }
   }
-  catch {
-    Write-Fail "winget 安装失败：$($_.Exception.Message)"
-    Write-Fail "请手动安装 winget："
-    Write-Fail "  • 运行：Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe -ForceApplicationShutdown"
-    Write-Fail "  • 或打开 Microsoft Store 搜索「应用安装程序」并安装/更新"
-    return $false
+  finally {
+    Remove-Item -LiteralPath $wingetInstaller -Force -ErrorAction SilentlyContinue
+  }
+
+  # 方式二：通过 Add-AppxPackage 注册（适用于系统已有包框架但未注册的情况）
+  if (-not $installed) {
+    Write-Host "  尝试注册系统内置的 App Installer 包 ..." -ForegroundColor Cyan
+    try {
+      Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe -ForceApplicationShutdown -ErrorAction Stop
+      Write-Ok "App Installer 包注册成功"
+      $installed = $true
+    }
+    catch {
+      Write-Warn "注册失败：$($_.Exception.Message)"
+    }
+  }
+
+  # 方式三：打开 Microsoft Store
+  if (-not $installed) {
+    Write-Host "  尝试从 Microsoft Store 安装 ..." -ForegroundColor Cyan
+    try {
+      Start-Process 'ms-windows-store://pdp/?ProductId=9nblggh4nns1'
+      Write-Warn "已打开 Microsoft Store 页面，请在 Store 中点击「安装」"
+      Write-Warn "安装完成后按 Enter 继续 ..."
+      Read-Host
+      $installed = Test-Winget
+    }
+    catch {
+      Write-Warn "无法打开 Microsoft Store：$($_.Exception.Message)"
+    }
   }
 
   Write-Host ""
@@ -153,8 +217,15 @@ function Install-WingetTool {
     Write-Banner -Title 'winget 安装成功' -Color Green
     return $true
   }
-  Write-Warn "winget 安装流程已执行，但当前 shell 未检测到 winget"
-  Write-Warn "请重新打开终端后再次运行此脚本验证"
+  if ($installed) {
+    Write-Warn "winget 安装流程已执行，但当前 shell 未检测到 winget"
+    Write-Warn "请重新打开终端后再次运行此脚本验证"
+    return $false
+  }
+  Write-Fail "winget 自动安装失败"
+  Write-Fail "请手动安装 winget："
+  Write-Fail "  • 访问 https://github.com/microsoft/winget-cli/releases 下载 .msixbundle 安装"
+  Write-Fail "  • 或打开 Microsoft Store 搜索「应用安装程序」并安装/更新"
   return $false
 }
 
