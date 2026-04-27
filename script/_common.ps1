@@ -338,13 +338,13 @@ function Save-WebFile {
         if ($now - $lastReport -lt 200) { continue }
         $lastReport = $now
         $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
-        $speedMB = ($read / $sec) / 1MB
+        $speedKB = ($read / $sec) / 1KB
         if ($total -gt 0) {
           $pct = [int](($read / $total) * 100)
-          $etaSec = if ($speedMB -gt 0) { [int](($total - $read) / 1MB / $speedMB) } else { 0 }
-          $status = '{0,3}%  {1,6:N1} / {2,6:N1} MB  {3,6:N2} MB/s  ETA {4}s' -f $pct, ($read/1MB), ($total/1MB), $speedMB, $etaSec
+          $etaSec = if ($speedKB -gt 0) { [int](($total - $read) / 1KB / $speedKB) } else { 0 }
+          $status = '{0,3}%  {1,8:N0} / {2,8:N0} KB  {3,6:N0} KB/s  ETA {4}s' -f $pct, ($read/1KB), ($total/1KB), $speedKB, $etaSec
         } else {
-          $status = '{0,6:N1} MB  {1,6:N2} MB/s' -f ($read/1MB), $speedMB
+          $status = '{0,8:N0} KB  {1,6:N0} KB/s' -f ($read/1KB), $speedKB
         }
         if ($useProgressBar) {
           if ($total -gt 0) { Write-Progress -Activity "下载中：$u" -Status $status -PercentComplete $pct }
@@ -381,8 +381,8 @@ function Save-WebFile {
 
       $sw.Stop()
       $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
-      $avgMB = ($read / $sec) / 1MB
-      Write-Ok ("下载完成（{0:N1} MB，{1:N2} MB/s，来源：{2}）" -f ($read/1MB), $avgMB, $u)
+      $avgKB = ($read / $sec) / 1KB
+      Write-Ok ("下载完成（{0:N0} KB，{1:N0} KB/s，来源：{2}）" -f ($read/1KB), $avgKB, $u)
       return $true
     } catch {
       if ($useProgressBar) { Write-Progress -Activity '下载中' -Completed }
