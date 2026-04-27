@@ -39,10 +39,12 @@ function Test-Winget {
     if ($winget -match 'WindowsApps') {
       # WindowsApps 下的是零字节别名，通过 AppxPackage 获取实际大小
       $pkg = Get-AppxPackage -Name Microsoft.DesktopAppInstaller -ErrorAction Stop | Select-Object -First 1
-      if ($pkg) {
-        $pkgDir = Join-Path $pkg.InstallLocation '*'
-        $sizeBytes = (Get-ChildItem -LiteralPath $pkgDir -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
-        $sizeMB = '{0:N2}' -f ($sizeBytes / 1MB)
+      if ($pkg -and $pkg.InstallLocation) {
+        $total = 0L
+        foreach ($f in [System.IO.Directory]::EnumerateFiles($pkg.InstallLocation, '*', [System.IO.SearchOption]::AllDirectories)) {
+          $total += (New-Object System.IO.FileInfo($f)).Length
+        }
+        $sizeMB = '{0:N2}' -f ($total / 1MB)
         Write-Host "    大小：${sizeMB} MB（App Installer 包）"
       }
     } else {
@@ -366,10 +368,12 @@ function Test-WindowsTerminal {
     if ($wt -match 'WindowsApps') {
       # WindowsApps 下的是零字节别名，通过 AppxPackage 获取实际大小
       $pkg = Get-AppxPackage -Name Microsoft.WindowsTerminal -ErrorAction Stop | Select-Object -First 1
-      if ($pkg) {
-        $pkgDir = Join-Path $pkg.InstallLocation '*'
-        $sizeBytes = (Get-ChildItem -LiteralPath $pkgDir -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
-        $sizeMB = '{0:N2}' -f ($sizeBytes / 1MB)
+      if ($pkg -and $pkg.InstallLocation) {
+        $total = 0L
+        foreach ($f in [System.IO.Directory]::EnumerateFiles($pkg.InstallLocation, '*', [System.IO.SearchOption]::AllDirectories)) {
+          $total += (New-Object System.IO.FileInfo($f)).Length
+        }
+        $sizeMB = '{0:N2}' -f ($total / 1MB)
         Write-Host "    大小：${sizeMB} MB（Windows Terminal 包）"
       }
     } else {
