@@ -17,9 +17,6 @@ if (-not $wingetCmd) {
     exit 0
 }
 
-Write-Host "找到 winget: $($wingetCmd.Source)" -ForegroundColor Green
-Write-Host ""
-
 # 查找 WindowsApps 下所有 winget.exe
 $targets = @()
 $appDirs = Get-ChildItem "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*" -Directory -ErrorAction SilentlyContinue
@@ -47,14 +44,6 @@ foreach ($t in $targets) {
 Write-Host ""
 Write-Host "将通过重命名为 .bak 来禁用 winget 命令。" -ForegroundColor White
 Write-Host "(恢复方法: 将 .bak 后缀去掉即可)" -ForegroundColor DarkGray
-Write-Host ""
-
-$confirm = Read-Host "是否继续? (y/N)"
-if ($confirm -notmatch '^[yY]') {
-    Write-Host "已取消。" -ForegroundColor Yellow
-    exit 0
-}
-
 Write-Host ""
 
 foreach ($exe in $targets) {

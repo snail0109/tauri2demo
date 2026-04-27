@@ -121,7 +121,6 @@ function Install-WingetTool {
   if (Test-Winget) {
     Write-Host ""
     Add-WingetMirrorSource
-    Write-Banner -Title 'winget 已就绪' -Color Green
     return $true
   }
 
