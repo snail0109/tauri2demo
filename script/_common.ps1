@@ -519,11 +519,16 @@ function Save-WebFile {
     }
   }
 
-  # 选择最快的有效源（按已下载字节数排序）
-  $best = $contexts |
-    Where-Object { -not $_.Error -and $_.Bytes -gt 0 } |
-    Sort-Object -Property Bytes -Descending |
-    Select-Object -First 1
+  # 选择最快的有效源（按已下载字节数排序，确保数值排序）
+  $validContexts = @($contexts | Where-Object { -not $_.Error -and $_.Bytes -gt 0 })
+  $best = $null
+  $maxBytes = 0L
+  foreach ($ctx in $validContexts) {
+    if ($ctx.Bytes -gt $maxBytes) {
+      $maxBytes = $ctx.Bytes
+      $best = $ctx
+    }
+  }
 
   # 关闭并清理非最佳源
   foreach ($ctx in $contexts) {
