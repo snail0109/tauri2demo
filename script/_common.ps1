@@ -287,9 +287,8 @@ function Set-UserEnvIfChanged {
 # ─── Web download ────────────────────────────────────────────────────────────
 function Save-WebFile {
   # 并发竞速下载：先同时启动所有 URL 连接，RaceSec（默认 30）秒后保留速度最快的一个继续下载。
-  # 当下载速度持续低于 MinSpeedKBps（默认 300 KB/s）时，自动中断。
   # MinSizeKB 参数：下载完成后校验文件大小，小于此值视为无效（如代理返回错误页面）。
-  param([string[]]$Urls, [string]$OutFile, [int]$TimeoutSec = 30, [int]$MinSpeedKBps = 300, [int]$MinSizeKB = 0, [int]$RaceSec = 30)
+  param([string[]]$Urls, [string]$OutFile, [int]$TimeoutSec = 30, [int]$MinSizeKB = 0, [int]$RaceSec = 30)
 
   $urlList = @(
     $Urls |
@@ -482,11 +481,6 @@ function Save-WebFile {
   $sw = [System.Diagnostics.Stopwatch]::StartNew()
   $lastReport = 0L
   $lastLineLen = 0
-  # 低速检测
-  [long]$speedCheckBytes = 0
-  $speedCheckStart = $null
-  $slowSpeed = $false
-  $avgSpeedKBps = 0.0
 
   # 如果竞速阶段结束时还有未完成的异步读取，先处理它
   if ($null -ne $best['_AsyncRead']) {
@@ -552,34 +546,15 @@ function Save-WebFile {
         $pad = [Math]::Max(0, $lastLineLen - $line.Length)
         [Console]::Write("`r" + $line + (' ' * $pad))
         $lastLineLen = $line.Length
-
-        # 低速检测
-        if ($null -eq $speedCheckStart -and $read -gt $alreadyBytes) {
-          $speedCheckStart = $now
-          $speedCheckBytes = 0
-        }
-        if ($null -ne $speedCheckStart -and ($now - $speedCheckStart) -ge 30000) {
-          $avgSec = [Math]::Max(($now - $speedCheckStart) / 1000.0, 0.001)
-          $avgSpeedKBps = ($speedCheckBytes / $avgSec) / 1KB
-          if ($avgSpeedKBps -lt $MinSpeedKBps) {
-            $slowSpeed = $true
-            break
-          }
-          $speedCheckBytes = 0
-          $speedCheckStart = $now
-        }
       }
       Start-Sleep -Milliseconds 50
     }
-
-    if ($slowSpeed) { break }
 
     try {
       $n = $best.Stream.EndRead($asyncRead)
       if ($n -gt 0) {
         $best.Writer.Write($buf, 0, $n)
         $read += $n
-        $speedCheckBytes += $n
         # 发起下一次异步读取
         $asyncRead = $best.Stream.BeginRead($buf, 0, $buf.Length, $null, $null)
       } else {
@@ -600,13 +575,6 @@ function Save-WebFile {
   if ($best.Writer) { try { $best.Writer.Close() } catch {} }
   if ($best.Stream) { try { $best.Stream.Close() } catch {} }
   if ($best.Response) { try { $best.Response.Close() } catch {} }
-
-  if ($slowSpeed) {
-    $avgSpeedKBpsStr = '{0:N0}' -f $avgSpeedKBps
-    Write-Warn "下载速度过慢（30秒平均 ${avgSpeedKBpsStr} KB/s < ${MinSpeedKBps} KB/s）"
-    Remove-Item -LiteralPath $best.TmpFile -Force -ErrorAction SilentlyContinue
-    return $false
-  }
 
   $sw.Stop()
   $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
