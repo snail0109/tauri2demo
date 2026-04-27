@@ -407,7 +407,8 @@ function Save-WebFile {
           $parts += "${shortUrl}: ${kb}KB ${spd}KB/s"
         }
       }
-      [Console]::Write("`r    [{0:N0}s] {1}   " -f $raceSw.Elapsed.TotalSeconds, ($parts -join ' | '))
+      $raceDisplay = "    [{0:N0}s] {1}   " -f ([int]$raceSw.Elapsed.TotalSeconds), ($parts -join ' | ')
+      [Console]::Write("`r$raceDisplay")
     }
 
     Start-Sleep -Milliseconds 50
