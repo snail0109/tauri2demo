@@ -35,6 +35,11 @@ function Test-Winget {
   }
   Write-Ok "winget 已安装"
   Write-Host "    路径：$winget"
+  try {
+    $fi = Get-Item -LiteralPath $winget -ErrorAction Stop
+    $sizeMB = '{0:N2}' -f ($fi.Length / 1MB)
+    Write-Host "    大小：${sizeMB} MB"
+  } catch {}
   if (-not [string]::IsNullOrWhiteSpace($ver)) { Write-Host "    版本：$ver" }
   return $true
 }
@@ -346,6 +351,11 @@ function Test-WindowsTerminal {
   $ver = (Invoke-NativeText -FilePath $wt -Arguments @('--version') | Select-Object -First 1)
   Write-Ok "Windows 终端 已安装"
   Write-Host "    路径：$wt"
+  try {
+    $fi = Get-Item -LiteralPath $wt -ErrorAction Stop
+    $sizeMB = '{0:N2}' -f ($fi.Length / 1MB)
+    Write-Host "    大小：${sizeMB} MB"
+  } catch {}
   if (-not [string]::IsNullOrWhiteSpace($ver)) { Write-Host "    版本：$ver" }
   return $true
 }
