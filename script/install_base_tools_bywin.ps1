@@ -6,8 +6,8 @@ param(
 
   [string[]]$RemoveTools,
 
-  [ValidateSet('auto', 'appx', 'store', 'psgallery', 'onescript')]
-  [string]$WingetMethod = 'auto'
+  [ValidateSet('appx',   'psgallery', 'onescript')]
+  [string]$WingetMethod = 'onescript'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,8 +20,8 @@ if ($Yes) { Enable-AutoConfirm }
 # ─── 工具注册表 ───────────────────────────────────────────────────────────────
 # 每个工具：Id（参数名）、Name（显示名）、Description
 $ToolDefs = @(
-  @{ Id = 'winget';  Name = 'winget';        Description = 'Windows 包管理器' },
-  @{ Id = 'terminal'; Name = 'Windows 终端';  Description = 'Windows Terminal（多标签终端）' }
+  @{ Id = 'winget'; Name = 'winget'; Description = 'Windows 包管理器' },
+  @{ Id = 'terminal'; Name = 'Windows 终端'; Description = 'Windows Terminal（多标签终端）' }
 )
 
 # ─── winget ───────────────────────────────────────────────────────────────────
@@ -38,13 +38,15 @@ function Resolve-WinGetModuleVersion {
     # 提取主版本前缀（如 "1.12.440" → "1.12"，"0.2.1" → "0.2"）
     if ($modVer -match '^(\d+\.\d+)') {
       $modPrefix = $Matches[1]
-    } else {
+    }
+    else {
       return $null
     }
     # 反推 winget 版本前缀
     $wingetPrefix = if ($modPrefix -eq '0.2') { '1.5' } else { $modPrefix }
     return @{ ModuleVersion = $modVer; WingetVerPrefix = $wingetPrefix }
-  } catch {
+  }
+  catch {
     Write-Warn "查询 Microsoft.WinGet.Client 模块版本失败：$($_.Exception.Message)"
     return $null
   }
@@ -71,16 +73,20 @@ function Install-WingetFromAppx {
         try {
           Add-AppxPackage -Path $vcLibsInstaller -ErrorAction Stop
           Write-Ok "VCLibs 安装成功"
-        } catch {
+        }
+        catch {
           Write-Warn "VCLibs 安装失败：$($_.Exception.Message)"
         }
-      } else {
+      }
+      else {
         Write-Warn "VCLibs 下载失败，继续尝试安装 winget ..."
       }
-    } finally {
+    }
+    finally {
       Remove-Item -LiteralPath $vcLibsInstaller -Force -ErrorAction SilentlyContinue
     }
-  } else {
+  }
+  else {
     Write-Ok "VCLibs 已安装"
   }
 
@@ -91,22 +97,26 @@ function Install-WingetFromAppx {
     $xamlInstaller = Join-Path $env:TEMP ("UIXaml_{0}.msix" -f ([guid]::NewGuid().ToString('N')))
     try {
       if (Save-WebFile -Urls @(
-        'https://github.com/nicedouble/WinGetInstall/raw/main/Microsoft.UI.Xaml.2.8.msix',
-        'https://globalcdn.nuget.org/packages/microsoft.ui.xaml.2.8.6.nupkg'
-      ) -OutFile $xamlInstaller -TimeoutSec 60) {
+          'https://github.com/nicedouble/WinGetInstall/raw/main/Microsoft.UI.Xaml.2.8.msix',
+          'https://globalcdn.nuget.org/packages/microsoft.ui.xaml.2.8.6.nupkg'
+        ) -OutFile $xamlInstaller -TimeoutSec 60) {
         try {
           Add-AppxPackage -Path $xamlInstaller -ErrorAction Stop
           Write-Ok "Microsoft.UI.Xaml 安装成功"
-        } catch {
+        }
+        catch {
           Write-Warn "Microsoft.UI.Xaml 安装失败：$($_.Exception.Message)"
         }
-      } else {
+      }
+      else {
         Write-Warn "Microsoft.UI.Xaml 下载失败，继续尝试安装 winget ..."
       }
-    } finally {
+    }
+    finally {
       Remove-Item -LiteralPath $xamlInstaller -Force -ErrorAction SilentlyContinue
     }
-  } else {
+  }
+  else {
     Write-Ok "Microsoft.UI.Xaml 已安装"
   }
 
@@ -123,7 +133,8 @@ function Install-WingetFromAppx {
       $asset = $release.assets | Where-Object { $_.name -like '*.appxbundle' } | Select-Object -First 1
       if ($asset) { $downloadUrl = $asset.browser_download_url }
       $ErrorActionPreference = $prev
-    } catch {
+    }
+    catch {
       Write-Warn "无法获取 winget 最新版下载地址，使用固定版本 ..."
     }
 
@@ -141,11 +152,13 @@ function Install-WingetFromAppx {
       Add-AppxPackage -Path $wingetInstaller -ErrorAction Stop
       Write-Ok "winget 安装成功"
       return $true
-    } catch {
+    }
+    catch {
       Write-Fail "winget 安装失败：$($_.Exception.Message)"
       return $false
     }
-  } finally {
+  }
+  finally {
     Remove-Item -LiteralPath $wingetInstaller -Force -ErrorAction SilentlyContinue
   }
 }
@@ -156,7 +169,8 @@ function Install-WingetFromPSGallery {
     Invoke-NativeStream -Block { & powershell -NoProfile -Command "Install-Script winget-install -Force; winget-install" }
     Write-Ok "winget-install 脚本已执行"
     return $true
-  } catch {
+  }
+  catch {
     Write-Warn "PowerShell Gallery 安装失败：$($_.Exception.Message)"
     return $false
   }
@@ -168,7 +182,8 @@ function Install-WingetFromOneScript {
     Invoke-NativeStream -Block { & powershell -NoProfile -Command "irm asheroto.com/winget | iex" }
     Write-Ok "winget 一键安装脚本已执行"
     return $true
-  } catch {
+  }
+  catch {
     Write-Warn "一键脚本安装失败：$($_.Exception.Message)"
     return $false
   }
@@ -189,7 +204,8 @@ function Install-WingetFromStore {
     Write-Warn "安装完成后按 Enter 继续 ..."
     Read-Host
     return (Test-Winget)
-  } catch {
+  }
+  catch {
     Write-Warn "无法打开 Microsoft Store：$($_.Exception.Message)"
     return $false
   }
@@ -204,7 +220,8 @@ function Add-WingetMirrorSource {
   try {
     $verStr = (Invoke-NativeText -FilePath $winget -Arguments @('--version') | Select-Object -First 1).Trim()
     $ver = [version]::new($verStr.Substring(0, [Math]::Min($verStr.Length, 10 - 1))) # 取前缀避免多余字符
-  } catch {
+  }
+  catch {
     $ver = $null
   }
 
@@ -212,7 +229,8 @@ function Add-WingetMirrorSource {
   $sourceList = $null
   try {
     $sourceList = Invoke-NativeText -FilePath $winget -Arguments @('source', 'list')
-  } catch {
+  }
+  catch {
     $sourceList = ''
   }
 
@@ -234,7 +252,8 @@ function Add-WingetMirrorSource {
     try {
       Invoke-NativeStream -Block { & $winget source remove msstore }
       Write-Ok "已移除 msstore 源（避免证书验证报错）"
-    } catch {
+    }
+    catch {
       Write-Warn "移除 msstore 源失败：$($_.Exception.Message)"
     }
   }
@@ -243,7 +262,8 @@ function Add-WingetMirrorSource {
   if ($sourceList -and ($sourceList | Where-Object { $_ -match 'winget\s' })) {
     try {
       Invoke-NativeStream -Block { & $winget source remove winget }
-    } catch {
+    }
+    catch {
       Write-Warn "移除默认 winget 源失败：$($_.Exception.Message)"
     }
   }
@@ -253,14 +273,17 @@ function Add-WingetMirrorSource {
     try {
       Invoke-NativeStream -Block { & $winget source add winget $mirrorUrl --trust-level trusted }
       Write-Ok "winget 国内镜像源配置成功（ustc，trust-level trusted）"
-    } catch {
+    }
+    catch {
       Write-Warn "配置镜像源失败：$($_.Exception.Message)"
     }
-  } else {
+  }
+  else {
     try {
       Invoke-NativeStream -Block { & $winget source add winget $mirrorUrl }
       Write-Ok "winget 国内镜像源配置成功（ustc）"
-    } catch {
+    }
+    catch {
       Write-Warn "配置镜像源失败：$($_.Exception.Message)"
     }
   }
@@ -286,63 +309,29 @@ function Install-WingetTool {
   $installed = $false
 
   # 根据 -WingetMethod 参数决定安装方式
-  if ($WingetMethod -ne 'auto') {
-    switch ($WingetMethod) {
-      'appx' {
-        Write-Host ""
-        Write-Host "  指定方式：下载 winget 安装包并安装" -ForegroundColor Yellow
-        $installed = Install-WingetFromAppx
-      }
-      'store' {
-        Write-Host ""
-        Write-Host "  指定方式：通过 Microsoft Store 安装" -ForegroundColor Yellow
-        $installed = Install-WingetFromStore
-      }
-      'psgallery' {
-        Write-Host ""
-        Write-Host "  指定方式：通过 PowerShell Gallery 安装" -ForegroundColor Yellow
-        $installed = Install-WingetFromPSGallery
-      }
-      'onescript' {
-        Write-Host ""
-        Write-Host "  指定方式：通过一键脚本安装" -ForegroundColor Yellow
-        $installed = Install-WingetFromOneScript
-      }
-    }
-  } else {
-    # auto 模式：依次尝试各方式
-    if (-not $installed) {
+  switch ($WingetMethod) {
+    'appx' {
       Write-Host ""
-      Write-Host "  方式一：下载 winget 安装包并安装" -ForegroundColor Yellow
-      if (Confirm-Continue "通过下载 .appxbundle 安装 winget") {
-        $installed = Install-WingetFromAppx
-      }
+      Write-Host "  指定方式：下载 winget 安装包并安装" -ForegroundColor Yellow
+      $installed = Install-WingetFromAppx
     }
-
-    if (-not $installed) {
+    'store' {
       Write-Host ""
-      Write-Host "  方式二：通过 PowerShell Gallery 安装" -ForegroundColor Yellow
-      if (Confirm-Continue "通过 PowerShell Gallery 安装 winget") {
-        $installed = Install-WingetFromPSGallery
-      }
+      Write-Host "  指定方式：通过 Microsoft Store 安装" -ForegroundColor Yellow
+      $installed = Install-WingetFromStore
     }
-
-    if (-not $installed) {
+    'psgallery' {
       Write-Host ""
-      Write-Host "  方式三：通过一键脚本安装" -ForegroundColor Yellow
-      if (Confirm-Continue "通过 irm asheroto.com/winget | iex 安装 winget") {
-        $installed = Install-WingetFromOneScript
-      }
+      Write-Host "  指定方式：通过 PowerShell Gallery 安装" -ForegroundColor Yellow
+      $installed = Install-WingetFromPSGallery
     }
-
-    if (-not $installed) {
+    'onescript' {
       Write-Host ""
-      Write-Host "  方式四：通过 Microsoft Store 安装" -ForegroundColor Yellow
-      if (Confirm-Continue "打开 Microsoft Store 安装 winget") {
-        $installed = Install-WingetFromStore
-      }
+      Write-Host "  指定方式：通过一键脚本安装" -ForegroundColor Yellow
+      $installed = Install-WingetFromOneScript
     }
   }
+  
 
   Write-Host ""
   if (Test-Winget) {
@@ -394,9 +383,10 @@ function Uninstall-WingetTool {
   Write-Host "  重置应用安装程序 ..." -ForegroundColor Cyan
   try {
     Get-AppxPackage -Name 'Microsoft.DesktopAppInstaller' -ErrorAction SilentlyContinue |
-      ForEach-Object { Reset-AppxPackage -Package $_.PackageFullName -ErrorAction Stop }
+    ForEach-Object { Reset-AppxPackage -Package $_.PackageFullName -ErrorAction Stop }
     Write-Ok "应用安装程序已重置为系统初始版本"
-  } catch {
+  }
+  catch {
     Write-Fail "重置失败：$($_.Exception.Message)"
     Write-Host ""
     Write-Fail "winget 卸载失败"
@@ -413,7 +403,8 @@ function Uninstall-WingetTool {
     try {
       Invoke-NativeStream -Block { & $winget source remove winget }
       Write-Ok "已移除 winget 镜像源配置"
-    } catch {
+    }
+    catch {
       Write-Warn "移除镜像源失败：$($_.Exception.Message)"
     }
   }
@@ -463,7 +454,8 @@ function Install-WindowsTerminalTool {
     try {
       Invoke-NativeStream -Block { & winget install --id Microsoft.WindowsTerminal --source winget --accept-package-agreements --accept-source-agreements }
       $installed = $true
-    } catch {
+    }
+    catch {
       Write-Fail "winget 安装失败：$($_.Exception.Message)"
     }
     if ($installed -and -not (Test-WindowsTerminal)) {
@@ -486,7 +478,8 @@ function Install-WindowsTerminalTool {
         $asset = $release.assets | Where-Object { $_.name -like '*_x64.msixbundle' } | Select-Object -First 1
         if ($asset) { $downloadUrl = $asset.browser_download_url }
         $ErrorActionPreference = $prev
-      } catch {
+      }
+      catch {
         Write-Warn "无法获取 Windows 终端最新版下载地址，使用固定版本 ..."
       }
 
@@ -498,13 +491,16 @@ function Install-WindowsTerminalTool {
           Add-AppxPackage -Path $wtInstaller -ErrorAction Stop
           Write-Ok "Windows 终端安装成功"
           $installed = $true
-        } catch {
+        }
+        catch {
           Write-Fail "Windows 终端安装失败：$($_.Exception.Message)"
         }
-      } else {
+      }
+      else {
         Write-Fail "下载 Windows 终端安装包失败"
       }
-    } finally {
+    }
+    finally {
       Remove-Item -LiteralPath $wtInstaller -Force -ErrorAction SilentlyContinue
     }
   }
@@ -518,7 +514,8 @@ function Install-WindowsTerminalTool {
       Write-Warn "安装完成后按 Enter 继续 ..."
       Read-Host
       $installed = Test-WindowsTerminal
-    } catch {
+    }
+    catch {
       Write-Warn "无法打开 Microsoft Store：$($_.Exception.Message)"
     }
   }
@@ -564,7 +561,8 @@ function Uninstall-WindowsTerminalTool {
       Remove-AppxPackage -Package $wtPackage.PackageFullName -ErrorAction Stop
       Write-Ok "Windows 终端已卸载"
       $uninstalled = $true
-    } catch {
+    }
+    catch {
       Write-Warn "Remove-AppxPackage 卸载失败：$($_.Exception.Message)"
     }
   }
@@ -575,7 +573,8 @@ function Uninstall-WindowsTerminalTool {
     try {
       Invoke-NativeStream -Block { & winget uninstall --id Microsoft.WindowsTerminal --source winget --accept-source-agreements }
       $uninstalled = $true
-    } catch {
+    }
+    catch {
       Write-Fail "winget 卸载失败：$($_.Exception.Message)"
     }
   }
@@ -589,7 +588,8 @@ function Uninstall-WindowsTerminalTool {
       Write-Warn "卸载完成后按 Enter 继续 ..."
       Read-Host
       $uninstalled = -not (Test-WindowsTerminal)
-    } catch {
+    }
+    catch {
       Write-Warn "无法打开 Microsoft Store：$($_.Exception.Message)"
     }
   }
@@ -644,11 +644,9 @@ function Write-Usage {
   }
   Write-Host ""
   Write-Host "WingetMethod 参数（仅安装 winget 时生效）：" -ForegroundColor Cyan
-  Write-Host "  auto       自动依次尝试所有方式（默认）"
   Write-Host "  appx       下载 .appxbundle 安装包安装（需访问 GitHub）"
-  Write-Host "  store      通过 Microsoft Store 安装（需图形界面）"
   Write-Host "  psgallery  通过 PowerShell Gallery 安装（无需 GitHub）"
-  Write-Host "  onescript  通过一键脚本 irm asheroto.com/winget | iex 安装（无需 GitHub）"
+  Write-Host "  onescript  通过一键脚本 irm asheroto.com/winget（无需 GitHub）（默认）"
   Write-Host ""
   Write-Host "示例：" -ForegroundColor Cyan
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools winget"
@@ -745,7 +743,8 @@ if ($RemoveTools -and $RemoveTools.Count -gt 0) {
 
   if ($removeResults.Values -notcontains $false) {
     Write-Host "  所有工具卸载完成！" -ForegroundColor Green
-  } else {
+  }
+  else {
     Write-Host "  部分工具卸载未成功，请查看上方日志。" -ForegroundColor Yellow
   }
   Write-Host ""
@@ -782,7 +781,8 @@ if ($AddTools -and $AddTools.Count -gt 0) {
 
   if ($addResults.Values -notcontains $false) {
     Write-Host "  所有工具安装完成！" -ForegroundColor Green
-  } else {
+  }
+  else {
     Write-Host "  部分工具安装未成功，请查看上方日志。" -ForegroundColor Yellow
   }
 }
