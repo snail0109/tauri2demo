@@ -174,15 +174,15 @@ function Install-WingetTool {
 
     # 构建下载 URL 列表：优先 gh-proxy.org 加速镜像，再尝试直连
     $urls = @()
-    if ($downloadUrl) {
-      $urls += "https://gh-proxy.org/$downloadUrl"
-      $urls += "https://cdn.gh-proxy.org/$downloadUrl"
-      $urls += "https://hk.gh-proxy.org/$downloadUrl"
-      $urls += "https://gh.llkk.cc/$downloadUrl"
-    }
+    # if ($downloadUrl) {
+    #   $urls += "https://gh-proxy.org/$downloadUrl"
+    #   $urls += "https://cdn.gh-proxy.org/$downloadUrl"
+    #   $urls += "https://hk.gh-proxy.org/$downloadUrl"
+    #   $urls += "https://gh.llkk.cc/$downloadUrl"
+    # }
     # 固定版本兜底
-    # $fixedUrl = 'http://nj.yj2025.icu:23432/update/winget/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
-    # $urls += $fixedUrl    
+    $fixedUrl = 'http://nj.yj2025.icu:23432/update/winget/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
+    $urls += $fixedUrl    
 
     if (Save-WebFile -Urls $urls -OutFile $wingetInstaller -TimeoutSec 120 -MinSizeKB 10240) {
       try {

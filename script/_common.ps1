@@ -285,6 +285,74 @@ function Set-UserEnvIfChanged {
 }
 
 # ─── Web download ────────────────────────────────────────────────────────────
+function Save-WebFileSingle {
+  # 单地址直接下载，带进度显示和文件大小校验
+  param([string]$Url, [string]$OutFile, [int]$TimeoutSec = 30, [int]$MinSizeKB = 0)
+
+  Write-Host "  下载：$Url" -ForegroundColor Cyan
+  $resp = $null; $stream = $null; $out = $null
+  try {
+    $req = [System.Net.HttpWebRequest]::Create($Url)
+    $req.Timeout = $TimeoutSec * 1000
+    $req.ReadWriteTimeout = $TimeoutSec * 1000
+    $req.UserAgent = 'PowerShell/Save-WebFile'
+    $req.AllowAutoRedirect = $true
+    $resp = $req.GetResponse()
+    $total = $resp.ContentLength
+    $stream = $resp.GetResponseStream()
+    $out = [System.IO.File]::Create($OutFile)
+
+    $buf = New-Object byte[] 81920
+    [long]$read = 0
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $lastReport = 0L
+    $lastLineLen = 0
+    while (($n = $stream.Read($buf, 0, $buf.Length)) -gt 0) {
+      $out.Write($buf, 0, $n)
+      $read += $n
+      $now = $sw.ElapsedMilliseconds
+      if ($now - $lastReport -lt 200) { continue }
+      $lastReport = $now
+      $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
+      $speedKB = ($read / $sec) / 1KB
+      if ($total -gt 0) {
+        $pct = [int](($read / $total) * 100)
+        $etaSec = if ($speedKB -gt 0) { [int](($total - $read) / 1KB / $speedKB) } else { 0 }
+        $status = '{0,3}%  {1,8:N0} / {2,8:N0} KB  {3,6:N0} KB/s  ETA {4}s' -f $pct, ($read/1KB), ($total/1KB), $speedKB, $etaSec
+      } else {
+        $status = '{0,8:N0} KB  {1,6:N0} KB/s' -f ($read/1KB), $speedKB
+      }
+      $line = "    $status"
+      $pad = [Math]::Max(0, $lastLineLen - $line.Length)
+      [Console]::Write("`r" + $line + (' ' * $pad))
+      $lastLineLen = $line.Length
+    }
+    [Console]::Write("`r" + (' ' * $lastLineLen) + "`r")
+
+    $sw.Stop()
+    $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
+    $avgKB = ($read / $sec) / 1KB
+    Write-Ok ("下载完成（{0:N0} KB，{1:N0} KB/s）" -f ($read/1KB), $avgKB)
+
+    # 校验文件大小
+    if ($MinSizeKB -gt 0 -and ($read / 1KB) -lt $MinSizeKB) {
+      Write-Warn "下载文件过小（{0:N0} KB < {1:N0} KB），可能为错误页面" -f ($read/1KB), $MinSizeKB
+      Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+      return $false
+    }
+
+    return $true
+  } catch {
+    Write-Warn "下载失败：$($_.Exception.Message)"
+    Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+  } finally {
+    if ($out) { $out.Close() }
+    if ($stream) { $stream.Close() }
+    if ($resp) { $resp.Close() }
+  }
+  return $false
+}
+
 function Save-WebFile {
   # 并发竞速下载：先同时启动所有 URL 连接，RaceSec（默认 30）秒后保留速度最快的一个继续下载。
   # MinSizeKB 参数：下载完成后校验文件大小，小于此值视为无效（如代理返回错误页面）。
@@ -299,6 +367,11 @@ function Save-WebFile {
   if ($urlList.Count -le 0) {
     Write-Warn "未提供下载地址"
     return $false
+  }
+
+  # 单地址直接下载，无需竞速
+  if ($urlList.Count -eq 1) {
+    return (Save-WebFileSingle -Url $urlList[0] -OutFile $OutFile -TimeoutSec $TimeoutSec -MinSizeKB $MinSizeKB)
   }
 
   Write-Host "  可下载的地址库：" -ForegroundColor Cyan
