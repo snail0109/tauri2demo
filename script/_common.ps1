@@ -511,7 +511,7 @@ function Save-WebFile {
       $shortName = $uri.Host
     } catch { $shortName = $ctx.Url }
     if ($ctx.Error) {
-      Write-Host ("    ✗ {0}  {1}" -f $shortName, $ctx.Error) -ForegroundColor Red
+      Write-Host ("    ✗ {0}" -f $shortName) -ForegroundColor Red
     } else {
       $spdKB = [int](($ctx.Bytes / $elapsed) / 1KB)
       Write-Host ("    {0}  {1:N0} KB  {2:N0} KB/s" -f $shortName, ($ctx.Bytes / 1KB), $spdKB) -ForegroundColor Cyan
