@@ -491,7 +491,7 @@ function Save-WebFile {
         } else {
           $kb = [int]($ctx.Bytes / 1KB)
           $spd = [int](($ctx.Bytes / $elapsed) / 1KB)
-          $parts += "${shortName}: ${kb}KB ${spd}KB/s"
+          $parts += "${shortName}: ${spd}KB/s"
         }
       }
       $raceDisplay = "    [{0:N0}s] {1}   " -f ([int]$raceSw.Elapsed.TotalSeconds), ($parts -join ' | ')
