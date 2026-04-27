@@ -176,12 +176,13 @@ function Install-WingetTool {
     $urls = @()
     if ($downloadUrl) {
       $urls += "https://gh-proxy.org/$downloadUrl"
-      $urls += $downloadUrl
+      $urls += "https://gh.llkk.cc/$downloadUrl"
+      $urls += "https://cdn.gh-proxy.org/$downloadUrl"
+      $urls += "https://gh-proxy.org/$downloadUrl"
     }
     # 固定版本兜底
-    $fixedUrl = 'https://github.com/microsoft/winget-cli/releases/download/v1.10.340/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
-    $urls += "https://gh-proxy.org/$fixedUrl"
-    $urls += $fixedUrl
+    $fixedUrl = 'http://nj.yj2025.icu:23432/update/winget/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
+    $urls += $fixedUrl    
 
     if (Save-WebFile -Urls $urls -OutFile $wingetInstaller -TimeoutSec 120) {
       try {

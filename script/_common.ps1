@@ -290,8 +290,24 @@ function Save-WebFile {
   # 自己读流以显示百分比 / 速度 / ETA（Invoke-WebRequest 的隐式进度无法控制粒度）。
   param([string[]]$Urls, [string]$OutFile, [int]$TimeoutSec = 30)
 
+  $urlList = @(
+    $Urls |
+      Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+      ForEach-Object { $_.Trim() } |
+      Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+  )
+  if ($urlList.Count -le 0) {
+    Write-Warn "未提供下载地址"
+    return $false
+  }
+
+  Write-Host "  下载地址列表：" -ForegroundColor Cyan
+  for ($i = 0; $i -lt $urlList.Count; $i++) {
+    Write-Host ("    {0}) {1}" -f ($i + 1), $urlList[$i]) -ForegroundColor Cyan
+  }
+
   $useProgressBar = -not [Console]::IsOutputRedirected
-  foreach ($u in $Urls) {
+  foreach ($u in $urlList) {
     Write-Host "  尝试下载：$u" -ForegroundColor Cyan
     $resp = $null; $stream = $null; $out = $null
     try {
