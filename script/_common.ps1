@@ -409,28 +409,38 @@ function Save-WebFile {
     }
   }
 
-  # 等待连接建立（带超时，避免某个 URL 卡住整个流程）
+  # 并发等待所有连接建立（统一超时，避免串行等待）
   $connectTimeout = [Math]::Min($TimeoutSec * 1000, 15000)
-  foreach ($ctx in $contexts) {
-    if ($ctx.Done) { continue }
-    try {
-      $req = $ctx['_Request']
-      if ($ctx.AsyncResult.AsyncWaitHandle.WaitOne($connectTimeout)) {
-        $resp = $req.EndGetResponse($ctx.AsyncResult)
-        $ctx.Response = $resp
-        $ctx.ContentLength = $resp.ContentLength
-        $ctx.Stream = $resp.GetResponseStream()
-        $ctx.Writer = [System.IO.File]::Create($ctx.TmpFile)
-      } else {
-        $ctx.Error = '连接超时'
-        $ctx.Done = $true
-        try { $req.Abort() } catch {}
+  $connectSw = [System.Diagnostics.Stopwatch]::StartNew()
+  while ($connectSw.ElapsedMilliseconds -lt $connectTimeout) {
+    $allDone = $true
+    foreach ($ctx in $contexts) {
+      if ($ctx.Done -or $null -ne $ctx.Response) { continue }
+      $allDone = $false
+      if ($ctx.AsyncResult.AsyncWaitHandle.WaitOne(0)) {
+        try {
+          $req = $ctx['_Request']
+          $resp = $req.EndGetResponse($ctx.AsyncResult)
+          $ctx.Response = $resp
+          $ctx.ContentLength = $resp.ContentLength
+          $ctx.Stream = $resp.GetResponseStream()
+          $ctx.Writer = [System.IO.File]::Create($ctx.TmpFile)
+        }
+        catch {
+          $ctx.Error = $_.Exception.Message
+          $ctx.Done = $true
+        }
       }
     }
-    catch {
-      $ctx.Error = $_.Exception.Message
-      $ctx.Done = $true
-    }
+    if ($allDone) { break }
+    Start-Sleep -Milliseconds 200
+  }
+  # 超时未建立连接的标记失败
+  foreach ($ctx in $contexts) {
+    if ($ctx.Done -or $null -ne $ctx.Response) { continue }
+    $ctx.Error = '连接超时'
+    $ctx.Done = $true
+    try { $ctx['_Request'].Abort() } catch {}
   }
 
   # 并发异步读取循环
