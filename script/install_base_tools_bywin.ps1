@@ -183,8 +183,7 @@ function Install-WingetTool {
     # 固定版本兜底
     $fixedUrl = 'http://nj.yj2025.icu:23432/update/winget/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
     $urls += $fixedUrl    
-    $fixedUrl = 'http://192.168.100.1:23432/update/winget/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
-    $urls += $fixedUrl   
+
     if (Save-WebFile -Urls $urls -OutFile $wingetInstaller -TimeoutSec 120 -MinSizeKB 10240) {
       try {
         Add-AppxPackage -Path $wingetInstaller -ErrorAction Stop

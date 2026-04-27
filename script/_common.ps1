@@ -286,8 +286,8 @@ function Set-UserEnvIfChanged {
 
 # ─── Web download ────────────────────────────────────────────────────────────
 function Save-WebFileSingle {
-  # 单地址直接下载，带进度显示和文件大小校验
-  param([string]$Url, [string]$OutFile, [int]$TimeoutSec = 30, [int]$MinSizeKB = 0)
+  # 单地址直接下载，带进度显示
+  param([string]$Url, [string]$OutFile, [int]$TimeoutSec = 30)
 
   Write-Host "  下载：$Url" -ForegroundColor Cyan
   $resp = $null; $stream = $null; $out = $null
@@ -334,13 +334,6 @@ function Save-WebFileSingle {
     $avgKB = ($read / $sec) / 1KB
     Write-Ok ("下载完成（{0:N0} KB，{1:N0} KB/s）" -f ($read/1KB), $avgKB)
 
-    # 校验文件大小
-    if ($MinSizeKB -gt 0 -and ($read / 1KB) -lt $MinSizeKB) {
-      Write-Warn "下载文件过小（{0:N0} KB < {1:N0} KB），可能为错误页面" -f ($read/1KB), $MinSizeKB
-      Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
-      return $false
-    }
-
     return $true
   } catch {
     Write-Warn "下载失败：$($_.Exception.Message)"
@@ -371,7 +364,7 @@ function Save-WebFile {
 
   # 单地址直接下载，无需竞速
   if ($urlList.Count -eq 1) {
-    return (Save-WebFileSingle -Url $urlList[0] -OutFile $OutFile -TimeoutSec $TimeoutSec -MinSizeKB $MinSizeKB)
+    return (Save-WebFileSingle -Url $urlList[0] -OutFile $OutFile -TimeoutSec $TimeoutSec)
   }
 
   Write-Host "  可下载的地址库：" -ForegroundColor Cyan
@@ -518,11 +511,11 @@ function Save-WebFile {
       $shortName = $uri.Host
     } catch { $shortName = $ctx.Url }
     if ($ctx.Error) {
-      Write-Host ("    ✗ {0}" -f $shortName) -ForegroundColor Red
+      Write-Host ("    {0} ✗ " -f $shortName) -ForegroundColor Red
     } else {
       $spdKB = [int](($ctx.Bytes / $elapsed) / 1KB)
       Write-Host ("    {0}  {1:N0} KB  {2:N0} KB/s" -f $shortName, ($ctx.Bytes / 1KB), $spdKB) -ForegroundColor Cyan
-    }
+    }3
   }
 
   # 选择最快的有效源（按已下载字节数排序）
