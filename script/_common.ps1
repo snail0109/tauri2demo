@@ -349,7 +349,7 @@ function Save-WebFileSingle {
 function Save-WebFile {
   # 并发竞速下载：先同时启动所有 URL 连接，RaceSec（默认 30）秒后保留速度最快的一个继续下载。
   # MinSizeKB 参数：下载完成后校验文件大小，小于此值视为无效（如代理返回错误页面）。
-  param([string[]]$Urls, [string]$OutFile, [int]$TimeoutSec = 30, [int]$MinSizeKB = 0, [int]$RaceSec = 5)
+  param([string[]]$Urls, [string]$OutFile, [int]$TimeoutSec = 30, [int]$MinSizeKB = 0, [int]$RaceSec = 15)
 
   $urlList = @(
     $Urls |
