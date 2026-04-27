@@ -327,13 +327,13 @@ function Save-WebFile {
       $sw = [System.Diagnostics.Stopwatch]::StartNew()
       $lastReport = 0L
       $lastLineLen = 0
-      # 低速检测：累计采样窗口
-      [long]$speedSampleBytes = 0
-      $speedSampleStart = $sw.ElapsedMilliseconds
+      # 低速检测：下载开始后累计 30 秒再判断平均速度
+      [long]$speedCheckBytes = 0
+      $speedCheckStart = $null
       while (($n = $stream.Read($buf, 0, $buf.Length)) -gt 0) {
         $out.Write($buf, 0, $n)
         $read += $n
-        $speedSampleBytes += $n
+        $speedCheckBytes += $n
         $now = $sw.ElapsedMilliseconds
         if ($now - $lastReport -lt 200) { continue }
         $lastReport = $now
@@ -356,25 +356,28 @@ function Save-WebFile {
           $lastLineLen = $line.Length
         }
 
-        # 低速检测：每采样 512KB 后评估瞬时速度
-        if ($speedSampleBytes -ge 512KB) {
-          $sampleSec = [Math]::Max(($now - $speedSampleStart) / 1000.0, 0.001)
-          $sampleSpeedKBps = ($speedSampleBytes / $sampleSec) / 1KB
-          if ($sampleSpeedKBps -lt $MinSpeedKBps) {
+        # 低速检测：首次收到数据时记录起始时间，累计 30 秒后用全局平均速度判断
+        if ($null -eq $speedCheckStart -and $read -gt 0) {
+          $speedCheckStart = $sw.ElapsedMilliseconds
+        }
+        if ($null -ne $speedCheckStart -and ($now - $speedCheckStart) -ge 30000) {
+          $avgSec = [Math]::Max(($now - $speedCheckStart) / 1000.0, 0.001)
+          $avgSpeedKBps = ($speedCheckBytes / $avgSec) / 1KB
+          if ($avgSpeedKBps -lt $MinSpeedKBps) {
             $slowSpeed = $true
             break
           }
-          # 重置采样窗口
-          $speedSampleBytes = 0
-          $speedSampleStart = $now
+          # 速度达标，重置窗口继续监测
+          $speedCheckBytes = 0
+          $speedCheckStart = $now
         }
       }
       if ($useProgressBar) { Write-Progress -Activity '下载中' -Completed }
       else { [Console]::Write("`r" + (' ' * $lastLineLen) + "`r") }
 
       if ($slowSpeed) {
-        $sampleSpeedKBpsStr = '{0:N0}' -f $sampleSpeedKBps
-        Write-Warn "下载速度过慢（${sampleSpeedKBpsStr} KB/s < ${MinSpeedKBps} KB/s），切换下一个地址 ..."
+        $avgSpeedKBpsStr = '{0:N0}' -f $avgSpeedKBps
+        Write-Warn "下载速度过慢（30秒平均 ${avgSpeedKBpsStr} KB/s < ${MinSpeedKBps} KB/s），切换下一个地址 ..."
         Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
         continue
       }
