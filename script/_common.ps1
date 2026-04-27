@@ -286,11 +286,10 @@ function Set-UserEnvIfChanged {
 
 # ─── Web download ────────────────────────────────────────────────────────────
 function Save-WebFile {
-  # 依次尝试 $Urls 直到下载成功；失败时返回 $false 不抛异常。
-  # 自己读流以显示百分比 / 速度 / ETA（Invoke-WebRequest 的隐式进度无法控制粒度）。
-  # 当下载速度持续低于 MinSpeedKBps（默认 300 KB/s）时，自动中断并尝试下一个地址。
+  # 并发竞速下载：先同时启动所有 URL 连接，RaceSec（默认 30）秒后保留速度最快的一个继续下载。
+  # 当下载速度持续低于 MinSpeedKBps（默认 300 KB/s）时，自动中断。
   # MinSizeKB 参数：下载完成后校验文件大小，小于此值视为无效（如代理返回错误页面）。
-  param([string[]]$Urls, [string]$OutFile, [int]$TimeoutSec = 30, [int]$MinSpeedKBps = 300, [int]$MinSizeKB = 0)
+  param([string[]]$Urls, [string]$OutFile, [int]$TimeoutSec = 30, [int]$MinSpeedKBps = 300, [int]$MinSizeKB = 0, [int]$RaceSec = 30)
 
   $urlList = @(
     $Urls |
@@ -308,104 +307,244 @@ function Save-WebFile {
     Write-Host ("    {0}) {1}" -f ($i + 1), $urlList[$i]) -ForegroundColor Cyan
   }
 
-  $useProgressBar = -not [Console]::IsOutputRedirected
+  # ── 阶段一：并发竞速 ──
+  Write-Host "  并发竞速 ${RaceSec}s，选择最快源 ..." -ForegroundColor Cyan
+
+  # 为每个 URL 创建并发下载上下文
+  $contexts = @()
   foreach ($u in $urlList) {
-    Write-Host "  尝试下载：$u" -ForegroundColor Cyan
-    $resp = $null; $stream = $null; $out = $null
-    $slowSpeed = $false
+    $ctx = @{
+      Url          = $u
+      Response     = $null
+      Stream       = $null
+      Writer       = $null
+      TmpFile      = Join-Path $env:TEMP "SaveWebFile_race_$([guid]::NewGuid().ToString('N')).tmp"
+      Bytes        = 0L
+      ContentLength = -1L
+      Error        = $null
+      Done         = $false
+      Sw           = $null
+      AsyncResult  = $null
+    }
+    $contexts += $ctx
+  }
+
+  # 并发发起所有 HTTP 请求
+  foreach ($ctx in $contexts) {
     try {
-      $req = [System.Net.HttpWebRequest]::Create($u)
+      $req = [System.Net.HttpWebRequest]::Create($ctx.Url)
       $req.Timeout = $TimeoutSec * 1000
       $req.ReadWriteTimeout = $TimeoutSec * 1000
       $req.UserAgent = 'PowerShell/Save-WebFile'
-      $resp = $req.GetResponse()
-      $total = $resp.ContentLength  # -1 表示服务器未回 Content-Length
-      $stream = $resp.GetResponseStream()
-      $out = [System.IO.File]::Create($OutFile)
-
-      $buf = New-Object byte[] 81920
-      [long]$read = 0
-      $sw = [System.Diagnostics.Stopwatch]::StartNew()
-      $lastReport = 0L
-      $lastLineLen = 0
-      # 低速检测：下载开始后累计 30 秒再判断平均速度
-      [long]$speedCheckBytes = 0
-      $speedCheckStart = $null
-      while (($n = $stream.Read($buf, 0, $buf.Length)) -gt 0) {
-        $out.Write($buf, 0, $n)
-        $read += $n
-        $speedCheckBytes += $n
-        $now = $sw.ElapsedMilliseconds
-        if ($now - $lastReport -lt 200) { continue }
-        $lastReport = $now
-        $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
-        $speedKB = ($read / $sec) / 1KB
-        if ($total -gt 0) {
-          $pct = [int](($read / $total) * 100)
-          $etaSec = if ($speedKB -gt 0) { [int](($total - $read) / 1KB / $speedKB) } else { 0 }
-          $status = '{0,3}%  {1,8:N0} / {2,8:N0} KB  {3,6:N0} KB/s  ETA {4}s' -f $pct, ($read/1KB), ($total/1KB), $speedKB, $etaSec
-        } else {
-          $status = '{0,8:N0} KB  {1,6:N0} KB/s' -f ($read/1KB), $speedKB
-        }
-        if ($useProgressBar) {
-          if ($total -gt 0) { Write-Progress -Activity "下载中：$u" -Status $status -PercentComplete $pct }
-          else { Write-Progress -Activity "下载中：$u" -Status $status }
-        } else {
-          $line = "    $status"
-          $pad = [Math]::Max(0, $lastLineLen - $line.Length)
-          [Console]::Write("`r" + $line + (' ' * $pad))
-          $lastLineLen = $line.Length
-        }
-
-        # 低速检测：首次收到数据时记录起始时间，累计 30 秒后用全局平均速度判断
-        if ($null -eq $speedCheckStart -and $read -gt 0) {
-          $speedCheckStart = $sw.ElapsedMilliseconds
-        }
-        if ($null -ne $speedCheckStart -and ($now - $speedCheckStart) -ge 30000) {
-          $avgSec = [Math]::Max(($now - $speedCheckStart) / 1000.0, 0.001)
-          $avgSpeedKBps = ($speedCheckBytes / $avgSec) / 1KB
-          if ($avgSpeedKBps -lt $MinSpeedKBps) {
-            $slowSpeed = $true
-            break
-          }
-          # 速度达标，重置窗口继续监测
-          $speedCheckBytes = 0
-          $speedCheckStart = $now
-        }
-      }
-      if ($useProgressBar) { Write-Progress -Activity '下载中' -Completed }
-      else { [Console]::Write("`r" + (' ' * $lastLineLen) + "`r") }
-
-      if ($slowSpeed) {
-        $avgSpeedKBpsStr = '{0:N0}' -f $avgSpeedKBps
-        Write-Warn "下载速度过慢（30秒平均 ${avgSpeedKBpsStr} KB/s < ${MinSpeedKBps} KB/s），切换下一个地址 ..."
-        Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
-        continue
-      }
-
-      $sw.Stop()
-      $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
-      $avgKB = ($read / $sec) / 1KB
-      Write-Ok ("下载完成（{0:N0} KB，{1:N0} KB/s，来源：{2}）" -f ($read/1KB), $avgKB, $u)
-
-      # 校验文件大小
-      if ($MinSizeKB -gt 0 -and ($read / 1KB) -lt $MinSizeKB) {
-        Write-Warn "下载文件过小（{0:N0} KB < {1:N0} KB），可能为错误页面，切换下一个地址 ..." -f ($read/1KB), $MinSizeKB
-        Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
-        continue
-      }
-
-      return $true
-    } catch {
-      if ($useProgressBar) { Write-Progress -Activity '下载中' -Completed }
-      Write-Warn "下载失败：$($_.Exception.Message)"
-      Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
-      Write-Warn "尝试下一个镜像 ..."
-    } finally {
-      if ($out) { $out.Close() }
-      if ($stream) { $stream.Close() }
-      if ($resp) { $resp.Close() }
+      $req.AllowAutoRedirect = $true
+      $ctx.AsyncResult = $req.BeginGetResponse($null, $null)
+      $ctx['_Request'] = $req
     }
+    catch {
+      $ctx.Error = $_.Exception.Message
+      $ctx.Done = $true
+    }
+  }
+
+  # 等待连接建立，然后开始并发读取
+  $raceSw = [System.Diagnostics.Stopwatch]::StartNew()
+  foreach ($ctx in $contexts) {
+    if ($ctx.Done) { continue }
+    try {
+      $req = $ctx['_Request']
+      $resp = $req.EndGetResponse($ctx.AsyncResult)
+      $ctx.Response = $resp
+      $ctx.ContentLength = $resp.ContentLength
+      $ctx.Stream = $resp.GetResponseStream()
+      $ctx.Writer = [System.IO.File]::Create($ctx.TmpFile)
+      $ctx.Sw = [System.Diagnostics.Stopwatch]::StartNew()
+    }
+    catch {
+      $ctx.Error = $_.Exception.Message
+      $ctx.Done = $true
+    }
+  }
+
+  # 并发读取循环：轮询各连接，每次从每个活跃连接读一批数据
+  $buf = New-Object byte[] 81920
+  $lastDisplay = 0L
+  while ($raceSw.ElapsedMilliseconds -lt ($RaceSec * 1000)) {
+    $anyActive = $false
+    foreach ($ctx in $contexts) {
+      if ($ctx.Done) { continue }
+      $anyActive = $true
+      try {
+        if ($ctx.Stream.DataAvailable -or $ctx.Stream.CanRead) {
+          $n = $ctx.Stream.Read($buf, 0, $buf.Length)
+          if ($n -gt 0) {
+            $ctx.Writer.Write($buf, 0, $n)
+            $ctx.Bytes += $n
+          } else {
+            $ctx.Done = $true
+          }
+        }
+      }
+      catch {
+        $ctx.Error = $_.Exception.Message
+        $ctx.Done = $true
+      }
+    }
+    if (-not $anyActive) { break }
+
+    # 每 2 秒刷新一次竞速进度
+    $now = $raceSw.ElapsedMilliseconds
+    if ($now - $lastDisplay -ge 2000) {
+      $lastDisplay = $now
+      $elapsed = [Math]::Max($raceSw.Elapsed.TotalSeconds, 0.001)
+      $parts = @()
+      foreach ($ctx in $contexts) {
+        $shortUrl = if ($ctx.Url.Length -gt 40) { $ctx.Url.Substring(0, 40) + '...' } else { $ctx.Url }
+        if ($ctx.Error) {
+          $parts += "${shortUrl}: ✗"
+        } else {
+          $kb = [int]($ctx.Bytes / 1KB)
+          $spd = [int](($ctx.Bytes / $elapsed) / 1KB)
+          $parts += "${shortUrl}: ${kb}KB ${spd}KB/s"
+        }
+      }
+      [Console]::Write("`r    [{0:N0}s] {1}   " -f $raceSw.Elapsed.TotalSeconds, ($parts -join ' | '))
+    }
+
+    Start-Sleep -Milliseconds 50
+  }
+
+  # 关闭所有竞速连接
+  foreach ($ctx in $contexts) {
+    if ($ctx.Writer) { try { $ctx.Writer.Close() } catch {} }
+    if ($ctx.Stream) { try { $ctx.Stream.Close() } catch {} }
+    if ($ctx.Response) { try { $ctx.Response.Close() } catch {} }
+  }
+
+  # 显示竞速结果
+  Write-Host ""
+  Write-Host "  竞速结果：" -ForegroundColor Cyan
+  $elapsed = [Math]::Max($raceSw.Elapsed.TotalSeconds, 0.001)
+  foreach ($ctx in $contexts) {
+    if ($ctx.Error) {
+      Write-Host ("    ✗ {0}  {1}" -f $ctx.Url, $ctx.Error) -ForegroundColor Red
+    } else {
+      $spdKB = [int](($ctx.Bytes / $elapsed) / 1KB)
+      Write-Host ("    {0}  {1:N0} KB  {2:N0} KB/s" -f $ctx.Url, ($ctx.Bytes / 1KB), $spdKB) -ForegroundColor Cyan
+    }
+  }
+
+  # 选择最快的有效源
+  $best = $contexts |
+    Where-Object { -not $_.Error -and $_.Bytes -gt 0 } |
+    Sort-Object -Property Bytes -Descending |
+    Select-Object -First 1
+
+  # 清理非最佳源的临时文件
+  foreach ($ctx in $contexts) {
+    if ($ctx -ne $best -and $ctx.TmpFile) {
+      Remove-Item -LiteralPath $ctx.TmpFile -Force -ErrorAction SilentlyContinue
+    }
+  }
+
+  if (-not $best) {
+    Write-Warn "所有下载源均失败"
+    return $false
+  }
+
+  $bestSpdKB = [int](($best.Bytes / $elapsed) / 1KB)
+  Write-Host ""
+  Write-Ok "选择最快源：$($best.Url)（${bestSpdKB} KB/s）"
+
+  # ── 阶段二：从最快源重新下载完整文件 ──
+  Write-Host "  从最快源下载完整文件 ..." -ForegroundColor Cyan
+  $u = $best.Url
+  $resp = $null; $stream = $null; $out = $null
+  $slowSpeed = $false
+  $avgSpeedKBps = 0.0
+  try {
+    $req = [System.Net.HttpWebRequest]::Create($u)
+    $req.Timeout = $TimeoutSec * 1000
+    $req.ReadWriteTimeout = $TimeoutSec * 1000
+    $req.UserAgent = 'PowerShell/Save-WebFile'
+    $req.AllowAutoRedirect = $true
+    $resp = $req.GetResponse()
+    $total = $resp.ContentLength
+    $stream = $resp.GetResponseStream()
+    $out = [System.IO.File]::Create($OutFile)
+
+    $buf2 = New-Object byte[] 81920
+    [long]$read = 0
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $lastReport = 0L
+    $lastLineLen = 0
+    # 低速检测
+    [long]$speedCheckBytes = 0
+    $speedCheckStart = $null
+    while (($n = $stream.Read($buf2, 0, $buf2.Length)) -gt 0) {
+      $out.Write($buf2, 0, $n)
+      $read += $n
+      $speedCheckBytes += $n
+      $now = $sw.ElapsedMilliseconds
+      if ($now - $lastReport -lt 200) { continue }
+      $lastReport = $now
+      $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
+      $speedKB = ($read / $sec) / 1KB
+      if ($total -gt 0) {
+        $pct = [int](($read / $total) * 100)
+        $etaSec = if ($speedKB -gt 0) { [int](($total - $read) / 1KB / $speedKB) } else { 0 }
+        $status = '{0,3}%  {1,8:N0} / {2,8:N0} KB  {3,6:N0} KB/s  ETA {4}s' -f $pct, ($read/1KB), ($total/1KB), $speedKB, $etaSec
+      } else {
+        $status = '{0,8:N0} KB  {1,6:N0} KB/s' -f ($read/1KB), $speedKB
+      }
+      $line = "    $status"
+      $pad = [Math]::Max(0, $lastLineLen - $line.Length)
+      [Console]::Write("`r" + $line + (' ' * $pad))
+      $lastLineLen = $line.Length
+
+      # 低速检测：首次收到数据时记录起始时间，累计 30 秒后用平均速度判断
+      if ($null -eq $speedCheckStart -and $read -gt 0) {
+        $speedCheckStart = $sw.ElapsedMilliseconds
+      }
+      if ($null -ne $speedCheckStart -and ($now - $speedCheckStart) -ge 30000) {
+        $avgSec = [Math]::Max(($now - $speedCheckStart) / 1000.0, 0.001)
+        $avgSpeedKBps = ($speedCheckBytes / $avgSec) / 1KB
+        if ($avgSpeedKBps -lt $MinSpeedKBps) {
+          $slowSpeed = $true
+          break
+        }
+        $speedCheckBytes = 0
+        $speedCheckStart = $now
+      }
+    }
+    [Console]::Write("`r" + (' ' * $lastLineLen) + "`r")
+
+    if ($slowSpeed) {
+      $avgSpeedKBpsStr = '{0:N0}' -f $avgSpeedKBps
+      Write-Warn "下载速度过慢（30秒平均 ${avgSpeedKBpsStr} KB/s < ${MinSpeedKBps} KB/s）"
+      Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+      return $false
+    }
+
+    $sw.Stop()
+    $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
+    $avgKB = ($read / $sec) / 1KB
+    Write-Ok ("下载完成（{0:N0} KB，{1:N0} KB/s，来源：{2}）" -f ($read/1KB), $avgKB, $u)
+
+    # 校验文件大小
+    if ($MinSizeKB -gt 0 -and ($read / 1KB) -lt $MinSizeKB) {
+      Write-Warn "下载文件过小（{0:N0} KB < {1:N0} KB），可能为错误页面" -f ($read/1KB), $MinSizeKB
+      Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+      return $false
+    }
+
+    return $true
+  } catch {
+    Write-Warn "下载失败：$($_.Exception.Message)"
+    Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+  } finally {
+    if ($out) { $out.Close() }
+    if ($stream) { $stream.Close() }
+    if ($resp) { $resp.Close() }
   }
   return $false
 }
