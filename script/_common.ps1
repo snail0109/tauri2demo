@@ -365,28 +365,46 @@ function Save-WebFile {
     }
   }
 
-  # 并发读取循环：轮询各连接，每次从每个活跃连接读一批数据
-  $buf = New-Object byte[] 81920
+  # 并发读取循环：每个连接独立异步读取，主循环只收集结果和刷新显示
+  # 为每个活跃连接分配独立的 buffer 和异步读取
+  foreach ($ctx in $contexts) {
+    if ($ctx.Done -or $ctx.Error) { continue }
+    $ctx['_Buf'] = New-Object byte[] 81920
+    $ctx['_AsyncRead'] = $null
+    try {
+      $ctx['_AsyncRead'] = $ctx.Stream.BeginRead($ctx['_Buf'], 0, $ctx['_Buf'].Length, $null, $null)
+    }
+    catch {
+      $ctx.Error = $_.Exception.Message
+      $ctx.Done = $true
+    }
+  }
+
   $lastDisplay = 0L
   while ($raceSw.ElapsedMilliseconds -lt ($RaceSec * 1000)) {
     $anyActive = $false
     foreach ($ctx in $contexts) {
       if ($ctx.Done) { continue }
       $anyActive = $true
-      try {
-        if ($ctx.Stream.DataAvailable -or $ctx.Stream.CanRead) {
-          $n = $ctx.Stream.Read($buf, 0, $buf.Length)
+      # 检查异步读取是否完成
+      if ($null -ne $ctx['_AsyncRead'] -and $ctx['_AsyncRead'].IsCompleted) {
+        try {
+          $n = $ctx.Stream.EndRead($ctx['_AsyncRead'])
           if ($n -gt 0) {
-            $ctx.Writer.Write($buf, 0, $n)
+            $ctx.Writer.Write($ctx['_Buf'], 0, $n)
             $ctx.Bytes += $n
+            # 立即发起下一次异步读取
+            $ctx['_AsyncRead'] = $ctx.Stream.BeginRead($ctx['_Buf'], 0, $ctx['_Buf'].Length, $null, $null)
           } else {
             $ctx.Done = $true
+            $ctx['_AsyncRead'] = $null
           }
         }
-      }
-      catch {
-        $ctx.Error = $_.Exception.Message
-        $ctx.Done = $true
+        catch {
+          $ctx.Error = $_.Exception.Message
+          $ctx.Done = $true
+          $ctx['_AsyncRead'] = $null
+        }
       }
     }
     if (-not $anyActive) { break }
