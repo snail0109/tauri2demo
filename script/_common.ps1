@@ -289,7 +289,8 @@ function Save-WebFile {
   # 依次尝试 $Urls 直到下载成功；失败时返回 $false 不抛异常。
   # 自己读流以显示百分比 / 速度 / ETA（Invoke-WebRequest 的隐式进度无法控制粒度）。
   # 当下载速度持续低于 MinSpeedKBps（默认 300 KB/s）时，自动中断并尝试下一个地址。
-  param([string[]]$Urls, [string]$OutFile, [int]$TimeoutSec = 30, [int]$MinSpeedKBps = 300)
+  # MinSizeKB 参数：下载完成后校验文件大小，小于此值视为无效（如代理返回错误页面）。
+  param([string[]]$Urls, [string]$OutFile, [int]$TimeoutSec = 30, [int]$MinSpeedKBps = 300, [int]$MinSizeKB = 0)
 
   $urlList = @(
     $Urls |
@@ -386,6 +387,14 @@ function Save-WebFile {
       $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
       $avgKB = ($read / $sec) / 1KB
       Write-Ok ("下载完成（{0:N0} KB，{1:N0} KB/s，来源：{2}）" -f ($read/1KB), $avgKB, $u)
+
+      # 校验文件大小
+      if ($MinSizeKB -gt 0 -and ($read / 1KB) -lt $MinSizeKB) {
+        Write-Warn "下载文件过小（{0:N0} KB < {1:N0} KB），可能为错误页面，切换下一个地址 ..." -f ($read/1KB), $MinSizeKB
+        Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+        continue
+      }
+
       return $true
     } catch {
       if ($useProgressBar) { Write-Progress -Activity '下载中' -Completed }

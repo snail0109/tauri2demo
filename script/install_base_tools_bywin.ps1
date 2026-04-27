@@ -176,15 +176,15 @@ function Install-WingetTool {
     $urls = @()
     if ($downloadUrl) {
       $urls += "https://gh-proxy.org/$downloadUrl"
-      $urls += "https://gh.llkk.cc/$downloadUrl"
       $urls += "https://cdn.gh-proxy.org/$downloadUrl"
-      $urls += "https://gh-proxy.org/$downloadUrl"
+      $urls += "https://hk.gh-proxy.org/$downloadUrl"
+      $urls += "https://gh.llkk.cc/$downloadUrl"
     }
     # 固定版本兜底
     # $fixedUrl = 'http://nj.yj2025.icu:23432/update/winget/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
     # $urls += $fixedUrl    
 
-    if (Save-WebFile -Urls $urls -OutFile $wingetInstaller -TimeoutSec 120) {
+    if (Save-WebFile -Urls $urls -OutFile $wingetInstaller -TimeoutSec 120 -MinSizeKB 10240) {
       try {
         Add-AppxPackage -Path $wingetInstaller -ErrorAction Stop
         Write-Ok "winget 安装成功"
@@ -202,20 +202,7 @@ function Install-WingetTool {
     Remove-Item -LiteralPath $wingetInstaller -Force -ErrorAction SilentlyContinue
   }
 
-  # 方式二：通过 Add-AppxPackage 注册（适用于系统已有包框架但未注册的情况）
-  if (-not $installed) {
-    Write-Host "  尝试注册系统内置的 App Installer 包 ..." -ForegroundColor Cyan
-    try {
-      Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe -ForceApplicationShutdown -ErrorAction Stop
-      Write-Ok "App Installer 包注册成功"
-      $installed = $true
-    }
-    catch {
-      Write-Warn "注册失败：$($_.Exception.Message)"
-    }
-  }
-
-  # 方式三：打开 Microsoft Store
+  # 方式二：打开 Microsoft Store
   if (-not $installed) {
     Write-Host "  尝试从 Microsoft Store 安装 ..." -ForegroundColor Cyan
     try {
