@@ -202,22 +202,6 @@ function Install-WingetTool {
     Remove-Item -LiteralPath $wingetInstaller -Force -ErrorAction SilentlyContinue
   }
 
-  # 方式二：打开 Microsoft Store
-  if (-not $installed) {
-    Write-Host "  尝试从 Microsoft Store 安装 ..." -ForegroundColor Cyan
-    try {
-      Start-Process 'ms-windows-store://pdp/?ProductId=9nblggh4nns1'
-      Write-Warn "已打开 Microsoft Store 页面，请在 Store 中点击「安装」"
-      Write-Warn "安装完成后按 Enter 继续 ..."
-      Read-Host
-      $installed = Test-Winget
-    }
-    catch {
-      Write-Warn "无法打开 Microsoft Store：$($_.Exception.Message)"
-    }
-  }
-
-  Write-Host ""
   if (Test-Winget) {
     Add-WingetMirrorSource
     Write-Banner -Title 'winget 安装成功' -Color Green
