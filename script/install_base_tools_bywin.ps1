@@ -27,7 +27,12 @@ $ToolDefs = @(
 function Test-Winget {
   $winget = Get-ExePath 'winget.exe'
   if (-not $winget) { return $false }
-  $ver = (Invoke-NativeText -FilePath $winget -Arguments @('--version') | Select-Object -First 1)
+  try {
+    $ver = (Invoke-NativeText -FilePath $winget -Arguments @('--version') | Select-Object -First 1)
+  }
+  catch {
+    return $false
+  }
   Write-Ok "winget 已安装"
   Write-Host "    路径：$winget"
   if (-not [string]::IsNullOrWhiteSpace($ver)) { Write-Host "    版本：$ver" }
@@ -155,21 +160,18 @@ function Install-WingetTool {
 
 function Uninstall-WingetTool {
   Write-Host ""
-  Write-Host "═══ 禁用 winget ═══" -ForegroundColor Cyan
+  Write-Host "═══ 卸载 winget ═══" -ForegroundColor Cyan
   Write-Host ""
 
   # 查找 winget 命令
   $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
   if (-not $wingetCmd) {
     Write-Host ""
-    Write-Banner -Title 'winget 未安装或已被禁用' -Color Green
+    Write-Banner -Title 'winget 未安装或已被卸载' -Color Green
     return $true
   }
 
-  Write-Host "  找到 winget: $($wingetCmd.Source)" -ForegroundColor White
-  Write-Host ""
-
-  if (-not (Confirm-Continue "确认禁用 winget（通过重命名 winget.exe 为 .bak）")) { return $false }
+  if (-not (Confirm-Continue "确认卸载 winget（通过删除 winget.exe）")) { return $false }
 
   # 查找 WindowsApps 下所有 winget.exe
   $targets = @()
@@ -226,23 +228,21 @@ function Uninstall-WingetTool {
       continue
     }
 
-    # 第3步: 重命名
-    Write-Host "    重命名 winget.exe -> winget.exe.bak ..." -NoNewline
+    # 第3步: 先删除，再重命名
+    Write-Host "    删除 winget.exe ..." -NoNewline
     try {
-      Rename-Item -Path $exe -NewName "winget.exe.bak" -Force -ErrorAction Stop
+      Remove-Item -Path $exe -Force -ErrorAction Stop
       Write-Host " 完成" -ForegroundColor Green
     }
     catch {
-      Write-Host ""
-      Write-Warn "    重命名失败: $($_.Exception.Message)"
-      Write-Host "    尝试替代方案: 用空文件覆盖..." -NoNewline
+      Write-Host "    重命名 winget.exe -> winget.exe.bak ..." -NoNewline
       try {
-        [System.IO.File]::WriteAllBytes($exe, @())
+        Rename-Item -Path $exe -NewName "winget.exe.bak" -Force -ErrorAction Stop
         Write-Host " 完成" -ForegroundColor Green
       }
       catch {
-        Write-Host " 失败" -ForegroundColor Red
-        Write-Warn "    替代方案也失败: $($_.Exception.Message)"
+        Write-Host "失败" -ForegroundColor Red
+        Write-Warn "替代方案也失败: $($_.Exception.Message)"
         $success = $false
       }
     }
