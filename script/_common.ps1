@@ -301,7 +301,7 @@ function Save-WebFile {
     return $false
   }
 
-  Write-Host "  下载地址列表：" -ForegroundColor Cyan
+  Write-Host "  可下载的地址库：" -ForegroundColor Cyan
   for ($i = 0; $i -lt $urlList.Count; $i++) {
     Write-Host ("    {0}) {1}" -f ($i + 1), $urlList[$i]) -ForegroundColor Cyan
   }
