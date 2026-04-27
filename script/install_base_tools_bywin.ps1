@@ -36,9 +36,20 @@ function Test-Winget {
   Write-Ok "winget 已安装"
   Write-Host "    路径：$winget"
   try {
-    $fi = Get-Item -LiteralPath $winget -ErrorAction Stop
-    $sizeMB = '{0:N2}' -f ($fi.Length / 1MB)
-    Write-Host "    大小：${sizeMB} MB"
+    if ($winget -match 'WindowsApps') {
+      # WindowsApps 下的是零字节别名，通过 AppxPackage 获取实际大小
+      $pkg = Get-AppxPackage -Name Microsoft.DesktopAppInstaller -ErrorAction Stop | Select-Object -First 1
+      if ($pkg) {
+        $pkgDir = Join-Path $pkg.InstallLocation '*'
+        $sizeBytes = (Get-ChildItem -LiteralPath $pkgDir -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+        $sizeMB = '{0:N2}' -f ($sizeBytes / 1MB)
+        Write-Host "    大小：${sizeMB} MB（App Installer 包）"
+      }
+    } else {
+      $fi = Get-Item -LiteralPath $winget -ErrorAction Stop
+      $sizeMB = '{0:N2}' -f ($fi.Length / 1MB)
+      Write-Host "    大小：${sizeMB} MB"
+    }
   } catch {}
   if (-not [string]::IsNullOrWhiteSpace($ver)) { Write-Host "    版本：$ver" }
   return $true
@@ -352,9 +363,20 @@ function Test-WindowsTerminal {
   Write-Ok "Windows 终端 已安装"
   Write-Host "    路径：$wt"
   try {
-    $fi = Get-Item -LiteralPath $wt -ErrorAction Stop
-    $sizeMB = '{0:N2}' -f ($fi.Length / 1MB)
-    Write-Host "    大小：${sizeMB} MB"
+    if ($wt -match 'WindowsApps') {
+      # WindowsApps 下的是零字节别名，通过 AppxPackage 获取实际大小
+      $pkg = Get-AppxPackage -Name Microsoft.WindowsTerminal -ErrorAction Stop | Select-Object -First 1
+      if ($pkg) {
+        $pkgDir = Join-Path $pkg.InstallLocation '*'
+        $sizeBytes = (Get-ChildItem -LiteralPath $pkgDir -Recurse -File -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+        $sizeMB = '{0:N2}' -f ($sizeBytes / 1MB)
+        Write-Host "    大小：${sizeMB} MB（Windows Terminal 包）"
+      }
+    } else {
+      $fi = Get-Item -LiteralPath $wt -ErrorAction Stop
+      $sizeMB = '{0:N2}' -f ($fi.Length / 1MB)
+      Write-Host "    大小：${sizeMB} MB"
+    }
   } catch {}
   if (-not [string]::IsNullOrWhiteSpace($ver)) { Write-Host "    版本：$ver" }
   return $true
