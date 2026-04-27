@@ -565,8 +565,7 @@ function Install-WindowsTerminalTool {
 
       $urls = @()
       if ($downloadUrl) { $urls += $downloadUrl }
-      $urls += 'https://github.com/microsoft/terminal/releases/download/v1.22.3112.0/Microsoft.WindowsTerminal_1.22.3112.0_x64.msixbundle'
-
+      $urls += 'https://github.com/microsoft/terminal/releases/download/v1.25.923.0/Microsoft.WindowsTerminalPreview_1.25.923.0_x64.zip'
       if (Save-WebFile -Urls $urls -OutFile $wtInstaller -TimeoutSec 120) {
         try {
           Add-AppxPackage -Path $wtInstaller -ErrorAction Stop
