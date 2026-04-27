@@ -155,63 +155,112 @@ function Install-WingetTool {
 
 function Uninstall-WingetTool {
   Write-Host ""
-  Write-Host "═══ 卸载 winget ═══" -ForegroundColor Cyan
+  Write-Host "═══ 禁用 winget ═══" -ForegroundColor Cyan
   Write-Host ""
 
-  if (-not (Test-Winget)) {
+  # 查找 winget 命令
+  $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
+  if (-not $wingetCmd) {
     Write-Host ""
-    Write-Banner -Title 'winget 未安装，无需卸载' -Color Green
+    Write-Banner -Title 'winget 未安装或已被禁用' -Color Green
     return $true
   }
 
-  Write-Host ""
-  Write-Warn "winget（应用安装程序）是 Windows 系统内置组件，无法完全卸载"
-  Write-Warn "可选操作："
-  Write-Host "  1) 重置为系统初始版本（推荐，清除用户数据和配置）"
-  Write-Host "  2) 跳过，不做任何操作"
+  Write-Host "  找到 winget: $($wingetCmd.Source)" -ForegroundColor White
   Write-Host ""
 
-  $choice = Read-Host "  请选择 [1-2]（默认 2）"
-  if ($choice -ne '1') {
-    Write-Host ""
-    Write-Host "  已跳过卸载" -ForegroundColor Yellow
+  if (-not (Confirm-Continue "确认禁用 winget（通过重命名 winget.exe 为 .bak）")) { return $false }
+
+  # 查找 WindowsApps 下所有 winget.exe
+  $targets = @()
+  $appDirs = Get-ChildItem "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*" -Directory -ErrorAction SilentlyContinue
+  foreach ($dir in $appDirs) {
+    $exe = Join-Path $dir.FullName "winget.exe"
+    if (Test-Path $exe) {
+      $targets += $exe
+    }
+  }
+
+  # 也加上 Get-Command 找到的路径
+  if ($wingetCmd.Source -and ($targets -notcontains $wingetCmd.Source)) {
+    $targets += $wingetCmd.Source
+  }
+
+  if ($targets.Count -eq 0) {
+    Write-Warn "未找到 winget.exe 文件"
     return $false
   }
 
-  # 重置应用安装程序
+  Write-Host "  找到以下 winget.exe 文件:" -ForegroundColor Cyan
+  foreach ($t in $targets) {
+    Write-Host "    $t"
+  }
   Write-Host ""
-  Write-Host "  重置应用安装程序 ..." -ForegroundColor Cyan
-  try {
-    Get-AppxPackage -Name 'Microsoft.DesktopAppInstaller' -ErrorAction SilentlyContinue |
-    ForEach-Object { Reset-AppxPackage -Package $_.PackageFullName -ErrorAction Stop }
-    Write-Ok "应用安装程序已重置为系统初始版本"
-  }
-  catch {
-    Write-Fail "重置失败：$($_.Exception.Message)"
-    Write-Host ""
-    Write-Fail "winget 卸载失败"
-    Write-Fail "winget 是 Windows 系统内置组件，无法通过常规方式卸载"
-    Write-Fail "如需降级或移除，请尝试："
-    Write-Fail "  • 设置 → 应用 → 应用安装程序 → 高级选项 → 重置/修复"
-    Write-Fail "  • 或以管理员身份运行：Get-AppxPackage Microsoft.DesktopAppInstaller | Reset-AppxPackage"
-    return $false
-  }
 
-  # 移除镜像源配置
-  $winget = Get-ExePath 'winget.exe'
-  if ($winget) {
+  $success = $true
+  foreach ($exe in $targets) {
+    Write-Host "  处理: $exe" -ForegroundColor Cyan
+
+    # 第1步: 获取父目录所有权
+    $dir = Split-Path $exe
+    Write-Host "    获取目录所有权..." -NoNewline
     try {
-      Invoke-NativeStream -Block { & $winget source remove winget }
-      Write-Ok "已移除 winget 镜像源配置"
+      $null = & takeown /f $dir /r /d Y 2>&1
+      Write-Host " 完成" -ForegroundColor Green
     }
     catch {
-      Write-Warn "移除镜像源失败：$($_.Exception.Message)"
+      Write-Host " 失败" -ForegroundColor Red
+      $success = $false
+      continue
+    }
+
+    # 第2步: 授予管理员完全控制权限
+    Write-Host "    设置权限..." -NoNewline
+    try {
+      $null = & icacls $dir /grant "Administrators:(OI)(CI)F" /t /c 2>&1
+      Write-Host " 完成" -ForegroundColor Green
+    }
+    catch {
+      Write-Host " 失败" -ForegroundColor Red
+      $success = $false
+      continue
+    }
+
+    # 第3步: 重命名
+    Write-Host "    重命名 winget.exe -> winget.exe.bak ..." -NoNewline
+    try {
+      Rename-Item -Path $exe -NewName "winget.exe.bak" -Force -ErrorAction Stop
+      Write-Host " 完成" -ForegroundColor Green
+    }
+    catch {
+      Write-Host ""
+      Write-Warn "    重命名失败: $($_.Exception.Message)"
+      Write-Host "    尝试替代方案: 用空文件覆盖..." -NoNewline
+      try {
+        [System.IO.File]::WriteAllBytes($exe, @())
+        Write-Host " 完成" -ForegroundColor Green
+      }
+      catch {
+        Write-Host " 失败" -ForegroundColor Red
+        Write-Warn "    替代方案也失败: $($_.Exception.Message)"
+        $success = $false
+      }
     }
   }
 
   Write-Host ""
-  Write-Banner -Title 'winget 已重置为系统初始版本' -Color Green
-  return $true
+  # 验证
+  $check = Get-Command winget -ErrorAction SilentlyContinue
+  if (-not $check) {
+    Write-Banner -Title 'winget 已成功禁用' -Color Green
+    Write-Host "  恢复方法: 将 winget.exe.bak 重命名回 winget.exe" -ForegroundColor DarkGray
+    return $true
+  }
+  else {
+    Write-Warn "winget 仍然可用: $($check.Source)"
+    Write-Warn "可能需要重启后生效，或存在其他副本"
+    return $false
+  }
 }
 
 # ─── Windows 终端 ─────────────────────────────────────────────────────────────
