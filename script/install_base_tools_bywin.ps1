@@ -181,8 +181,8 @@ function Install-WingetTool {
       $urls += "https://gh-proxy.org/$downloadUrl"
     }
     # 固定版本兜底
-    $fixedUrl = 'http://nj.yj2025.icu:23432/update/winget/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
-    $urls += $fixedUrl    
+    # $fixedUrl = 'http://nj.yj2025.icu:23432/update/winget/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
+    # $urls += $fixedUrl    
 
     if (Save-WebFile -Urls $urls -OutFile $wingetInstaller -TimeoutSec 120) {
       try {
