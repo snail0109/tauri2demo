@@ -288,7 +288,8 @@ function Set-UserEnvIfChanged {
 function Save-WebFile {
   # 依次尝试 $Urls 直到下载成功；失败时返回 $false 不抛异常。
   # 自己读流以显示百分比 / 速度 / ETA（Invoke-WebRequest 的隐式进度无法控制粒度）。
-  param([string[]]$Urls, [string]$OutFile, [int]$TimeoutSec = 30)
+  # 当下载速度持续低于 MinSpeedKBps（默认 300 KB/s）时，自动中断并尝试下一个地址。
+  param([string[]]$Urls, [string]$OutFile, [int]$TimeoutSec = 30, [int]$MinSpeedKBps = 300)
 
   $urlList = @(
     $Urls |
@@ -310,6 +311,7 @@ function Save-WebFile {
   foreach ($u in $urlList) {
     Write-Host "  尝试下载：$u" -ForegroundColor Cyan
     $resp = $null; $stream = $null; $out = $null
+    $slowSpeed = $false
     try {
       $req = [System.Net.HttpWebRequest]::Create($u)
       $req.Timeout = $TimeoutSec * 1000
@@ -325,9 +327,13 @@ function Save-WebFile {
       $sw = [System.Diagnostics.Stopwatch]::StartNew()
       $lastReport = 0L
       $lastLineLen = 0
+      # 低速检测：累计采样窗口
+      [long]$speedSampleBytes = 0
+      $speedSampleStart = $sw.ElapsedMilliseconds
       while (($n = $stream.Read($buf, 0, $buf.Length)) -gt 0) {
         $out.Write($buf, 0, $n)
         $read += $n
+        $speedSampleBytes += $n
         $now = $sw.ElapsedMilliseconds
         if ($now - $lastReport -lt 200) { continue }
         $lastReport = $now
@@ -349,9 +355,29 @@ function Save-WebFile {
           [Console]::Write("`r" + $line + (' ' * $pad))
           $lastLineLen = $line.Length
         }
+
+        # 低速检测：每采样 512KB 后评估瞬时速度
+        if ($speedSampleBytes -ge 512KB) {
+          $sampleSec = [Math]::Max(($now - $speedSampleStart) / 1000.0, 0.001)
+          $sampleSpeedKBps = ($speedSampleBytes / $sampleSec) / 1KB
+          if ($sampleSpeedKBps -lt $MinSpeedKBps) {
+            $slowSpeed = $true
+            break
+          }
+          # 重置采样窗口
+          $speedSampleBytes = 0
+          $speedSampleStart = $now
+        }
       }
       if ($useProgressBar) { Write-Progress -Activity '下载中' -Completed }
       else { [Console]::Write("`r" + (' ' * $lastLineLen) + "`r") }
+
+      if ($slowSpeed) {
+        $sampleSpeedKBpsStr = '{0:N0}' -f $sampleSpeedKBps
+        Write-Warn "下载速度过慢（${sampleSpeedKBpsStr} KB/s < ${MinSpeedKBps} KB/s），切换下一个地址 ..."
+        Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+        continue
+      }
 
       $sw.Stop()
       $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
