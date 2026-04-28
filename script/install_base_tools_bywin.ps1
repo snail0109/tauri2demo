@@ -198,6 +198,9 @@ function Install-WingetTool {
       Write-Fail "下载 winget 安装包失败"
     }
   }
+  catch {
+    Write-Warn "winget 下载/安装过程出错：$($_.Exception.Message)"
+  }
   # 保留安装包文件，方便手动重装
 
   if (Test-Winget) {
