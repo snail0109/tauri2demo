@@ -157,6 +157,39 @@ tauri2demo/
 - **架构**: 组件化设计 + 类型安全
 
 
+## 常见问题
+
+### 端口 31420 被占用
+
+`pnpm dev` 启动时如报错 `Port 31420 is already in use`，通常是上次启动的 Vite 进程未正常退出。找到并关闭占用进程即可：
+
+**macOS / Linux：**
+
+```bash
+lsof -ti :31420 | xargs kill
+```
+
+**Windows：**
+
+```powershell
+# 查找占用端口的 PID
+netstat -ano | findstr :31420
+# 关闭对应进程（替换 <PID>）
+taskkill /PID <PID> /F
+```
+
+随后重新 `pnpm dev` 启动。
+
+### Android 模拟器无法访问开发服务器
+
+Android 模拟器中运行 Tauri App 时，默认无法直接访问宿主机的 `localhost:31420`。使用 `adb reverse` 将端口映射到模拟器：
+
+```bash
+adb reverse tcp:31420 tcp:31420
+```
+
+之后重启模拟器中的 App 即可正常访问开发服务器。
+
 ## TODO
 - [ ] 移动端布局样式兼容问题
 - [ ] 移动端选中文本失效
