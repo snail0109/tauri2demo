@@ -285,23 +285,7 @@ function Install-WindowsTerminalTool {
 
   $installed = $false
 
-  # 方式一：通过 winget 安装
-  if (Get-ExePath 'winget.exe') {
-    Write-Host "  通过 winget 安装 Windows 终端 ..." -ForegroundColor Cyan
-    try {
-      Invoke-NativeStream -Block { & winget install --id Microsoft.WindowsTerminal --source winget --accept-package-agreements --accept-source-agreements }
-      $installed = $true
-    }
-    catch {
-      Write-Fail "winget 安装失败：$($_.Exception.Message)"
-    }
-    if ($installed -and -not (Test-WindowsTerminal)) {
-      Write-Warn "winget 报告成功但未检测到 wt.exe"
-      $installed = $false
-    }
-  }
-
-  # 方式二：从 GitHub releases 下载 .msixbundle 安装
+  # 方式一：从 GitHub releases 下载 .msixbundle 安装
   if (-not $installed) {
     Write-Host "  下载 Windows 终端安装包 ..." -ForegroundColor Cyan
     $wtInstaller = Join-Path $env:TEMP ("Microsoft.WindowsTerminal_{0}.msixbundle" -f ([guid]::NewGuid().ToString('N')))
@@ -353,6 +337,22 @@ function Install-WindowsTerminalTool {
     }
     catch {
       Write-Warn "Windows 终端 下载/安装过程出错：$($_.Exception.Message)"
+    }
+  }
+
+  # 方式二：通过 winget 安装
+  if (Get-ExePath 'winget.exe') {
+    Write-Host "  通过 winget 安装 Windows 终端 ..." -ForegroundColor Cyan
+    try {
+      Invoke-NativeStream -Block { & winget install --id Microsoft.WindowsTerminal --source winget --accept-package-agreements --accept-source-agreements }
+      $installed = $true
+    }
+    catch {
+      Write-Fail "winget 安装失败：$($_.Exception.Message)"
+    }
+    if ($installed -and -not (Test-WindowsTerminal)) {
+      Write-Warn "winget 报告成功但未检测到 wt.exe"
+      $installed = $false
     }
   }
 
