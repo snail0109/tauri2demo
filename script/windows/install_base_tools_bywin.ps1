@@ -183,7 +183,7 @@ function Install-WingetTool {
     }
     # 固定版本兜底
     $fixedUrl = 'http://nj.yj2025.icu:23432/update/winget/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
-    $urls += $fixedUrl    
+    $urls += $fixedUrl
 
     if (Save-WebFile -Urls $urls -OutFile $wingetInstaller -TimeoutSec 120 -MinSizeKB 10240) {
       try {
@@ -563,10 +563,10 @@ function Write-Usage {
   Write-Host "用法：" -ForegroundColor Cyan
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools <工具1,工具2,...>     安装指定工具"
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools all                  安装所有工具"
-  Write-Host "  .\install_base_tools_bywin.ps1 -y -AddTools all               静默安装所有工具"
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools store                安装 Microsoft Store 商店"
   Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools <工具1,工具2,...>  卸载指定工具"
   Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools all               卸载所有工具"
+  Write-Host "  .\install_base_tools_bywin.ps1 -y -AddTools all               静默安装所有工具"
   Write-Host ""
   Write-Host "可用工具：winget, terminal, store" -ForegroundColor Cyan
   Write-Host ""
