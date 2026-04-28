@@ -198,9 +198,7 @@ function Install-WingetTool {
       Write-Fail "下载 winget 安装包失败"
     }
   }
-  finally {
-    Remove-Item -LiteralPath $wingetInstaller -Force -ErrorAction SilentlyContinue
-  }
+  # 保留安装包文件，方便手动重装
 
   if (Test-Winget) {
     Add-WingetMirrorSource
