@@ -677,6 +677,8 @@ function Save-WebFile {
     return $false
   }
 
+  Write-Host "    文件：$OutFile"
+
   return $true
 }
 
