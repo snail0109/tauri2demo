@@ -4,9 +4,7 @@ param(
 
   [string[]]$AddTools,
 
-  [string[]]$RemoveTools,
-
-  [switch]$UseStore
+  [string[]]$RemoveTools
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,7 +18,8 @@ if ($Yes) { Enable-AutoConfirm }
 # 每个工具：Id（参数名）、Name（显示名）、Description
 $ToolDefs = @(
   @{ Id = 'winget'; Name = 'winget'; Description = 'Windows 包管理器' },
-  @{ Id = 'terminal'; Name = 'Windows 终端'; Description = 'Windows Terminal（多标签终端）' }
+  @{ Id = 'terminal'; Name = 'Windows 终端'; Description = 'Windows Terminal（多标签终端）' },
+  @{ Id = 'store'; Name = 'Microsoft Store'; Description = 'Microsoft Store 商店' }
 )
 
 # ─── winget ───────────────────────────────────────────────────────────────────
@@ -139,8 +138,6 @@ function Add-WingetMirrorSource {
 }
 
 function Install-WingetTool {
-  param([switch]$UseStore)
-
   Write-Host ""
   Write-Host "═══ 安装 winget ═══" -ForegroundColor Cyan
   Write-Host ""
@@ -155,20 +152,6 @@ function Install-WingetTool {
   Write-Host ""
 
   if (-not (Confirm-Install "安装 winget（Windows 包管理器）")) { return $false }
-
-  # -UseStore：通过 Microsoft Store 安装（自动处理许可证）
-  if ($UseStore) {
-    Write-Host "  通过 Microsoft Store 安装 winget ..." -ForegroundColor Cyan
-    try {
-      Start-Process 'ms-windows-store://pdp/?ProductId=9nblggh4nns1'
-      Write-Host "  已打开 Microsoft Store 页面，请在 Store 中点击「安装」或「获取」" -ForegroundColor Yellow
-      Write-Host "  安装完成后，请重新运行此脚本验证" -ForegroundColor Yellow
-    }
-    catch {
-      Write-Warn "无法打开 Microsoft Store：$($_.Exception.Message)"
-    }
-    return $false
-  }
 
   $installed = $false
 
@@ -710,11 +693,7 @@ if ($AddTools -and $AddTools.Count -gt 0) {
     $step++
     $def = $ToolDefs | Where-Object { $_.Id -eq $id } | Select-Object -First 1
     Write-Host "[$step/$total] 安装 $($def.Name)" -ForegroundColor Cyan
-    if ($id -eq 'winget' -and $UseStore) {
-      $addResults[$id] = Install-WingetTool -UseStore
-    } else {
-      $addResults[$id] = & $ToolInstallers[$id]
-    }
+    $addResults[$id] = & $ToolInstallers[$id]
     Write-Host ""
   }
 
