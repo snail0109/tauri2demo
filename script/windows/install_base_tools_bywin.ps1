@@ -491,6 +491,58 @@ function Test-MicrosoftStore {
   return $true
 }
 
+function Test-MicrosoftSandbox {
+  $featureState = $null
+  try {
+    $cmd = Get-Command 'Get-WindowsOptionalFeature' -ErrorAction SilentlyContinue
+    if ($cmd) {
+      $f = Get-WindowsOptionalFeature -Online -FeatureName 'Containers-DisposableClientVM' -ErrorAction Stop
+      $featureState = $f.State
+    }
+  }
+  catch {
+    $featureState = $null
+  }
+
+  if (-not $featureState) {
+    try {
+      $out = Invoke-NativeText -FilePath 'dism.exe' -Arguments @('/Online', '/Get-FeatureInfo', '/FeatureName:Containers-DisposableClientVM')
+      if ($out -match 'State\s*:\s*Enabled') { $featureState = 'Enabled' }
+      elseif ($out -match 'State\s*:\s*Disabled') { $featureState = 'Disabled' }
+    }
+    catch {
+      $featureState = $null
+    }
+  }
+
+  if ($featureState -ne 'Enabled') { return $false }
+
+  $candidates = @(
+    (Join-Path $env:WINDIR 'System32\WindowsSandbox.exe'),
+    (Join-Path $env:WINDIR 'System32\WindowsSandboxClient.exe'),
+    (Join-Path $env:WINDIR 'System32\WindowsSandboxRemoteSession.exe')
+  )
+  $exe = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+
+  Write-Ok "Microsoft Sandbox 已启用"
+  Write-Host "    功能：Containers-DisposableClientVM（Enabled）"
+
+  $ver = $null
+  if ($exe) {
+    Write-Host "    程序：$exe"
+    try {
+      $fi = Get-Item -LiteralPath $exe -ErrorAction Stop
+      $sizeMB = '{0:N2}' -f ($fi.Length / 1MB)
+      Write-Host "    大小：${sizeMB} MB"
+      $ver = $fi.VersionInfo.ProductVersion
+    }
+    catch {}
+  }
+  if (-not [string]::IsNullOrWhiteSpace($ver)) { Write-Host "    版本：$ver" }
+
+  return $true
+}
+
 function Install-MicrosoftStoreTool {
   Write-Host ""
   Write-Host "═══ 安装 Microsoft Store ═══" -ForegroundColor Cyan
@@ -598,10 +650,13 @@ if ((-not $AddTools -or $AddTools.Count -eq 0) -and (-not $RemoveTools -or $Remo
 
 # 展开别名：all → 所有工具 Id
 $validIds = $ToolDefs | ForEach-Object { $_.Id }
+$addAllRequested = $false
+$removeAllRequested = $false
 
 # 校验 -AddTools 参数
 if ($AddTools -and $AddTools.Count -gt 0) {
   if ($AddTools -contains 'all') {
+    $addAllRequested = $true
     $AddTools = @($validIds)
   }
   $unknown = $AddTools | Where-Object { $_ -notin $validIds }
@@ -616,6 +671,7 @@ if ($AddTools -and $AddTools.Count -gt 0) {
 # 校验 -RemoveTools 参数
 if ($RemoveTools -and $RemoveTools.Count -gt 0) {
   if ($RemoveTools -contains 'all') {
+    $removeAllRequested = $true
     $RemoveTools = @($validIds)
   }
   $unknown = $RemoveTools | Where-Object { $_ -notin $validIds }
@@ -722,5 +778,18 @@ if ($AddTools -and $AddTools.Count -gt 0) {
   }
   else {
     Write-Host "  部分工具安装未成功，请查看上方日志。" -ForegroundColor Yellow
+  }
+
+  if ($addAllRequested) {
+    Write-Host ""
+    Write-Host "═══ 附加检测 ═══" -ForegroundColor Cyan
+    try {
+      $sandboxOk = [bool](Test-MicrosoftSandbox)
+      if (-not $sandboxOk) { Write-Warn "Microsoft Sandbox 未启用/不可用" }
+    }
+    catch {
+      Write-Warn "Microsoft Sandbox 检测失败：$($_.Exception.Message)"
+    }
+    Write-Host ""
   }
 }
