@@ -9,9 +9,9 @@
 #   ./build_macos.sh check android    # 仅检查环境，不构建
 #
 # 环境安装请使用：
-#   ./script/install_base_tools_macos.sh --add-tools all -y
-#   ./script/install_c_compile_macos.sh -y
-#   ./script/install_android_sdk_macos.sh -y
+#   ./script/macos/install_base_tools_macos.sh --add-tools all -y
+#   ./script/macos/install_c_compile_macos.sh -y
+#   ./script/macos/install_android_sdk_macos.sh -y
 
 set -euo pipefail
 
@@ -41,9 +41,9 @@ usage() {
   echo "  check android      仅检查环境，不构建"
   echo ""
   echo "  环境安装脚本："
-  echo "    ./script/install_base_tools_macos.sh --add-tools all -y"
-  echo "    ./script/install_c_compile_macos.sh -y"
-  echo "    ./script/install_android_sdk_macos.sh -y"
+  echo "    ./script/macos/install_base_tools_macos.sh --add-tools all -y"
+  echo "    ./script/macos/install_c_compile_macos.sh -y"
+  echo "    ./script/macos/install_android_sdk_macos.sh -y"
   exit 1
 }
 
@@ -75,7 +75,7 @@ if xcode-select -p &>/dev/null && clang --version &>/dev/null; then
   ok "clang 已安装：$(clang --version 2>&1 | head -1)"
 else
   fail "未安装 Xcode Command Line Tools"
-  fail "请运行：./script/install_c_compile_macos.sh -y"
+  fail "请运行：./script/macos/install_c_compile_macos.sh -y"
 fi
 
 # ─── 公共：pnpm ───────────────────────────────────────────────────────────────
@@ -84,7 +84,7 @@ if command -v pnpm &>/dev/null; then
   ok "pnpm $(pnpm --version) 已安装"
 else
   fail "未找到 pnpm"
-  fail "请运行：./script/install_base_tools_macos.sh --add-tools pnpm -y"
+  fail "请运行：./script/macos/install_base_tools_macos.sh --add-tools pnpm -y"
 fi
 
 # ─── Android 专属检查 ─────────────────────────────────────────────────────────
@@ -98,11 +98,11 @@ if [[ "$PLATFORM" == "android" ]]; then
       ok "Java $JAVA_VER 已安装：$(which java)"
     else
       fail "检测到 Java $JAVA_VER，需要 JDK 17+"
-      fail "请运行：./script/install_android_sdk_macos.sh -y"
+      fail "请运行：./script/macos/install_android_sdk_macos.sh -y"
     fi
   else
     fail "未找到 Java，需要 JDK 17+"
-    fail "请运行：./script/install_android_sdk_macos.sh -y"
+    fail "请运行：./script/macos/install_android_sdk_macos.sh -y"
   fi
 
   # ANDROID_HOME
@@ -117,7 +117,7 @@ if [[ "$PLATFORM" == "android" ]]; then
       warn "建议运行 source ~/.zshrc 或手动设置环境变量"
     else
       fail "ANDROID_HOME 未设置且默认路径不存在"
-      fail "请运行：./script/install_android_sdk_macos.sh -y"
+      fail "请运行：./script/macos/install_android_sdk_macos.sh -y"
     fi
   fi
 
@@ -129,13 +129,13 @@ if [[ "$PLATFORM" == "android" ]]; then
     ok "adb 已找到：$ADB"
   else
     fail "未找到 adb（路径：$ADB）"
-    fail "请运行：./script/install_android_sdk_macos.sh -y"
+    fail "请运行：./script/macos/install_android_sdk_macos.sh -y"
   fi
   if [[ -x "${SDKMANAGER}" ]]; then
     ok "sdkmanager 已找到：${SDKMANAGER}"
   else
     warn "sdkmanager 未找到：${SDKMANAGER}"
-    warn "请运行：./script/install_android_sdk_macos.sh -y"
+    warn "请运行：./script/macos/install_android_sdk_macos.sh -y"
   fi
 
   # NDK
@@ -147,13 +147,13 @@ if [[ "$PLATFORM" == "android" ]]; then
     export ANDROID_NDK_HOME="${ANDROID_NDK_HOME:-$NDK_PATH}"
     if [[ -z "${NDK_VER}" ]]; then
       fail "NDK 目录存在但为空"
-      fail "请运行：./script/install_android_sdk_macos.sh -y"
+      fail "请运行：./script/macos/install_android_sdk_macos.sh -y"
     else
       ok "NDK 版本：$NDK_VER → $NDK_PATH"
     fi
   else
     fail "未找到 NDK（路径：$NDK_DIR）"
-    fail "请运行：./script/install_android_sdk_macos.sh -y"
+    fail "请运行：./script/macos/install_android_sdk_macos.sh -y"
   fi
 
   # Rust Android targets
@@ -166,7 +166,7 @@ if [[ "$PLATFORM" == "android" ]]; then
   )
   if ! command -v rustup &>/dev/null; then
     fail "未找到 rustup"
-    fail "请运行：./script/install_base_tools_macos.sh --add-tools rust -y"
+    fail "请运行：./script/macos/install_base_tools_macos.sh --add-tools rust -y"
   else
     INSTALLED_TARGETS=$(rustup target list --installed 2>/dev/null)
     MISSING_TARGETS=()
@@ -181,14 +181,14 @@ if [[ "$PLATFORM" == "android" ]]; then
     if [[ ${#MISSING_TARGETS[@]} -gt 0 ]]; then
       echo ""
       warn "请运行安装脚本安装缺失的编译目标："
-      echo "    ./script/install_android_sdk_macos.sh -y"
+      echo "    ./script/macos/install_android_sdk_macos.sh -y"
     fi
   fi
 
   # keystore.properties（仅 build）
   if [[ "$COMMAND" == "build" ]]; then
     echo -e "${CYAN}[Android] keystore.properties${RESET}"
-    KEYSTORE_PROPS="$(cd "$SCRIPT_DIR/.." && pwd)/backend/src-tauri/gen/android/keystore.properties"
+    KEYSTORE_PROPS="$(cd "$SCRIPT_DIR/../.." && pwd)/backend/src-tauri/gen/android/keystore.properties"
     if [[ -f "$KEYSTORE_PROPS" ]]; then
       ok "keystore.properties 已找到：$KEYSTORE_PROPS"
     else
@@ -215,7 +215,7 @@ if [[ "$PLATFORM" == "ios" ]]; then
   )
   if ! command -v rustup &>/dev/null; then
     fail "未找到 rustup"
-    fail "请运行：./script/install_base_tools_macos.sh --add-tools rust -y"
+    fail "请运行：./script/macos/install_base_tools_macos.sh --add-tools rust -y"
   else
     INSTALLED_TARGETS=$(rustup target list --installed 2>/dev/null)
     MISSING_TARGETS=()
@@ -248,7 +248,7 @@ if [[ "$PLATFORM" == "macos" ]]; then
   )
   if ! command -v rustup &>/dev/null; then
     fail "未找到 rustup"
-    fail "请运行：./script/install_base_tools_macos.sh --add-tools rust -y"
+    fail "请运行：./script/macos/install_base_tools_macos.sh --add-tools rust -y"
   else
     INSTALLED_TARGETS=$(rustup target list --installed 2>/dev/null)
     MISSING_TARGETS=()
@@ -291,7 +291,7 @@ fi
 # ─── 构建准备（Android）──────────────────────────────────────────────────────────
 if [[ "$PLATFORM" == "android" ]]; then
 
-  PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+  PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
   GEN_ANDROID_DIR="${PROJECT_ROOT}/backend/src-tauri/gen/android"
 
   echo ""
@@ -352,9 +352,9 @@ if [[ "$PLATFORM" == "android" ]]; then
     # 替换签名和权限文件
     GEN_ANDROID_APP="${GEN_ANDROID_DIR}/app"
     echo -e "${CYAN}  替换 Android 签名和权限文件${RESET}"
-    cp "${SCRIPT_DIR}/android-permission-sign/build.gradle.kts" "${GEN_ANDROID_APP}/build.gradle.kts"
+    cp "${SCRIPT_DIR}/../android-permission-sign/build.gradle.kts" "${GEN_ANDROID_APP}/build.gradle.kts"
     ok "build.gradle.kts 已替换"
-    cp "${SCRIPT_DIR}/android-permission-sign/AndroidManifest.xml" "${GEN_ANDROID_APP}/src/main/AndroidManifest.xml"
+    cp "${SCRIPT_DIR}/../android-permission-sign/AndroidManifest.xml" "${GEN_ANDROID_APP}/src/main/AndroidManifest.xml"
     ok "AndroidManifest.xml 已替换"
 
     ok "pnpm tauri android init 完成"
@@ -365,9 +365,9 @@ if [[ "$PLATFORM" == "android" ]]; then
     if [[ "$COMMAND" == "build" ]]; then
       GEN_ANDROID_APP="${GEN_ANDROID_DIR}/app"
       echo -e "${CYAN}  替换 Android 签名和权限文件${RESET}"
-      cp "${SCRIPT_DIR}/android-permission-sign/build.gradle.kts" "${GEN_ANDROID_APP}/build.gradle.kts"
+      cp "${SCRIPT_DIR}/../android-permission-sign/build.gradle.kts" "${GEN_ANDROID_APP}/build.gradle.kts"
       ok "build.gradle.kts 已替换"
-      cp "${SCRIPT_DIR}/android-permission-sign/AndroidManifest.xml" "${GEN_ANDROID_APP}/src/main/AndroidManifest.xml"
+      cp "${SCRIPT_DIR}/../android-permission-sign/AndroidManifest.xml" "${GEN_ANDROID_APP}/src/main/AndroidManifest.xml"
       ok "AndroidManifest.xml 已替换"
     fi
   fi
