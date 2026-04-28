@@ -117,10 +117,11 @@ Windows Sandbox 支持使用 `.wsb` 文件进行启动配置。你可以把它�
 
 保存为 `demo.wsb`，双击即可启动。
 
-### 6.2 示例：禁用网络（更安全）
+### 6.2 示例：禁用 vGPU和网络（更安全）
 
 ```xml
 <Configuration>
+  <VGpu>Disable</VGpu>
   <Networking>Disable</Networking>
 </Configuration>
 ```
@@ -133,6 +134,38 @@ Windows Sandbox 支持使用 `.wsb` 文件进行启动配置。你可以把它�
     <Command>powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ComputerInfo | Out-File $env:USERPROFILE\\Desktop\\info.txt"</Command>
   </LogonCommand>
 </Configuration>
+```
+
+### 6.4 示例：在沙盒中启动时安装Visual Studio Code
+
+```xml
+<Configuration>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>C:\SandboxScripts</HostFolder>
+      <SandboxFolder>C:\temp\sandbox</SandboxFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+    <MappedFolder>
+      <HostFolder>C:\CodingProjects</HostFolder>
+      <SandboxFolder>C:\temp\Projects</SandboxFolder>
+      <ReadOnly>false</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <Command>C:\temp\sandbox\VSCodeInstall.cmd</Command>
+  </LogonCommand>
+</Configuration>
+```
+
+安装程序 VSCodeInstall.cmd
+
+```PowerShell
+REM Download Visual Studio Code
+curl -L "https://update.code.visualstudio.com/latest/win32-x64-user/stable" --output C:\temp\vscode.exe
+
+REM Install and run Visual Studio Code
+C:\temp\vscode.exe /verysilent /suppressmsgboxes
 ```
 
 常见用途：
@@ -176,4 +209,8 @@ dism /online /Get-FeatureInfo /FeatureName:Containers-DisposableClientVM
 - 确认虚拟化已开启
 - 确认 Windows 功能已启用并重启
 - 检查系统策略是否禁用相关功能
+
+### 9 参考资料
+
+[Windows 沙盒命令行 | Microsoft Learn](https://learn.microsoft.com/zh-cn/windows/security/application-security/application-isolation/windows-sandbox/windows-sandbox-cli?source=recommendations)
 
