@@ -163,8 +163,19 @@ tauri2demo/
 
 `pnpm dev` 启动时如报错 `Port 31420 is already in use`，通常是上次启动的 Vite 进程未正常退出。找到并关闭占用进程即可：
 
+**macOS / Linux：**
+
 ```bash
 lsof -ti :31420 | xargs kill
+```
+
+**Windows：**
+
+```powershell
+# 查找占用端口的 PID
+netstat -ano | findstr :31420
+# 关闭对应进程（替换 <PID>）
+taskkill /PID <PID> /F
 ```
 
 随后重新 `pnpm dev` 启动。
