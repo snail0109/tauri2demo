@@ -180,6 +180,16 @@ taskkill /PID <PID> /F
 
 随后重新 `pnpm dev` 启动。
 
+### Android 模拟器无法访问开发服务器
+
+Android 模拟器中运行 Tauri App 时，默认无法直接访问宿主机的 `localhost:31420`。使用 `adb reverse` 将端口映射到模拟器：
+
+```bash
+adb reverse tcp:31420 tcp:31420
+```
+
+之后重启模拟器中的 App 即可正常访问开发服务器。
+
 ## TODO
 - [ ] 移动端布局样式兼容问题
 - [ ] 移动端选中文本失效
