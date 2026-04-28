@@ -564,12 +564,11 @@ function Write-Usage {
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools <工具1,工具2,...>     安装指定工具"
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools all                  安装所有工具"
   Write-Host "  .\install_base_tools_bywin.ps1 -y -AddTools all               静默安装所有工具"
-  Write-Host "  .\install_base_tools_bywin.ps1 -AddTools winget -UseStore     通过 Microsoft Store 安装 winget"
+  Write-Host "  .\install_base_tools_bywin.ps1 -AddTools store                安装 Microsoft Store 商店"
   Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools <工具1,工具2,...>  卸载指定工具"
   Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools all               卸载所有工具"
   Write-Host ""
-  Write-Host "参数：" -ForegroundColor Cyan
-  Write-Host "  -UseStore    通过 Microsoft Store 安装 winget（自动处理许可证）"
+  Write-Host "可用工具：winget, terminal, store" -ForegroundColor Cyan
   Write-Host ""
   Write-Host "可用工具：" -ForegroundColor Cyan
   foreach ($t in $ToolDefs) {
