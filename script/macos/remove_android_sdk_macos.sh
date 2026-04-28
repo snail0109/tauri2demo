@@ -12,18 +12,7 @@
 
 set -euo pipefail
 
-# ─── Colors ───────────────────────────────────────────────────────────────────
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-RESET='\033[0m'
-
-ok()   { echo -e "${GREEN}  ✓ ${RESET} $*"; }
-warn() { echo -e "${YELLOW}  ⚠ ${RESET} $*"; }
-fail() { echo -e "${RED}  ✗ ${RESET} $*"; FAILED=1; }
-
-AUTO_YES=0
+source "$(dirname "$0")/_common.sh"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -36,45 +25,6 @@ while [[ $# -gt 0 ]]; do
     *) shift ;;
   esac
 done
-
-# 卸载默认确认 NO
-confirm_remove() {
-  local desc="$1"
-  if [[ "$AUTO_YES" -eq 1 ]]; then
-    echo -e "${YELLOW}  自动确认卸载：${desc}${RESET}"
-    return 0
-  fi
-  echo -e "${YELLOW}  ? ${desc} —— 是否卸载？[y/N]${RESET}"
-  read -r answer
-  case "$answer" in
-    y|Y|yes|Yes|YES) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
-SELECTED_OPTION=0
-select_option() {
-  local prompt="$1"
-  shift
-  local options=("$@")
-
-  echo -e "${CYAN}${prompt}${RESET}"
-  local i=1
-  for opt in "${options[@]}"; do
-    echo -e "  ${CYAN}${i})${RESET} ${opt}"
-    ((i++))
-  done
-  echo -e "  ${CYAN}0)${RESET} 退出（不卸载）"
-  echo ""
-  echo -ne "${YELLOW}  请选择 [0-$((i-1))]：${RESET}"
-  read -r choice
-
-  if [[ "$choice" -ge 1 && "$choice" -le "${#options[@]}" ]] 2>/dev/null; then
-    SELECTED_OPTION="$choice"
-  else
-    SELECTED_OPTION=0
-  fi
-}
 
 # ─── Detect Android SDK ──────────────────────────────────────────────────────
 ANDROID_HOME_DETECTED=""
@@ -97,26 +47,17 @@ detect_android_home() {
 
 # ─── Rust Android targets ────────────────────────────────────────────────────
 
-REQUIRED_TARGETS=(
-  "aarch64-linux-android"
-  "armv7-linux-androideabi"
-  "i686-linux-android"
-  "x86_64-linux-android"
-)
-
 remove_rust_android_targets() {
+  ensure_cargo_bin
+
   if ! command -v rustup &>/dev/null; then
-    if [[ -f "$HOME/.cargo/bin/rustup" ]]; then
-      export PATH="$HOME/.cargo/bin:$PATH"
-    else
-      warn "未检测到 rustup，跳过 Rust Android 编译目标卸载"
-      return 0
-    fi
+    warn "未检测到 rustup，跳过 Rust Android 编译目标卸载"
+    return 0
   fi
 
   local installed present=()
   installed=$(rustup target list --installed 2>/dev/null)
-  for t in "${REQUIRED_TARGETS[@]}"; do
+  for t in "${ANDROID_RUST_TARGETS[@]}"; do
     if echo "$installed" | grep -q "^${t}$"; then
       present+=("$t")
     fi
@@ -180,8 +121,6 @@ clean_env_vars() {
     return 0
   fi
 
-  # 使用 sed 删除 install_android_sdk_macos.sh 添加的配置块
-  # 删除包含 "Android SDK（由 install_android_sdk_macos.sh 添加）" 的行及其后续 ANDROID_HOME/ANDROID_NDK_HOME/PATH 行
   local tmp
   tmp=$(mktemp /tmp/zshrc_clean_XXXXXX)
 
@@ -192,7 +131,6 @@ clean_env_vars() {
       continue
     fi
     if [[ "$skip" -eq 1 ]]; then
-      # 跳过连续的 export ANDROID_* 和 export PATH=*platform-tools* 行
       if [[ "$line" =~ ^export\ ANDROID_ ]] || [[ "$line" == *platform-tools* ]]; then
         continue
       else
@@ -210,9 +148,7 @@ clean_env_vars() {
 # ─── Print installation status ────────────────────────────────────────────────
 
 print_installation_status() {
-  echo -e "${CYAN}══════════════════════════════════════════${RESET}"
-  echo -e "${CYAN}  当前安装状态                            ${RESET}"
-  echo -e "${CYAN}══════════════════════════════════════════${RESET}"
+  banner "当前安装状态"
 
   echo -e "${CYAN}[1/3] Android SDK${RESET}"
   if detect_android_home; then
@@ -245,11 +181,9 @@ print_installation_status() {
     export PATH="$HOME/.cargo/bin:$PATH" 2>/dev/null || true
     local installed
     installed=$(rustup target list --installed 2>/dev/null || echo "")
-    local count=0
-    for t in "${REQUIRED_TARGETS[@]}"; do
+    for t in "${ANDROID_RUST_TARGETS[@]}"; do
       if echo "$installed" | grep -q "^${t}$"; then
         ok "  $t"
-        count=$((count + 1))
       else
         warn "  $t（未装）"
       fi
@@ -270,7 +204,6 @@ print_installation_status() {
     warn "ANDROID_NDK_HOME 未在 ~/.zshrc 中配置"
   fi
 
-  # 是否完全没装
   if ! detect_android_home && ! (command -v rustup &>/dev/null && rustup target list --installed 2>/dev/null | grep -q "linux-android"); then
     if [[ ! -f "$HOME/.zshrc" ]] || ! grep -q "ANDROID_HOME" "$HOME/.zshrc" 2>/dev/null; then
       echo ""
@@ -285,8 +218,6 @@ print_installation_status() {
 # 主流程
 # ═══════════════════════════════════════════════════════════════════════════════
 
-FAILED=0
-
 echo ""
 echo -e "${RED}══════════════════════════════════════════${RESET}"
 echo -e "${RED}  Android SDK 卸载（macOS）              ${RESET}"
@@ -298,7 +229,7 @@ print_installation_status
 warn "本脚本会卸载 Android 开发工具，可能影响其它项目。"
 echo ""
 
-select_option "请选择要卸载的内容：" \
+select_menu_option "请选择要卸载的内容：" \
   "Rust Android 编译目标（保留 Android SDK）" \
   "Android SDK 目录 + 环境变量（保留 Rust Android targets）" \
   "全部卸载（Rust targets + Android SDK + 环境变量）"
@@ -329,9 +260,7 @@ esac
 
 # ─── Summary ──────────────────────────────────────────────────────────────────
 echo ""
-echo -e "${CYAN}══════════════════════════════════════════${RESET}"
-echo -e "${CYAN}  卸载结束摘要                            ${RESET}"
-echo -e "${CYAN}══════════════════════════════════════════${RESET}"
+banner "卸载结束摘要"
 
 detect_android_home && SDK_NOW="$ANDROID_HOME_DETECTED" || SDK_NOW=""
 if [[ -n "$SDK_NOW" && -d "$SDK_NOW" ]]; then

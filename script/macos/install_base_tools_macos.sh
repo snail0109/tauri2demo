@@ -10,19 +10,9 @@
 
 set -euo pipefail
 
-# ─── Colors ───────────────────────────────────────────────────────────────────
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-RESET='\033[0m'
-
-ok()   { echo -e "${GREEN}  ✓ ${RESET} $*"; }
-warn() { echo -e "${YELLOW}  ⚠ ${RESET} $*"; }
-fail() { echo -e "${RED}  ✗ ${RESET} $*"; FAILED=1; }
+source "$(dirname "$0")/_common.sh"
 
 # ─── Parse args ───────────────────────────────────────────────────────────────
-AUTO_YES=0
 ADD_TOOLS=()
 REMOVE_TOOLS=()
 
@@ -62,34 +52,6 @@ while [[ $# -gt 0 ]]; do
       ;;
   esac
 done
-
-confirm_install() {
-  local desc="$1"
-  if [[ "$AUTO_YES" -eq 1 ]]; then
-    echo -e "${YELLOW}  自动确认：${desc}${RESET}"
-    return 0
-  fi
-  echo -e "${YELLOW}  ? ${desc} 是否继续？[Y/n]${RESET}"
-  read -r answer
-  case "$answer" in
-    n|N|no|No|NO) return 1 ;;
-    *) return 0 ;;
-  esac
-}
-
-confirm_remove() {
-  local desc="$1"
-  if [[ "$AUTO_YES" -eq 1 ]]; then
-    echo -e "${YELLOW}  自动确认卸载：${desc}${RESET}"
-    return 0
-  fi
-  echo -e "${YELLOW}  ? ${desc} —— 是否卸载？[y/N]${RESET}"
-  read -r answer
-  case "$answer" in
-    y|Y|yes|Yes|YES) return 0 ;;
-    *) return 1 ;;
-  esac
-}
 
 # ─── Tool definitions ─────────────────────────────────────────────────────────
 declare -A TOOL_NAMES=(
@@ -192,7 +154,6 @@ install_brew() {
   echo -e "${CYAN}  正在安装 Homebrew ...${RESET}"
   /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2>&1 || true
 
-  # Homebrew 安装后可能在 /opt/homebrew/bin（Apple Silicon）或 /usr/local/bin（Intel）
   if [[ -f /opt/homebrew/bin/brew ]]; then
     eval "$(/opt/homebrew/bin/brew shellenv)"
   elif [[ -f /usr/local/bin/brew ]]; then
@@ -248,7 +209,6 @@ install_pnpm() {
     return 1
   fi
 
-  # npm 随 Xcode CLI Tools 安装
   if ! command -v npm &>/dev/null; then
     fail "未找到 npm，请先安装 Xcode Command Line Tools"
     return 1
@@ -288,7 +248,6 @@ test_rust() {
     ok "Rust 已安装：$(rustc --version 2>&1 | head -1)"
     return 0
   fi
-  # 探测 cargo bin 路径
   if [[ -f "$HOME/.cargo/bin/rustc" ]]; then
     export PATH="$HOME/.cargo/bin:$PATH"
     ok "Rust 已安装：$(rustc --version 2>&1 | head -1)"
@@ -388,8 +347,6 @@ usage() {
 
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
-FAILED=0
-
 if [[ ${#ADD_TOOLS[@]} -eq 0 && ${#REMOVE_TOOLS[@]} -eq 0 ]]; then
   usage
   exit 0
@@ -427,7 +384,7 @@ echo ""
 
 # ── 卸载流程 ──
 if [[ ${#REMOVE_TOOLS[@]} -gt 0 ]]; then
-  local step=0 total=${#REMOVE_TOOLS[@]}
+  step=0 total=${#REMOVE_TOOLS[@]}
   for t in "${REMOVE_TOOLS[@]}"; do
     step=$((step + 1))
     echo -e "${CYAN}[$step/$total] 卸载 ${TOOL_NAMES[$t]}${RESET}"
@@ -438,8 +395,7 @@ fi
 
 # ── 安装流程 ──
 if [[ ${#ADD_TOOLS[@]} -gt 0 ]]; then
-  # Homebrew 是 pnpm/Rust 的依赖捷径（非必须，但推荐）
-  local needs_brew=0
+  needs_brew=0
   for t in "${ADD_TOOLS[@]}"; do
     if [[ "$t" != "brew" && "$t" != "xcode" ]]; then
       needs_brew=1
@@ -450,7 +406,7 @@ if [[ ${#ADD_TOOLS[@]} -gt 0 ]]; then
     ADD_TOOLS=(brew "${ADD_TOOLS[@]}")
   fi
 
-  local step=0 total=${#ADD_TOOLS[@]}
+  step=0 total=${#ADD_TOOLS[@]}
   for t in "${ADD_TOOLS[@]}"; do
     step=$((step + 1))
     echo -e "${CYAN}[$step/$total] 安装 ${TOOL_NAMES[$t]}${RESET}"

@@ -12,19 +12,9 @@
 
 set -euo pipefail
 
-# ─── Colors ───────────────────────────────────────────────────────────────────
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-RESET='\033[0m'
-
-ok()   { echo -e "${GREEN}  ✓ ${RESET} $*"; }
-warn() { echo -e "${YELLOW}  ⚠ ${RESET} $*"; }
-fail() { echo -e "${RED}  ✗ ${RESET} $*"; FAILED=1; }
+source "$(dirname "$0")/_common.sh"
 
 # ─── Parse args ───────────────────────────────────────────────────────────────
-AUTO_YES=0
 SDK_ROOT_ARG=""
 
 while [[ $# -gt 0 ]]; do
@@ -57,34 +47,13 @@ done
 # SDK 根目录：命令行 > 环境变量 ANDROID_HOME > 默认路径
 SDK_ROOT_DEFAULT="${SDK_ROOT_ARG:-${ANDROID_HOME:-$HOME/Library/Android/sdk}}"
 
-confirm_install() {
-  local desc="$1"
-  if [[ "$AUTO_YES" -eq 1 ]]; then
-    echo -e "${YELLOW}  自动确认：${desc}${RESET}"
-    return 0
-  fi
-  echo -e "${YELLOW}  ? ${desc} 是否继续？[Y/n]${RESET}"
-  read -r answer
-  case "$answer" in
-    n|N|no|No|NO) return 1 ;;
-    *) return 0 ;;
-  esac
-}
-
 # ─── Java JDK 17+ ─────────────────────────────────────────────────────────────
 
 install_java() {
   echo -e "${CYAN}[*] 检查 Java JDK（17+）${RESET}"
 
-  if command -v java &>/dev/null; then
-    JAVA_VER=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+' | head -1)
-    if [[ "$JAVA_VER" -ge 17 ]]; then
-      ok "Java $JAVA_VER 已安装：$(which java)"
-      return 0
-    fi
-    fail "检测到 Java $JAVA_VER，需要 JDK 17+"
-  else
-    warn "未找到 Java"
+  if check_java17; then
+    return 0
   fi
 
   if command -v brew &>/dev/null; then
@@ -95,7 +64,6 @@ install_java() {
         return 1
       }
       ok "openjdk@17 安装成功"
-      # 设置 JAVA_HOME 供当前 shell 使用
       export JAVA_HOME="$(brew --prefix openjdk@17 2>/dev/null || echo "")"
       if [[ -n "$JAVA_HOME" ]]; then
         export PATH="$JAVA_HOME/bin:$PATH"
@@ -163,7 +131,6 @@ bootstrap_sdkmanager() {
   mv "${tmp_extract}/cmdline-tools" "${sdk_root}/cmdline-tools/latest"
   rm -rf "$tmp_zip" "$tmp_extract" 2>/dev/null || true
 
-  # macOS sdkmanager 是 shell 脚本
   if [[ -f "${sdk_root}/cmdline-tools/latest/bin/sdkmanager" ]]; then
     ok "SDKManager 已安装：${sdk_root}/cmdline-tools/latest/bin/sdkmanager"
     return 0
@@ -183,7 +150,6 @@ install_sdk_packages() {
   if [[ "$AUTO_YES" -eq 1 ]]; then
     echo -e "${YELLOW}  静默模式：自动接受所有许可协议${RESET}"
     echo ""
-    # 使用 yes 管道自动接受许可
     (
       set +o pipefail
       yes | "$sdkmanager" --sdk_root="$android_home" "${packages[@]}" 2>&1
@@ -205,33 +171,24 @@ install_sdk_packages() {
 
 # ─── Install Rust Android targets ─────────────────────────────────────────────
 
-REQUIRED_TARGETS=(
-  "aarch64-linux-android"
-  "armv7-linux-androideabi"
-  "i686-linux-android"
-  "x86_64-linux-android"
-)
-
 install_rust_android_targets() {
   echo -e "${CYAN}[*] 安装 Rust Android 编译目标${RESET}"
 
+  ensure_cargo_bin
+
   if ! command -v rustup &>/dev/null; then
-    if [[ -f "$HOME/.cargo/bin/rustup" ]]; then
-      export PATH="$HOME/.cargo/bin:$PATH"
-    else
-      warn "未找到 rustup，跳过 Rust Android 编译目标安装"
-      warn "请从 https://rustup.rs 安装 Rust 后手动执行："
-      for t in "${REQUIRED_TARGETS[@]}"; do
-        echo "    rustup target add $t"
-      done
-      return 0
-    fi
+    warn "未找到 rustup，跳过 Rust Android 编译目标安装"
+    warn "请从 https://rustup.rs 安装 Rust 后手动执行："
+    for t in "${ANDROID_RUST_TARGETS[@]}"; do
+      echo "    rustup target add $t"
+    done
+    return 0
   fi
 
   local installed_targets missing=()
   installed_targets=$(rustup target list --installed 2>/dev/null)
 
-  for t in "${REQUIRED_TARGETS[@]}"; do
+  for t in "${ANDROID_RUST_TARGETS[@]}"; do
     if echo "$installed_targets" | grep -q "$t"; then
       ok "  $t（已安装）"
     else
@@ -268,7 +225,6 @@ configure_env_vars() {
   local zshrc="$HOME/.zshrc"
   local updated=0
 
-  # 读取现有 ~/.zshrc
   local content=""
   if [[ -f "$zshrc" ]]; then
     content=$(cat "$zshrc")
@@ -322,7 +278,6 @@ configure_env_vars() {
     echo "    source ~/.zshrc"
   fi
 
-  # 当前 shell 立即生效
   export ANDROID_HOME="$android_home"
   if [[ -n "$ndk_ver" ]]; then
     export ANDROID_NDK_HOME="${android_home}/ndk/${ndk_ver}"
@@ -334,8 +289,6 @@ configure_env_vars() {
 # ═══════════════════════════════════════════════════════════════════════════════
 # 主流程
 # ═══════════════════════════════════════════════════════════════════════════════
-
-FAILED=0
 
 echo ""
 echo -e "${CYAN}══════════════════════════════════════════${RESET}"
@@ -353,9 +306,8 @@ echo -e "${CYAN}[*] 定位 SDKManager${RESET}"
 
 SDKMANAGER="${SDK_ROOT_DEFAULT}/cmdline-tools/latest/bin/sdkmanager"
 
-# 如果指定路径不存在，尝试 ANDROID_HOME 环境变量
 if [[ ! -f "$SDKMANAGER" ]]; then
-  local ah="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
+  ah="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
   if [[ -n "$ah" && -f "${ah}/cmdline-tools/latest/bin/sdkmanager" ]]; then
     SDKMANAGER="${ah}/cmdline-tools/latest/bin/sdkmanager"
     SDK_ROOT_DEFAULT="$ah"
@@ -364,7 +316,6 @@ fi
 
 if [[ -f "$SDKMANAGER" ]]; then
   ok "SDKManager 已找到：$SDKMANAGER"
-  local sdk_ver
   sdk_ver=$("$SDKMANAGER" --version 2>/dev/null | grep -E '^[0-9]' | head -1 || true)
   if [[ -n "$sdk_ver" ]]; then
     ok "    版本：$sdk_ver"
@@ -385,7 +336,6 @@ else
   fi
 fi
 
-# 推导 ANDROID_HOME（sdkmanager 所在 SDK 根目录）
 SDKMANAGER_DIR="$(cd "$(dirname "$SDKMANAGER")" && pwd)"
 ANDROID_HOME="$(cd "$SDKMANAGER_DIR/../../.." && pwd)"
 ok "ANDROID_HOME 推导为：$ANDROID_HOME"
@@ -400,7 +350,6 @@ SDK_PACKAGES=(
   "build-tools;34.0.0"
 )
 
-# 清理之前失败遗留的 latest-2
 if [[ -d "${ANDROID_HOME}/cmdline-tools/latest-2" ]]; then
   warn "检测到遗留目录 cmdline-tools/latest-2，正在清理 ..."
   rm -rf "${ANDROID_HOME}/cmdline-tools/latest-2"

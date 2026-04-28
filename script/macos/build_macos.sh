@@ -18,16 +18,7 @@ set -euo pipefail
 COMMAND="${1:-}"
 PLATFORM="${2:-android}"   # dev / check 默认 android；build 须显式指定平台
 
-# ─── Colors ───────────────────────────────────────────────────────────────────
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-RESET='\033[0m'
-
-ok()   { echo -e "${GREEN}  ✓${RESET} $*"; }
-warn() { echo -e "${YELLOW}  ⚠${RESET} $*"; }
-fail() { echo -e "${RED}  ✗${RESET} $*"; FAILED=1; }
+source "$(dirname "$0")/_common.sh"
 
 # ─── Usage ────────────────────────────────────────────────────────────────────
 usage() {
@@ -66,7 +57,6 @@ echo -e "${CYAN}  环境检查（目标平台：${PLATFORM}）         ${RESET}"
 echo -e "${CYAN}══════════════════════════════════════════${RESET}"
 echo ""
 
-FAILED=0
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # ─── 公共：Xcode Command Line Tools ──────────────────────────────────────────
@@ -90,18 +80,8 @@ fi
 # ─── Android 专属检查 ─────────────────────────────────────────────────────────
 if [[ "$PLATFORM" == "android" ]]; then
 
-  # Java JDK 17+
   echo -e "${CYAN}[Android] Java JDK（17+）${RESET}"
-  if command -v java &>/dev/null; then
-    JAVA_VER=$(java -version 2>&1 | head -1 | grep -oE '[0-9]+' | head -1)
-    if [[ "$JAVA_VER" -ge 17 ]]; then
-      ok "Java $JAVA_VER 已安装：$(which java)"
-    else
-      fail "检测到 Java $JAVA_VER，需要 JDK 17+"
-      fail "请运行：./script/macos/install_android_sdk_macos.sh -y"
-    fi
-  else
-    fail "未找到 Java，需要 JDK 17+"
+  if ! check_java17; then
     fail "请运行：./script/macos/install_android_sdk_macos.sh -y"
   fi
 
@@ -158,31 +138,10 @@ if [[ "$PLATFORM" == "android" ]]; then
 
   # Rust Android targets
   echo -e "${CYAN}[Android] Rust 编译目标${RESET}"
-  REQUIRED_TARGETS=(
-    "aarch64-linux-android"
-    "armv7-linux-androideabi"
-    "i686-linux-android"
-    "x86_64-linux-android"
-  )
-  if ! command -v rustup &>/dev/null; then
-    fail "未找到 rustup"
-    fail "请运行：./script/macos/install_base_tools_macos.sh --add-tools rust -y"
-  else
-    INSTALLED_TARGETS=$(rustup target list --installed 2>/dev/null)
-    MISSING_TARGETS=()
-    for t in "${REQUIRED_TARGETS[@]}"; do
-      if echo "$INSTALLED_TARGETS" | grep -q "$t"; then
-        ok "  $t"
-      else
-        MISSING_TARGETS+=("$t")
-        fail "  ${t}（未安装）"
-      fi
-    done
-    if [[ ${#MISSING_TARGETS[@]} -gt 0 ]]; then
-      echo ""
-      warn "请运行安装脚本安装缺失的编译目标："
-      echo "    ./script/macos/install_android_sdk_macos.sh -y"
-    fi
+  if ! check_rust_targets "${ANDROID_RUST_TARGETS[@]}"; then
+    echo ""
+    warn "请运行安装脚本安装缺失的编译目标："
+    echo "    ./script/macos/install_android_sdk_macos.sh -y"
   fi
 
   # keystore.properties（仅 build）
@@ -208,32 +167,12 @@ fi  # end android
 if [[ "$PLATFORM" == "ios" ]]; then
 
   echo -e "${CYAN}[iOS] Rust 编译目标${RESET}"
-  REQUIRED_TARGETS=(
-    "aarch64-apple-ios"
-    "x86_64-apple-ios"
-    "aarch64-apple-ios-sim"
-  )
-  if ! command -v rustup &>/dev/null; then
-    fail "未找到 rustup"
-    fail "请运行：./script/macos/install_base_tools_macos.sh --add-tools rust -y"
-  else
-    INSTALLED_TARGETS=$(rustup target list --installed 2>/dev/null)
-    MISSING_TARGETS=()
-    for t in "${REQUIRED_TARGETS[@]}"; do
-      if echo "$INSTALLED_TARGETS" | grep -q "$t"; then
-        ok "  $t"
-      else
-        MISSING_TARGETS+=("$t")
-        fail "  ${t}（未安装）"
-      fi
+  if ! check_rust_targets "${IOS_RUST_TARGETS[@]}"; then
+    echo ""
+    warn "请运行以下命令安装缺失的编译目标："
+    for t in "${MISSING_TARGETS[@]}"; do
+      echo "    rustup target add $t"
     done
-    if [[ ${#MISSING_TARGETS[@]} -gt 0 ]]; then
-      echo ""
-      warn "请运行以下命令安装缺失的编译目标："
-      for t in "${MISSING_TARGETS[@]+"${MISSING_TARGETS[@]}"}"; do
-        echo "    rustup target add $t"
-      done
-    fi
   fi
 
 fi  # end ios
@@ -242,17 +181,13 @@ fi  # end ios
 if [[ "$PLATFORM" == "macos" ]]; then
 
   echo -e "${CYAN}[macOS] Rust 编译目标${RESET}"
-  REQUIRED_TARGETS=(
-    "aarch64-apple-darwin"
-    "x86_64-apple-darwin"
-  )
   if ! command -v rustup &>/dev/null; then
     fail "未找到 rustup"
     fail "请运行：./script/macos/install_base_tools_macos.sh --add-tools rust -y"
   else
     INSTALLED_TARGETS=$(rustup target list --installed 2>/dev/null)
     MISSING_TARGETS=()
-    for t in "${REQUIRED_TARGETS[@]}"; do
+    for t in "${MACOS_RUST_TARGETS[@]}"; do
       if echo "$INSTALLED_TARGETS" | grep -q "$t"; then
         ok "  $t"
       else
@@ -263,7 +198,7 @@ if [[ "$PLATFORM" == "macos" ]]; then
     if [[ ${#MISSING_TARGETS[@]} -gt 0 ]]; then
       echo ""
       warn "如需构建通用包（universal），请安装缺失目标："
-      for t in "${MISSING_TARGETS[@]+"${MISSING_TARGETS[@]}"}"; do
+      for t in "${MISSING_TARGETS[@]}"; do
         echo "    rustup target add $t"
       done
     fi

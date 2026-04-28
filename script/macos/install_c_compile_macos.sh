@@ -9,18 +9,7 @@
 
 set -euo pipefail
 
-# ─── Colors ───────────────────────────────────────────────────────────────────
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-RESET='\033[0m'
-
-ok()   { echo -e "${GREEN}  ✓ ${RESET} $*"; }
-warn() { echo -e "${YELLOW}  ⚠ ${RESET} $*"; }
-fail() { echo -e "${RED}  ✗ ${RESET} $*"; FAILED=1; }
-
-AUTO_YES=0
+source "$(dirname "$0")/_common.sh"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -33,20 +22,6 @@ while [[ $# -gt 0 ]]; do
     *) shift ;;
   esac
 done
-
-confirm_install() {
-  local desc="$1"
-  if [[ "$AUTO_YES" -eq 1 ]]; then
-    echo -e "${YELLOW}  自动确认：${desc}${RESET}"
-    return 0
-  fi
-  echo -e "${YELLOW}  ? ${desc} 是否继续？[Y/n]${RESET}"
-  read -r answer
-  case "$answer" in
-    n|N|no|No|NO) return 1 ;;
-    *) return 0 ;;
-  esac
-}
 
 # ─── Xcode CLI Tools（提供 clang/clang++） ────────────────────────────────────
 
@@ -95,10 +70,7 @@ RUSTC_VERSION=""
 RUSTC_HOST=""
 
 test_rust() {
-  # 探测 cargo bin 路径
-  if ! command -v rustc &>/dev/null && [[ -f "$HOME/.cargo/bin/rustc" ]]; then
-    export PATH="$HOME/.cargo/bin:$PATH"
-  fi
+  ensure_cargo_bin
 
   if ! command -v rustc &>/dev/null; then
     return 1
@@ -144,7 +116,6 @@ install_rustup() {
 }
 
 ensure_rust_toolchain() {
-  # macOS 主机架构：aarch64-apple-darwin (Apple Silicon) 或 x86_64-apple-darwin (Intel)
   local host_target="${RUSTC_HOST:-}"
   if [[ -z "$host_target" ]]; then
     host_target=$(rustc -vV 2>/dev/null | awk -F': ' '/^host:/{print $2}' | tr -d '\r ' || echo "")
@@ -184,8 +155,6 @@ ensure_rust_toolchain() {
 # 主流程
 # ═══════════════════════════════════════════════════════════════════════════════
 
-FAILED=0
-
 echo ""
 echo -e "${CYAN}══════════════════════════════════════════${RESET}"
 echo -e "${CYAN}  C/C++ 编译工具检查与安装（macOS）       ${RESET}"
@@ -201,7 +170,6 @@ if test_clang; then
 fi
 
 if [[ "$HAS_CLANG" -eq 1 ]]; then
-  # ─── 已安装：检查 Rust 工具链匹配 ───────────────────────────────────────────
   echo ""
   echo -e "${GREEN}══════════════════════════════════════════${RESET}"
   echo -e "${GREEN}  C/C++ 编译工具已就绪${RESET}"
@@ -220,7 +188,6 @@ if [[ "$HAS_CLANG" -eq 1 ]]; then
     ensure_rust_toolchain || true
   fi
 
-  # ─── 步骤 3：摘要 ───────────────────────────────────────────────────────────
   echo ""
   echo -e "${CYAN}[3/3] 环境摘要${RESET}"
   echo -e "  clang     ：${GREEN}已安装${RESET}"
@@ -248,7 +215,6 @@ else
   exit 1
 fi
 
-# ─── 安装 Rust 工具链 ──────────────────────────────────────────────────────────
 echo ""
 echo -e "${CYAN}[3/3] 安装 Rust 工具链${RESET}"
 
