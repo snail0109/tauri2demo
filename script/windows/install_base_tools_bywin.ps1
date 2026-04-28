@@ -220,12 +220,6 @@ function Install-WingetTool {
   return $false
 }
 
-function Uninstall-WingetTool {
-  Write-Host ""
-  Write-Host "═══ 卸载 winget ═══" -ForegroundColor Cyan
-  Write-Host ""
-}
-
 # ─── Windows 终端 ─────────────────────────────────────────────────────────────
 
 function Test-WindowsTerminal {
@@ -381,13 +375,8 @@ function Install-WindowsTerminalTool {
 }
 
 function Uninstall-WindowsTerminalTool {
-  Write-Host ""
-  Write-Host "═══ 卸载 Windows 终端 ═══" -ForegroundColor Cyan
-  Write-Host ""
-
   if (-not (Test-WindowsTerminal)) {
-    Write-Host ""
-    Write-Banner -Title 'Windows 终端 未安装，无需卸载' -Color Green
+    Write-Warn 'Windows 终端 未安装，无需卸载'
     return $true
   }
 
@@ -465,7 +454,6 @@ $ToolInstallers = @{
 
 # Id → Uninstall 函数 的映射
 $ToolUninstallers = @{
-  'winget'   = ${function:Uninstall-WingetTool}
   'terminal' = ${function:Uninstall-WindowsTerminalTool}
 }
 
@@ -492,8 +480,7 @@ function Write-Usage {
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools winget"
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools winget,terminal"
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools all"
-  Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools winget"
-  Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools winget,terminal"
+  Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools terminal"
   Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools all"
   Write-Host ""
 }
@@ -551,23 +538,32 @@ Write-Host ""
 
 # ── 卸载流程 ──
 if ($RemoveTools -and $RemoveTools.Count -gt 0) {
-  # 卸载 winget 时，如果其他工具也依赖 winget，提示先卸载依赖工具
-  if ('winget' -in $RemoveTools) {
-    $dependents = $RemoveTools | Where-Object { $_ -ne 'winget' }
-    if ($dependents) {
-      Write-Warn "winget 是其他工具的依赖，建议先卸载依赖工具再卸载 winget"
-    }
-  }
-
   $step = 0
   $total = $RemoveTools.Count
   $removeResults = @{}
+  $removeDetails = @{}
 
   foreach ($id in $RemoveTools) {
     $step++
     $def = $ToolDefs | Where-Object { $_.Id -eq $id } | Select-Object -First 1
     Write-Host "[$step/$total] 卸载 $($def.Name)" -ForegroundColor Cyan
-    $removeResults[$id] = & $ToolUninstallers[$id]
+    $uninstaller = $null
+    if ($ToolUninstallers.ContainsKey($id)) { $uninstaller = $ToolUninstallers[$id] }
+    if (-not $uninstaller) {
+      Write-Warn "$($def.Name) 跳过"
+      $removeResults[$id] = $true
+      $removeDetails[$id] = '跳过'
+    }
+    else {
+      try {
+        $removeResults[$id] = [bool](& $uninstaller)
+      }
+      catch {
+        Write-Fail "$($def.Name) 卸载过程出错：$($_.Exception.Message)"
+        $removeResults[$id] = $false
+        $removeDetails[$id] = $_.Exception.Message
+      }
+    }
     Write-Host ""
   }
 
@@ -575,7 +571,7 @@ if ($RemoveTools -and $RemoveTools.Count -gt 0) {
   Write-Host "═══ 卸载摘要 ═══" -ForegroundColor Cyan
   foreach ($id in $RemoveTools) {
     $def = $ToolDefs | Where-Object { $_.Id -eq $id } | Select-Object -First 1
-    Write-StatusLine -Label $def.Name -Ok:$removeResults[$id]
+    Write-StatusLine -Label $def.Name -Ok:$removeResults[$id] -OkText '已处理' -NotOkText '未处理' -Detail $removeDetails[$id]
   }
   Write-Host ""
 
