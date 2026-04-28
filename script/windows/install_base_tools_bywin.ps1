@@ -18,8 +18,7 @@ if ($Yes) { Enable-AutoConfirm }
 # 每个工具：Id（参数名）、Name（显示名）、Description
 $ToolDefs = @(
   @{ Id = 'winget'; Name = 'winget'; Description = 'Windows 包管理器' },
-  @{ Id = 'terminal'; Name = 'Windows 终端'; Description = 'Windows Terminal（多标签终端）' },
-  @{ Id = 'store'; Name = 'Microsoft Store'; Description = 'Microsoft Store 商店' }
+  @{ Id = 'terminal'; Name = 'Windows 终端'; Description = 'Windows Terminal（多标签终端）' }
 )
 
 # ─── winget ───────────────────────────────────────────────────────────────────
@@ -48,12 +47,14 @@ function Test-Winget {
         $sizeMB = '{0:N2}' -f ($total / 1MB)
         Write-Host "    大小：${sizeMB} MB（App Installer 包）"
       }
-    } else {
+    }
+    else {
       $fi = Get-Item -LiteralPath $winget -ErrorAction Stop
       $sizeMB = '{0:N2}' -f ($fi.Length / 1MB)
       Write-Host "    大小：${sizeMB} MB"
     }
-  } catch {}
+  }
+  catch {}
   if (-not [string]::IsNullOrWhiteSpace($ver)) { Write-Host "    版本：$ver" }
   return $true
 }
@@ -92,8 +93,6 @@ function Add-WingetMirrorSource {
     Write-Ok "winget 国内镜像源已配置（ustc）"
     return
   }
-
-  Write-Host "  配置 winget 国内镜像源（ustc）..." -ForegroundColor Cyan
 
   # 移除 msstore 源（证书验证问题，且开发者通常不需要）
   if ($sourceList -and ($sourceList | Where-Object { $_ -match 'msstore' })) {
@@ -225,105 +224,6 @@ function Uninstall-WingetTool {
   Write-Host ""
   Write-Host "═══ 卸载 winget ═══" -ForegroundColor Cyan
   Write-Host ""
-
-  # 查找 winget 命令
-  $wingetCmd = Get-Command winget -ErrorAction SilentlyContinue
-  if (-not $wingetCmd) {
-    Write-Host ""
-    Write-Banner -Title 'winget 未安装或已被卸载' -Color Green
-    return $true
-  }
-
-  if (-not (Confirm-Continue "确认卸载 winget（通过删除 winget.exe）")) { return $false }
-
-  # 查找 WindowsApps 下所有 winget.exe
-  $targets = @()
-  $appDirs = Get-ChildItem "C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*" -Directory -ErrorAction SilentlyContinue
-  foreach ($dir in $appDirs) {
-    $exe = Join-Path $dir.FullName "winget.exe"
-    if (Test-Path $exe) {
-      $targets += $exe
-    }
-  }
-
-  # 也加上 Get-Command 找到的路径
-  if ($wingetCmd.Source -and ($targets -notcontains $wingetCmd.Source)) {
-    $targets += $wingetCmd.Source
-  }
-
-  if ($targets.Count -eq 0) {
-    Write-Warn "未找到 winget.exe 文件"
-    return $false
-  }
-
-  Write-Host "  找到以下 winget.exe 文件:" -ForegroundColor Cyan
-  foreach ($t in $targets) {
-    Write-Host "    $t"
-  }
-  Write-Host ""
-
-  $success = $true
-  foreach ($exe in $targets) {
-    Write-Host "  处理: $exe" -ForegroundColor Cyan
-
-    # 第1步: 获取父目录所有权
-    $dir = Split-Path $exe
-    Write-Host "    获取目录所有权..." -NoNewline
-    try {
-      $null = & takeown /f $dir /r /d Y 2>&1
-      Write-Host " 完成" -ForegroundColor Green
-    }
-    catch {
-      Write-Host " 失败" -ForegroundColor Red
-      $success = $false
-      continue
-    }
-
-    # 第2步: 授予管理员完全控制权限
-    Write-Host "    设置权限..." -NoNewline
-    try {
-      $null = & icacls $dir /grant "Administrators:(OI)(CI)F" /t /c 2>&1
-      Write-Host " 完成" -ForegroundColor Green
-    }
-    catch {
-      Write-Host " 失败" -ForegroundColor Red
-      $success = $false
-      continue
-    }
-
-    # 第3步: 先删除，再重命名
-    Write-Host "    删除 winget.exe ..." -NoNewline
-    try {
-      Remove-Item -Path $exe -Force -ErrorAction Stop
-      Write-Host " 完成" -ForegroundColor Green
-    }
-    catch {
-      Write-Host "    重命名 winget.exe -> winget.exe.bak ..." -NoNewline
-      try {
-        Rename-Item -Path $exe -NewName "winget.exe.bak" -Force -ErrorAction Stop
-        Write-Host " 完成" -ForegroundColor Green
-      }
-      catch {
-        Write-Host "失败" -ForegroundColor Red
-        Write-Warn "替代方案也失败: $($_.Exception.Message)"
-        $success = $false
-      }
-    }
-  }
-
-  Write-Host ""
-  # 验证
-  $check = Get-Command winget -ErrorAction SilentlyContinue
-  if (-not $check) {
-    Write-Banner -Title 'winget 已成功禁用' -Color Green
-    Write-Host "  恢复方法: 将 winget.exe.bak 重命名回 winget.exe" -ForegroundColor DarkGray
-    return $true
-  }
-  else {
-    Write-Warn "winget 仍然可用: $($check.Source)"
-    Write-Warn "可能需要重启后生效，或存在其他副本"
-    return $false
-  }
 }
 
 # ─── Windows 终端 ─────────────────────────────────────────────────────────────
@@ -335,7 +235,19 @@ function Test-WindowsTerminal {
     if (Test-Path -LiteralPath $localWt) { $wt = $localWt }
   }
   if (-not $wt) { return $false }
-  $ver = (Invoke-NativeText -FilePath $wt -Arguments @('--version') | Select-Object -First 1)
+  $ver = $null
+  try {
+    $wtPkg = Get-AppxPackage -Name Microsoft.WindowsTerminal -ErrorAction Stop | Select-Object -First 1
+    if ($wtPkg -and $wtPkg.Version) { $ver = $wtPkg.Version.ToString() }
+  }
+  catch {}
+  if ([string]::IsNullOrWhiteSpace($ver)) {
+    try {
+      $fi = Get-Item -LiteralPath $wt -ErrorAction Stop
+      $ver = $fi.VersionInfo.ProductVersion
+    }
+    catch {}
+  }
   Write-Ok "Windows 终端 已安装"
   Write-Host "    路径：$wt"
   try {
@@ -350,12 +262,14 @@ function Test-WindowsTerminal {
         $sizeMB = '{0:N2}' -f ($total / 1MB)
         Write-Host "    大小：${sizeMB} MB（Windows Terminal 包）"
       }
-    } else {
+    }
+    else {
       $fi = Get-Item -LiteralPath $wt -ErrorAction Stop
       $sizeMB = '{0:N2}' -f ($fi.Length / 1MB)
       Write-Host "    大小：${sizeMB} MB"
     }
-  } catch {}
+  }
+  catch {}
   if (-not [string]::IsNullOrWhiteSpace($ver)) { Write-Host "    版本：$ver" }
   return $true
 }
@@ -367,7 +281,6 @@ function Install-WindowsTerminalTool {
 
   if (Test-WindowsTerminal) {
     Write-Host ""
-    Write-Banner -Title 'Windows 终端 已就绪' -Color Green
     return $true
   }
 
