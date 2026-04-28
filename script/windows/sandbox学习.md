@@ -123,6 +123,7 @@ Windows Sandbox 支持使用 `.wsb` 文件进行启动配置。你可以把它�
 <Configuration>
   <VGpu>Disable</VGpu>
   <Networking>Disable</Networking>
+  <MemoryInMB>2048</MemoryInMB>
 </Configuration>
 ```
 
@@ -214,3 +215,4 @@ dism /online /Get-FeatureInfo /FeatureName:Containers-DisposableClientVM
 
 [Windows 沙盒命令行 | Microsoft Learn](https://learn.microsoft.com/zh-cn/windows/security/application-security/application-isolation/windows-sandbox/windows-sandbox-cli?source=recommendations)
 
+[使用和配置Windows 沙盒 | Microsoft Learn](https://learn.microsoft.com/zh-cn/windows/security/application-security/application-isolation/windows-sandbox/windows-sandbox-configure-using-wsb-file?source=recommendations)
