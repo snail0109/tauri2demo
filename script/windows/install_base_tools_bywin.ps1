@@ -281,7 +281,7 @@ function Install-WindowsTerminalTool {
   Write-Host "  ✗ 未检测到 Windows 终端" -ForegroundColor Red
   Write-Host ""
 
-  if (-not (Confirm-Install "安装 Windows 终端")) { return $false }
+  if (-not (Confirm-Install "安装 Windows 终端（Windows Terminal）")) { return $false }
 
   $installed = $false
 
@@ -304,26 +304,40 @@ function Install-WindowsTerminalTool {
   # 方式二：从 GitHub releases 下载 .msixbundle 安装
   if (-not $installed) {
     Write-Host "  下载 Windows 终端安装包 ..." -ForegroundColor Cyan
-    $wtInstaller = Join-Path $env:TEMP ("WindowsTerminal_{0}.msixbundle" -f ([guid]::NewGuid().ToString('N')))
+    $wtInstaller = Join-Path $env:TEMP ("Microsoft.WindowsTerminal_{0}.msixbundle" -f ([guid]::NewGuid().ToString('N')))
     try {
-      $releaseApiUrl = 'https://api.github.com/repos/microsoft/terminal/releases/latest'
       $downloadUrl = $null
       try {
         $prev = $ErrorActionPreference
-        $ErrorActionPreference = 'Continue'
-        $release = Invoke-RestMethod -Uri $releaseApiUrl -TimeoutSec 15
-        $asset = $release.assets | Where-Object { $_.name -like '*_x64.msixbundle' } | Select-Object -First 1
-        if ($asset) { $downloadUrl = $asset.browser_download_url }
-        $ErrorActionPreference = $prev
+        try {
+          $ErrorActionPreference = 'Continue'
+          $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/microsoft/terminal/releases/latest' -TimeoutSec 15
+          $asset = $release.assets | Where-Object { $_.name -like 'Microsoft.WindowsTerminal_*_x64.msixbundle' } | Select-Object -First 1
+          if (-not $asset) {
+            $asset = $release.assets | Where-Object { $_.name -like '*WindowsTerminal*_*x64*.msixbundle' } | Select-Object -First 1
+          }
+          if ($asset) { $downloadUrl = $asset.browser_download_url }
+        }
+        finally {
+          $ErrorActionPreference = $prev
+        }
       }
       catch {
         Write-Warn "无法获取 Windows 终端最新版下载地址，使用固定版本 ..."
       }
 
       $urls = @()
-      if ($downloadUrl) { $urls += $downloadUrl }
-      $urls += 'https://github.com/microsoft/terminal/releases/download/v1.25.923.0/Microsoft.WindowsTerminalPreview_1.25.923.0_x64.zip'
-      if (Save-WebFile -Urls $urls -OutFile $wtInstaller -TimeoutSec 120) {
+      if ($downloadUrl) {
+        $urls += "https://gh-proxy.org/$downloadUrl"
+        $urls += "https://cdn.gh-proxy.org/$downloadUrl"
+        $urls += "https://hk.gh-proxy.org/$downloadUrl"
+        $urls += "https://gh.llkk.cc/$downloadUrl"
+        $urls += $downloadUrl
+      }
+      $urls += 'https://github.com/microsoft/terminal/releases/download/v1.25.923.0/Microsoft.WindowsTerminal_1.25.923.0_x64.msixbundle'
+      $urls += 'https://github.com/microsoft/terminal/releases/download/v1.25.923.0/Microsoft.WindowsTerminalPreview_1.25.923.0_x64.msixbundle'
+
+      if (Save-WebFile -Urls $urls -OutFile $wtInstaller -TimeoutSec 120 -MinSizeKB 10240) {
         try {
           Add-AppxPackage -Path $wtInstaller -ErrorAction Stop
           Write-Ok "Windows 终端安装成功"
@@ -337,8 +351,8 @@ function Install-WindowsTerminalTool {
         Write-Fail "下载 Windows 终端安装包失败"
       }
     }
-    finally {
-      Remove-Item -LiteralPath $wtInstaller -Force -ErrorAction SilentlyContinue
+    catch {
+      Write-Warn "Windows 终端 下载/安装过程出错：$($_.Exception.Message)"
     }
   }
 
