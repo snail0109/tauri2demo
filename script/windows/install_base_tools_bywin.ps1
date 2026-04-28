@@ -179,9 +179,10 @@ function Install-WingetTool {
       $urls += "https://cdn.gh-proxy.org/$downloadUrl"
       $urls += "https://hk.gh-proxy.org/$downloadUrl"
       $urls += "https://gh.llkk.cc/$downloadUrl"
+      $urls += $downloadUrl
     }
     # 固定版本兜底
-    $fixedUrl = 'http://nj.yj2025.icu:23432/update/winget/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
+    $fixedUrl = 'http://nj.yj2025.icu:23432/update/winapp/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'
     $urls += $fixedUrl
 
     if (Save-WebFile -Urls $urls -OutFile $wingetInstaller -TimeoutSec 120 -MinSizeKB 10240) {
@@ -296,10 +297,10 @@ function Install-WindowsTerminalTool {
         try {
           $ErrorActionPreference = 'Continue'
           $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/microsoft/terminal/releases/latest' -TimeoutSec 15
-          $asset = $release.assets | Where-Object { $_.name -like 'Microsoft.WindowsTerminal_*_x64.msixbundle' } | Select-Object -First 1
-          if (-not $asset) {
-            $asset = $release.assets | Where-Object { $_.name -like '*WindowsTerminal*_*x64*.msixbundle' } | Select-Object -First 1
-          }
+          $assets = @($release.assets | Where-Object { $_.name -like '*.msixbundle' -and $_.name -notlike '*PreinstallKit*' })
+          $asset = $assets | Where-Object { $_.name -like 'Microsoft.WindowsTerminal_*_8wekyb3d8bbwe.msixbundle' } | Select-Object -First 1
+          if (-not $asset) { $asset = $assets | Where-Object { $_.name -like 'Microsoft.WindowsTerminal_*_x64.msixbundle' } | Select-Object -First 1 }
+          if (-not $asset) { $asset = $assets | Where-Object { $_.name -like 'Microsoft.WindowsTerminal_*.msixbundle' } | Select-Object -First 1 }
           if ($asset) { $downloadUrl = $asset.browser_download_url }
         }
         finally {
@@ -318,8 +319,9 @@ function Install-WindowsTerminalTool {
         $urls += "https://gh.llkk.cc/$downloadUrl"
         $urls += $downloadUrl
       }
-      $urls += 'https://github.com/microsoft/terminal/releases/download/v1.25.923.0/Microsoft.WindowsTerminal_1.25.923.0_x64.msixbundle'
-      $urls += 'https://github.com/microsoft/terminal/releases/download/v1.25.923.0/Microsoft.WindowsTerminalPreview_1.25.923.0_x64.msixbundle'
+    # 固定版本兜底
+    $fixedUrl = 'http://nj.yj2025.icu:23432/update/winapp/Microsoft.WindowsTerminal_1.24.10921.0_8wekyb3d8bbwe.msixbundle'
+    $urls += $fixedUrl
 
       if (Save-WebFile -Urls $urls -OutFile $wtInstaller -TimeoutSec 120 -MinSizeKB 10240) {
         try {
@@ -341,7 +343,7 @@ function Install-WindowsTerminalTool {
   }
 
   # 方式二：通过 winget 安装
-  if (Get-ExePath 'winget.exe') {
+  if (-not $installed -and (Get-ExePath 'winget.exe')) {
     Write-Host "  通过 winget 安装 Windows 终端 ..." -ForegroundColor Cyan
     try {
       Invoke-NativeStream -Block { & winget install --id Microsoft.WindowsTerminal --source winget --accept-package-agreements --accept-source-agreements }
@@ -477,10 +479,7 @@ function Write-Usage {
   Write-Host ""
   Write-Host "用法：" -ForegroundColor Cyan
   Write-Host "  .\install_base_tools_bywin.ps1 -AddTools <工具1,工具2,...>     安装指定工具"
-  Write-Host "  .\install_base_tools_bywin.ps1 -AddTools all                  安装所有工具"
-  Write-Host "  .\install_base_tools_bywin.ps1 -AddTools store                安装 Microsoft Store 商店"
   Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools <工具1,工具2,...>  卸载指定工具"
-  Write-Host "  .\install_base_tools_bywin.ps1 -RemoveTools all               卸载所有工具"
   Write-Host "  .\install_base_tools_bywin.ps1 -y -AddTools all               静默安装所有工具"
   Write-Host ""
   Write-Host "可用工具：winget, terminal, store" -ForegroundColor Cyan
