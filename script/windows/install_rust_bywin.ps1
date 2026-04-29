@@ -28,12 +28,12 @@ function Test-RustToolchain {
     $rustc = Get-ExePath 'rustc.exe'
   }
 
+  if (-not $Quiet) { Write-Host "rustc 路径：$rustc" }
   if (-not $rustc) { return $false }
   $versionOutput = Invoke-NativeText -FilePath 'rustc' -Arguments @('--version')
   $script:RustcVersion = ($versionOutput | Select-Object -First 1)
   # 校验输出版本号格式（如 "rustc 1.85.0 (...)"），排除 error/warning 等异常输出
   if ([string]::IsNullOrWhiteSpace($script:RustcVersion) -or $script:RustcVersion -notmatch '^rustc \d+\.\d+\.\d+') {
-    if (-not $Quiet) { Write-Host "rustc 路径：$rustc" }
     if (-not $Quiet) { Write-Warn "rustc 已找到但输出异常（toolchain 可能不完整）：$script:RustcVersion" }
     $script:RustcVersion = $null
     $script:RustcHost = $null
