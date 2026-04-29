@@ -77,9 +77,6 @@ function Install-Rustup {
     return $false
   }
 
-  # 设置国内镜像环境变量，供后续 rustup 命令和 toolchain 安装使用
-  Set-RustupChinaMirror
-
   $verifyInstalled = {
     Add-CargoBinPath
     if (-not (Get-ExePath 'rustup.exe')) { return $false }
