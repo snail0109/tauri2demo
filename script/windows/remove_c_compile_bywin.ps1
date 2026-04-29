@@ -71,7 +71,7 @@ Write-Host ""
 
 $selected = Select-MenuOption -Prompt '请选择要卸载的内容：' -Options @(
   '卸载 MSYS2 + MinGW gcc',
-  '卸载 Visual Studio Build Tools (MSVC) + MSYS2',
+  '卸载 Visual Studio Build Tools (MSVC)',
   '全部卸载（MSYS2 + MSVC）'
 )
 
@@ -83,7 +83,6 @@ switch ($selected) {
   2 {
     Enable-AutoConfirm
     Remove-Msvc
-    Remove-Msys2
   }
   3 {
     Write-Warn "即将依次卸载：MSYS2 → MSVC"
