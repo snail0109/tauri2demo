@@ -276,12 +276,20 @@ function Install-Gnu {
     $msysInstaller = Join-Path $env:TEMP ("msys2_installer_{0}.exe" -f ([guid]::NewGuid().ToString('N')))
     if (-not (Confirm-Install "通过国内镜像（USTC/清华）安装 MSYS2，然后安装 mingw-w64-x86_64-gcc")) { return $false }
 
-    # 优先通过国内镜像下载 MSYS2 安装程序，避免从 GitHub 下载
-    $downloaded = Save-WebFile -Urls @(
-      'https://mirrors.ustc.edu.cn/msys2/distrib/msys2-x86_64-latest.exe'
-      #'https://mirrors.tuna.tsinghua.edu.cn/msys2/distrib/msys2-x86_64-latest.exe',
-      #'https://github.com/msys2/msys2-installer/releases/download/2026-03-22/msys2-x86_64-20260322.exe'
-    ) -OutFile $msysInstaller -MinSizeKB 10240
+    # 优先通过国内镜像下载 MSYS2 安装程序（顺序降级），避免从 GitHub 下载
+    # 注：Save-WebFile 多地址模式会同时从所有源下载（平分带宽），实际反而更慢，因此逐个尝试
+    $mirrors = @(
+      'https://mirrors.ustc.edu.cn/msys2/distrib/msys2-x86_64-latest.exe',
+      'https://mirrors.tuna.tsinghua.edu.cn/msys2/distrib/msys2-x86_64-latest.exe'
+    )
+    $downloaded = $false
+    foreach ($mirror in $mirrors) {
+      if (Save-WebFile -Urls @($mirror) -OutFile $msysInstaller -MinSizeKB 10240) {
+        $downloaded = $true
+        break
+      }
+      Write-Warn "镜像 $mirror 下载失败，尝试下一个..."
+    }
 
     if ($downloaded) {
       Write-Ok "正在静默安装 MSYS2 到 $MsysRoot ..."
