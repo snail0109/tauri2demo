@@ -129,11 +129,6 @@ function Install-Msvc {
   Write-Host "    3. 安装时勾选「使用 C++ 的桌面开发」工作负载"
   Write-Host ""
 
-  if (-not (Confirm-Install "自动下载并启动 MSVC Build Tools 安装器")) {
-    Write-Warn "已跳过 MSVC 自动安装，请手动安装后重新运行此脚本"
-    return $false
-  }
-
   $installerPath = Join-Path $env:TEMP ("vs_buildtools_{0}.exe" -f ([guid]::NewGuid().ToString('N')))
   if (-not (Save-WebFile -Urls @('https://aka.ms/vs/17/release/vs_BuildTools.exe') -OutFile $installerPath -TimeoutSec 60)) {
     Remove-Item -LiteralPath $installerPath -Force -ErrorAction SilentlyContinue
