@@ -77,7 +77,7 @@ function Install-Rustup {
     return $false
   }
 
-  # 设置国内镜像环境变量，使 rustup-init 自身也从镜像下载组件
+  # 设置国内镜像环境变量，供后续 rustup 命令和 toolchain 安装使用
   Set-RustupChinaMirror
 
   $verifyInstalled = {
