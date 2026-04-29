@@ -73,7 +73,6 @@ function Confirm-Step {
     [string]$AutoLabel = '自动确认'
   )
   if ($script:__AutoConfirm) {
-    Write-Host "  ${AutoLabel}：$Desc" -ForegroundColor Yellow
     return $true
   }
   $hint = if ($Default -eq 'Yes') { '[Y/n]' } else { '[y/N]' }
