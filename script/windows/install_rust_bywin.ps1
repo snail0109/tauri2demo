@@ -238,8 +238,10 @@ $rustupExisted = (Get-ExePath 'rustup.exe') -ne $null
 if (-not (Test-RustToolchain)) {
   if ($rustupExisted) {
     Write-Warn "rustup 已安装但 Rust 工具链不可用，将重新安装"
+    Enable-AutoConfirm
   } else {
     Write-Warn "未检测到 rustup"
+    Enable-AutoConfirm
     Install-Rustup | Out-Null
   }
 }
