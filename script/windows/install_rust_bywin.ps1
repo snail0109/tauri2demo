@@ -144,10 +144,40 @@ Write-Host ""
 
 # [1/2] 检测 C/C++ 编译环境，判定 Rust ABI
 Write-Host "[1/2] 检测 C/C++ 编译环境" -ForegroundColor Cyan
-$hasMsvc = (Get-ExePath 'cl.exe') -ne $null
+
+function Find-MsvcCl {
+  $cl = Get-ExePath 'cl.exe'
+  if ($cl) { return $cl }
+  # cl.exe 不在 PATH 中时，用 vswhere 定位 VS 安装
+  $vswhere = Get-ExePath 'vswhere.exe'
+  if (-not $vswhere) {
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+    if (-not (Test-Path -LiteralPath $vswhere)) {
+      $vswhere = Join-Path $env:ProgramFiles 'Microsoft Visual Studio\Installer\vswhere.exe'
+      if (-not (Test-Path -LiteralPath $vswhere)) { $vswhere = $null }
+    }
+  }
+  if ($vswhere) {
+    $installPath = (Invoke-NativeText -FilePath $vswhere -Arguments @('-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath') | Select-Object -First 1)
+    if ($installPath) {
+      $msvcDir = Join-Path $installPath 'VC\Tools\MSVC'
+      if (Test-Path -LiteralPath $msvcDir) {
+        $cl = Get-ChildItem -LiteralPath $msvcDir -Recurse -Filter 'cl.exe' -ErrorAction SilentlyContinue |
+          Where-Object { $_.Directory.Name -eq 'x64' } |
+          Sort-Object FullName -Descending |
+          Select-Object -First 1
+        if ($cl) { return $cl.FullName }
+      }
+    }
+  }
+  return $null
+}
+
+$msvcClPath = Find-MsvcCl
+$hasMsvc = ($msvcClPath -ne $null)
 $hasGnu = (Get-ExePath 'gcc.exe') -ne $null
 
-if ($hasMsvc) { Write-Ok "检测到 MSVC（cl.exe）" }
+if ($hasMsvc) { Write-Ok "检测到 MSVC（$msvcClPath）" }
 if ($hasGnu) { Write-Ok "检测到 GNU GCC（gcc.exe）" }
 
 if (-not $hasMsvc -and -not $hasGnu) {
