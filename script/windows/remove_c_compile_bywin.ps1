@@ -83,14 +83,15 @@ $selected = Select-MenuOption -Prompt '请选择要卸载的内容：' -Options 
 
 switch ($selected) {
   1 {
+    Enable-AutoConfirm
     Remove-Msys2
   }
   2 {
+    Enable-AutoConfirm
     Remove-Msvc
   }
   3 {
-    Write-Warn "即将依次卸载：MSYS2 → MSVC"
-
+    Enable-AutoConfirm
     Remove-Msys2
     Remove-Msvc
   }

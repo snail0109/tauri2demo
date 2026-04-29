@@ -71,19 +71,19 @@ $selected = Select-MenuOption -Prompt '请选择要卸载的内容：' -Options 
 
 switch ($selected) {
   1 {
+    Enable-AutoConfirm
     Remove-RustToolchainAbi -Abi 'gnu'
   }
   2 {
+    Enable-AutoConfirm
     Remove-RustToolchainAbi -Abi 'msvc'
   }
   3 {
+    Enable-AutoConfirm
     Remove-AllRustToolchain
   }
   4 {
-    Write-Warn "即将卸载：所有 Rust 工具链 → rustup"
-    if (-not (Confirm-Remove "确认执行完全卸载（请慎重）")) {
-      Exit-NoOp "已退出，未卸载任何内容。"
-    }
+    Enable-AutoConfirm
     Remove-AllRustToolchain
     Remove-Rustup
   }
