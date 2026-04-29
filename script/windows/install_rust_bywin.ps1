@@ -88,7 +88,7 @@ function Install-Rustup {
     return $true
   }
 
-  $installer = Join-Path $env:TEMP ("rustup_init_{0}.exe" -f ([guid]::NewGuid().ToString('N')))
+  $installer = Join-Path $env:TEMP 'rustup-init.exe'
   # 优先从国内镜像下载 rustup-init.exe，失败再回退到官方地址
   $downloadUrls = @(
     'https://mirrors.aliyun.com/rustup/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe',
