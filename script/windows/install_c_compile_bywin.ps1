@@ -95,6 +95,7 @@ function Test-RustToolchain {
     Add-CargoBinPath
     $rustc = Get-ExePath 'rustc.exe'
   }
+  Write-Host "rustc 路径：$rustc"
   if (-not $rustc) { return $false }
   $versionOutput = Invoke-NativeText -FilePath 'rustc' -Arguments @('--version')
   $script:RustcVersion = ($versionOutput | Select-Object -First 1)
@@ -169,7 +170,12 @@ function Install-RustToolchainAbi {
   }
 
   $list = Get-RustupToolchain
-  if ($list -notcontains $toolchain) {
+  $needInstall = ($list -notcontains $toolchain)
+  if (-not $needInstall) {
+    # 列表中有该 toolchain，但校验是否真的可用（可能残留损坏记录）
+    $needInstall = -not (Test-RustToolchain)
+  }
+  if ($needInstall) {
     if (-not (Confirm-Install "通过 rustup 安装 $toolchain 工具链")) {
       Write-Warn "已跳过 Rust $toolchain 工具链安装"
       return $false
@@ -375,9 +381,14 @@ if ($hasMsvc -or $hasGnu) {
 
   Write-Host ""
   Write-Host "[2/3] 检查 Rust 工具链" -ForegroundColor Cyan
+  $rustupExisted = (Get-ExePath 'rustup.exe') -ne $null
   if (-not (Test-RustToolchain)) {
-    Write-Warn "未检测到 rustc/rustup"
-    if (Install-Rustup) { Test-RustToolchain | Out-Null }
+    if ($rustupExisted) {
+      Write-Warn "rustup 已安装但 Rust 工具链不可用，将重新安装"
+    } else {
+      Write-Warn "未检测到 rustup"
+      Install-Rustup | Out-Null
+    }
   }
 
   if (Get-ExePath 'rustup.exe') {
@@ -417,7 +428,23 @@ switch ($selected) {
   }
 }
 
-Test-RustToolchain | Out-Null
+Write-Host ""
+Write-Host "  检查 Rust 工具链..." -ForegroundColor Cyan
+$rustupExisted = (Get-ExePath 'rustup.exe') -ne $null
+if (-not (Test-RustToolchain)) {
+  if ($rustupExisted) {
+    Write-Warn "rustup 已安装但 Rust 工具链不可用，将重新安装"
+  } else {
+    Write-Warn "未检测到 rustup"
+    Install-Rustup | Out-Null
+  }
+}
+
+if (Get-ExePath 'rustup.exe') {
+  if ($selected -eq 1) { Install-RustToolchainAbi -Abi 'msvc' | Out-Null }
+  elseif ($selected -eq 2) { Install-RustToolchainAbi -Abi 'gnu' | Out-Null }
+}
+
 Write-Host ""
 Write-Host "[3/3] 环境摘要" -ForegroundColor Cyan
 $msvcNow = $null -ne (Get-ExePath 'cl.exe')
