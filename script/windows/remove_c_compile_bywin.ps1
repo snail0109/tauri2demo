@@ -1,9 +1,6 @@
 param(
   [Alias('y')]
-  [switch]$Yes,
-
-  [Alias('WhatIf')]
-  [switch]$DryRun
+  [switch]$Yes
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,9 +17,7 @@ function Remove-Msys2 {
     return
   }
   Write-Warn "卸载 MSYS2 将删除整个 C:\msys64 目录及所有已装包（含其他工具）"
-  if (-not (Confirm-Remove "继续卸载整个 MSYS2")) { return }
 
-  if ($DryRun) { Write-Warn "DryRun: Remove-Item -Recurse -Force C:\msys64"; return }
   if (Get-ExePath 'winget.exe') {
     Invoke-NativeStream -Block { & winget uninstall MSYS2.MSYS2 --silent }
   }
@@ -52,9 +47,6 @@ function Remove-Msvc {
     return
   }
   Write-Warn "卸载 MSVC 将影响所有依赖 Visual Studio Build Tools 的项目"
-  if (-not (Confirm-Remove "卸载 Visual Studio Build Tools (2022 / 2019)")) { return }
-
-  if ($DryRun) { Write-Warn "DryRun: winget uninstall Microsoft.VisualStudio.2022.BuildTools / 2019.BuildTools"; return }
 
   if (-not (Get-ExePath 'winget.exe')) {
     Write-Warn "winget 不可用，请手动通过「Visual Studio Installer」卸载"
@@ -95,10 +87,7 @@ switch ($selected) {
   }
   3 {
     Write-Warn "即将依次卸载：MSYS2 → MSVC"
-    if (-not (Confirm-Remove "确认执行全部卸载（请慎重）")) {
-      Exit-NoOp "已退出，未卸载任何内容。"
-    }
-    Enable-AutoConfirm
+
     Remove-Msys2
     Remove-Msvc
   }

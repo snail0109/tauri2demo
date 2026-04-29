@@ -1,9 +1,6 @@
 param(
   [Alias('y')]
-  [switch]$Yes,
-
-  [Alias('WhatIf')]
-  [switch]$DryRun
+  [switch]$Yes
 )
 
 $ErrorActionPreference = 'Stop'
@@ -32,7 +29,6 @@ function Remove-RustToolchainAbi {
     Write-Warn "已跳过 $toolchain"
     return
   }
-  if ($DryRun) { Write-Warn "DryRun: rustup toolchain uninstall $toolchain"; return }
   Invoke-NativeStream -Block { & rustup toolchain uninstall $toolchain }
   if ($LASTEXITCODE -eq 0) { Write-Ok "已卸载 $toolchain" } else { Write-Fail "rustup toolchain uninstall $toolchain 失败" }
 }
@@ -43,7 +39,6 @@ function Remove-AllRustToolchain {
   if ($toolchains.Count -eq 0) { return }
   if (-not (Confirm-Remove "卸载所有 Rust 工具链（共 $($toolchains.Count) 个）")) { return }
   foreach ($tc in $toolchains) {
-    if ($DryRun) { Write-Warn "DryRun: rustup toolchain uninstall $tc"; continue }
     Invoke-NativeStream -Block { & rustup toolchain uninstall $tc }
     if ($LASTEXITCODE -eq 0) { Write-Ok "已卸载 $tc" } else { Write-Fail "卸载 $tc 失败" }
   }
@@ -55,7 +50,6 @@ function Remove-Rustup {
     return
   }
   if (-not (Confirm-Remove "完全卸载 rustup（移除所有 Rust 工具链、~\.cargo、~\.rustup）")) { return }
-  if ($DryRun) { Write-Warn "DryRun: rustup self uninstall -y"; return }
   Write-Warn "请确保已关闭其他可能使用 Rust 的终端窗口"
   Invoke-NativeStream -Block { & rustup self uninstall -y }
   if (Get-ExePath 'rustup.exe') {
