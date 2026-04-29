@@ -48,6 +48,7 @@ function Remove-Msvc {
 
   $removed = $false
   foreach ($id in @('Microsoft.VisualStudio.2022.BuildTools', 'Microsoft.VisualStudio.2019.BuildTools')) {
+    Write-Host "  卸载 $id ..." -ForegroundColor Cyan
     Invoke-NativeStream -Block { & winget uninstall $id --silent }
     if ($LASTEXITCODE -eq 0) { Write-Ok "已请求卸载 $id"; $removed = $true }
   }
