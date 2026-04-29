@@ -34,9 +34,8 @@ function Remove-Rustup {
 # ─── 主流程 ───────────────────────────────────────────────────────────────────
 
 Write-Host ""
-Write-Banner -Title 'Rust 工具链卸载（Windows）           ' -Color Red
+Write-Banner -Title 'Rust 工具链卸载（Rust + Rust工具链）' -Color Red
 Write-Host ""
-Write-Warn "即将完全卸载 Rust：所有工具链 + rustup + ~\.cargo + ~\.rustup"
 
 Enable-AutoConfirm
 Remove-AllRustToolchain

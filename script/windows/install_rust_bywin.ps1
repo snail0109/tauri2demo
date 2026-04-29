@@ -13,11 +13,28 @@ if ($Yes) { Enable-AutoConfirm }
 # ─── Rust 检测与安装函数 ─────────────────────────────────────────────────────
 
 function Set-RustupChinaMirror {
-  # 设置 Rust 国内镜像源环境变量（清华 TUNA），加速 rustup 工具链下载和 self update。
-  # 参考：https://mirrors.tuna.tsinghua.edu.cn/help/rustup/
-  $env:RUSTUP_DIST_SERVER = 'https://mirrors.tuna.tsinghua.edu.cn/rustup'
-  $env:RUSTUP_UPDATE_ROOT = 'https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup'
-  Write-Ok "已配置 Rust 国内镜像源（清华 TUNA）"
+  # 设置 Rust 国内镜像源环境变量（阿里云），加速 rustup 工具链下载和 self update。
+  # 参考：https://developer.aliyun.com/mirror/rustup
+  $env:RUSTUP_DIST_SERVER = 'https://mirrors.aliyun.com/rustup'
+  $env:RUSTUP_UPDATE_ROOT = 'https://mirrors.aliyun.com/rustup/rustup'
+  Write-Ok "已配置 Rust 国内镜像源（阿里云）"
+
+  # 同时配置 cargo crates.io 国内源
+  $cargoConfigDir = Join-Path $HOME '.cargo'
+  $cargoConfigFile = Join-Path $cargoConfigDir 'config.toml'
+  if (-not (Test-Path -LiteralPath $cargoConfigDir)) {
+    New-Item -ItemType Directory -Force -Path $cargoConfigDir | Out-Null
+  }
+  if (-not (Test-Path -LiteralPath $cargoConfigFile)) {
+    @'
+[source.crates-io]
+replace-with = 'aliyun'
+
+[source.aliyun]
+registry = "sparse+https://mirrors.aliyun.com/crates.io-index/"
+'@ | Set-Content -LiteralPath $cargoConfigFile -Encoding UTF8
+    Write-Ok "已配置 cargo crates.io 国内源（阿里云）"
+  }
 }
 
 function Test-RustToolchain {
@@ -71,16 +88,10 @@ function Install-Rustup {
     return $true
   }
 
-  if (Get-ExePath 'winget.exe') {
-    Write-Host "  尝试通过 winget 安装 Rustlang.Rustup ..." -ForegroundColor Cyan
-    Invoke-NativeStream -Block { & winget install --id Rustlang.Rustup --accept-package-agreements --accept-source-agreements --silent }
-    if (& $verifyInstalled) { return $true }
-    Write-Warn "winget 未生效或未找到 rustup，改用 rustup-init.exe ..."
-  }
-
   $installer = Join-Path $env:TEMP ("rustup_init_{0}.exe" -f ([guid]::NewGuid().ToString('N')))
   # 优先从国内镜像下载 rustup-init.exe，失败再回退到官方地址
   $downloadUrls = @(
+    'https://mirrors.aliyun.com/rustup/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe',
     'https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe',
     'https://mirrors.ustc.edu.cn/rust-static/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe',
     'https://win.rustup.rs/x86_64'
