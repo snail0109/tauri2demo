@@ -12,6 +12,14 @@ if ($Yes) { Enable-AutoConfirm }
 
 # ─── Rust 检测与安装函数 ─────────────────────────────────────────────────────
 
+function Set-RustupChinaMirror {
+  # 设置 Rust 国内镜像源环境变量（清华 TUNA），加速 rustup 工具链下载和 self update。
+  # 参考：https://mirrors.tuna.tsinghua.edu.cn/help/rustup/
+  $env:RUSTUP_DIST_SERVER = 'https://mirrors.tuna.tsinghua.edu.cn/rustup'
+  $env:RUSTUP_UPDATE_ROOT = 'https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup'
+  Write-Ok "已配置 Rust 国内镜像源（清华 TUNA）"
+}
+
 function Test-RustToolchain {
   $rustc = Get-ExePath 'rustc.exe'
   if (-not $rustc) {
@@ -48,6 +56,9 @@ function Install-Rustup {
     return $false
   }
 
+  # 设置国内镜像环境变量，使 rustup-init 自身也从镜像下载组件
+  Set-RustupChinaMirror
+
   $verifyInstalled = {
     Add-CargoBinPath
     if (-not (Get-ExePath 'rustup.exe')) { return $false }
@@ -64,13 +75,27 @@ function Install-Rustup {
   }
 
   $installer = Join-Path $env:TEMP ("rustup_init_{0}.exe" -f ([guid]::NewGuid().ToString('N')))
-  if (-not (Save-WebFile -Urls @('https://win.rustup.rs/x86_64') -OutFile $installer)) {
+  # 优先从国内镜像下载 rustup-init.exe，失败再回退到官方地址
+  $downloadUrls = @(
+    'https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe',
+    'https://mirrors.ustc.edu.cn/rust-static/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe',
+    'https://win.rustup.rs/x86_64'
+  )
+  $downloaded = $false
+  foreach ($url in $downloadUrls) {
+    if (Save-WebFile -Urls @($url) -OutFile $installer) {
+      $downloaded = $true
+      break
+    }
+    Write-Warn "下载失败，尝试下一个源..."
+  }
+  if (-not $downloaded) {
     Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
-    Write-Fail "下载 rustup-init.exe 失败"
+    Write-Fail "下载 rustup-init.exe 失败（已尝试国内镜像和官方地址）"
     Write-Fail "请手动访问 https://rustup.rs 安装"
     return $false
   }
-  Write-Ok "启动 rustup-init（默认 toolchain=none，由本脚本后续配置）..."
+  Write-Ok "启动 rustup-init（使用国内镜像，默认 toolchain=none，由本脚本后续配置）..."
   try {
     Start-Process -FilePath $installer -ArgumentList @('-y', '--default-toolchain', 'none', '--no-modify-path') -Wait -NoNewWindow | Out-Null
   } catch {}
@@ -103,6 +128,7 @@ function Install-RustToolchainAbi {
       Write-Warn "已跳过 Rust $toolchain 工具链安装"
       return $false
     }
+    Set-RustupChinaMirror
     Invoke-NativeStream -Block { & rustup toolchain install $toolchain }
     if ($LASTEXITCODE -ne 0) {
       Write-Fail "rustup toolchain install $toolchain 失败"
