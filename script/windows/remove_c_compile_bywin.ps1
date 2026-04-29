@@ -1,14 +1,7 @@
-param(
-  [Alias('y')]
-  [switch]$Yes
-)
-
 $ErrorActionPreference = 'Stop'
 $Failed = $false
 
 . (Join-Path $PSScriptRoot '_common.ps1')
-
-if ($Yes) { Enable-AutoConfirm }
 
 function Remove-Msys2 {
   $msysRoot = 'C:\msys64'
@@ -78,11 +71,9 @@ $selected = Select-MenuOption -Prompt '请选择要卸载的内容：' -Options 
 
 switch ($selected) {
   1 {
-    Enable-AutoConfirm
     Remove-Msys2
   }
   2 {
-    Enable-AutoConfirm
     Remove-Msvc
   }
   3 {
