@@ -27,20 +27,21 @@ function Test-RustToolchain {
     Add-CargoBinPath
     $rustc = Get-ExePath 'rustc.exe'
   }
-  if (-not $Quiet) { Write-Host "rustc 路径：$rustc" }
+
   if (-not $rustc) { return $false }
   $versionOutput = Invoke-NativeText -FilePath 'rustc' -Arguments @('--version')
   $script:RustcVersion = ($versionOutput | Select-Object -First 1)
   # 校验输出版本号格式（如 "rustc 1.85.0 (...)"），排除 error/warning 等异常输出
   if ([string]::IsNullOrWhiteSpace($script:RustcVersion) -or $script:RustcVersion -notmatch '^rustc \d+\.\d+\.\d+') {
+    if (-not $Quiet) { Write-Host "rustc 路径：$rustc" }
     if (-not $Quiet) { Write-Warn "rustc 已找到但输出异常（toolchain 可能不完整）：$script:RustcVersion" }
     $script:RustcVersion = $null
     $script:RustcHost = $null
     return $false
   }
   $hostLine = Invoke-NativeText -FilePath 'rustc' -Arguments @('-vV') |
-    Where-Object { $_ -match '^host:\s*' } |
-    Select-Object -First 1
+  Where-Object { $_ -match '^host:\s*' } |
+  Select-Object -First 1
   if ($hostLine) { $script:RustcHost = ($hostLine -replace '^host:\s*', '').Trim() }
   if (-not $Quiet) {
     Write-Ok "Rust 工具链已安装"
@@ -101,7 +102,8 @@ function Install-Rustup {
   Write-Ok "启动 rustup-init（使用国内镜像，默认 toolchain=none，由本脚本后续配置）..."
   try {
     Start-Process -FilePath $installer -ArgumentList @('-y', '--default-toolchain', 'none', '--no-modify-path') -Wait -NoNewWindow | Out-Null
-  } catch {}
+  }
+  catch {}
   Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
 
   if (& $verifyInstalled) { return $true }
@@ -192,9 +194,9 @@ function Find-MsvcCl {
       $msvcDir = Join-Path $installPath 'VC\Tools\MSVC'
       if (Test-Path -LiteralPath $msvcDir) {
         $cl = Get-ChildItem -LiteralPath $msvcDir -Recurse -Filter 'cl.exe' -ErrorAction SilentlyContinue |
-          Where-Object { $_.Directory.Name -eq 'x64' } |
-          Sort-Object FullName -Descending |
-          Select-Object -First 1
+        Where-Object { $_.Directory.Name -eq 'x64' } |
+        Sort-Object FullName -Descending |
+        Select-Object -First 1
         if ($cl) { return $cl.FullName }
       }
     }
@@ -215,7 +217,8 @@ if (-not $hasMsvc -and -not $hasGnu) {
   if ($Yes) {
     Write-Warn "-y 模式下默认选择 GNU ABI（x86_64-pc-windows-gnu）"
     $selectedAbi = 'gnu'
-  } else {
+  }
+  else {
     Write-Host ""
     $abiOptions = @('GNU (x86_64-pc-windows-gnu)', 'MSVC (x86_64-pc-windows-msvc)')
     $abiChoice = Select-MenuOption -Prompt '仍要继续？请选择 Rust 工具链 ABI：' -Options $abiOptions
@@ -224,7 +227,8 @@ if (-not $hasMsvc -and -not $hasGnu) {
     }
     $selectedAbi = if ($abiChoice -eq 1) { 'gnu' } else { 'msvc' }
   }
-} else {
+}
+else {
   if ($hasGnu) { $selectedAbi = 'gnu' }
   else { $selectedAbi = 'msvc' }
 }
@@ -239,7 +243,8 @@ if (-not (Test-RustToolchain)) {
   if ($rustupExisted) {
     Write-Warn "rustup 已安装但 Rust 工具链不可用，将重新安装"
     Enable-AutoConfirm
-  } else {
+  }
+  else {
     Write-Warn "未检测到 rustup"
     Enable-AutoConfirm
     Install-Rustup | Out-Null
@@ -257,6 +262,7 @@ Write-EnvSummary -HasMsvc $hasMsvc -HasGnu $hasGnu
 Write-Host ""
 if (-not $Failed) {
   Write-Host "  Rust 工具链安装完成！" -ForegroundColor Green
-} else {
+}
+else {
   Write-Host "  安装已完成，但部分步骤可能需要手动处理。" -ForegroundColor Yellow
 }
