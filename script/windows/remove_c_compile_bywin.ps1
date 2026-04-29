@@ -35,26 +35,37 @@ function Remove-Msys2 {
 }
 
 function Remove-Msvc {
-  if (-not (Get-ExePath 'winget.exe') -and -not (Get-ExePath 'cl.exe')) {
-    Write-Warn "未检测到 MSVC 或 winget，跳过"
-    return
-  }
-  Write-Warn "卸载 MSVC 将影响所有依赖 Visual Studio Build Tools 的项目"
+  $hasWinget = Get-ExePath 'winget.exe'
+  $hasCl = Get-ExePath 'cl.exe'
 
-  if (-not (Get-ExePath 'winget.exe')) {
-    Write-Warn "winget 不可用，请手动通过「Visual Studio Installer」卸载"
+  if (-not $hasCl) {
+    Write-Warn "未检测到 MSVC 编译器（cl.exe），跳过"
     return
   }
 
-  $removed = $false
-  foreach ($id in @('Microsoft.VisualStudio.2022.BuildTools', 'Microsoft.VisualStudio.2019.BuildTools')) {
-    Write-Host "  卸载 $id ..." -ForegroundColor Cyan
-    Invoke-NativeStream -Block { & winget uninstall $id --silent }
-    if ($LASTEXITCODE -eq 0) { Write-Ok "已请求卸载 $id"; $removed = $true }
+  # 通过 winget list 查找已安装的 BuildTools 包
+  $installed = @()
+  if ($hasWinget) {
+    $allIds = @('Microsoft.VisualStudio.2022.BuildTools', 'Microsoft.VisualStudio.2019.BuildTools')
+    foreach ($id in $allIds) {
+      $result = Invoke-NativeText -FilePath 'winget' -Arguments @('list', '--id', $id, '--exact')
+      if ($result -join '' -match $id) { $installed += $id }
+    }
   }
-  if (-not $removed) {
-    Write-Warn "winget 未匹配到已安装的 Visual Studio Build Tools"
-    Write-Warn "请通过「Visual Studio Installer」GUI 手动卸载"
+
+  if ($installed.Count -gt 0) {
+    Write-Ok "检测到已安装的 MSVC BuildTools：$($installed -join ', ')"
+    foreach ($id in $installed) {
+      Write-Host "  卸载 $id ..." -ForegroundColor Cyan
+      Invoke-NativeStream -Block { & winget uninstall $id --silent }
+      if ($LASTEXITCODE -eq 0) { Write-Ok "已请求卸载 $id" }
+      else { Write-Warn "winget 卸载 $id 失败或未匹配" }
+    }
+  } else {
+    Write-Warn "winget 未匹配到已安装的 BuildTools 包"
+    if ($hasCl) {
+      Write-Warn "cl.exe 存在但可能通过完整 Visual Studio 安装，请通过「Visual Studio Installer」GUI 手动卸载"
+    }
   }
 }
 
