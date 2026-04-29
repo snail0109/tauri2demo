@@ -21,18 +21,19 @@ function Set-RustupChinaMirror {
 }
 
 function Test-RustToolchain {
+  param([switch]$Quiet)
   $rustc = Get-ExePath 'rustc.exe'
   if (-not $rustc) {
     Add-CargoBinPath
     $rustc = Get-ExePath 'rustc.exe'
   }
-  Write-Host "rustc 路径：$rustc"
+  if (-not $Quiet) { Write-Host "rustc 路径：$rustc" }
   if (-not $rustc) { return $false }
   $versionOutput = Invoke-NativeText -FilePath 'rustc' -Arguments @('--version')
   $script:RustcVersion = ($versionOutput | Select-Object -First 1)
   # 校验输出版本号格式（如 "rustc 1.85.0 (...)"），排除 error/warning 等异常输出
   if ([string]::IsNullOrWhiteSpace($script:RustcVersion) -or $script:RustcVersion -notmatch '^rustc \d+\.\d+\.\d+') {
-    Write-Warn "rustc 已找到但输出异常（toolchain 可能不完整）：$script:RustcVersion"
+    if (-not $Quiet) { Write-Warn "rustc 已找到但输出异常（toolchain 可能不完整）：$script:RustcVersion" }
     $script:RustcVersion = $null
     $script:RustcHost = $null
     return $false
@@ -41,9 +42,11 @@ function Test-RustToolchain {
     Where-Object { $_ -match '^host:\s*' } |
     Select-Object -First 1
   if ($hostLine) { $script:RustcHost = ($hostLine -replace '^host:\s*', '').Trim() }
-  Write-Ok "Rust 工具链已安装"
-  if (-not [string]::IsNullOrWhiteSpace($script:RustcHost)) { Write-Host "    host：$($script:RustcHost)" }
-  if (-not [string]::IsNullOrWhiteSpace($script:RustcVersion)) { Write-Host "    版本：$($script:RustcVersion)" }
+  if (-not $Quiet) {
+    Write-Ok "Rust 工具链已安装"
+    if (-not [string]::IsNullOrWhiteSpace($script:RustcHost)) { Write-Host "    host：$($script:RustcHost)" }
+    if (-not [string]::IsNullOrWhiteSpace($script:RustcVersion)) { Write-Host "    版本：$($script:RustcVersion)" }
+  }
   return $true
 }
 
@@ -120,8 +123,8 @@ function Install-RustToolchainAbi {
   $list = Get-RustupToolchain
   $needInstall = ($list -notcontains $toolchain)
   if (-not $needInstall) {
-    # 列表中有该 toolchain，但校验是否真的可用（可能残留损坏记录）
-    $needInstall = -not (Test-RustToolchain)
+    # 列表中有该 toolchain，但校验是否真的可用（可能残留损坏记录），静默检查避免重复日志
+    $needInstall = -not (Test-RustToolchain -Quiet)
   }
   if ($needInstall) {
     if (-not (Confirm-Install "通过 rustup 安装 $toolchain 工具链")) {
@@ -147,7 +150,7 @@ function Install-RustToolchainAbi {
     }
   }
 
-  Test-RustToolchain | Out-Null
+  Test-RustToolchain -Quiet | Out-Null
   Write-Host ""
   Write-Banner -Title 'Rust 工具链已就绪' -Color Green
   return $true
