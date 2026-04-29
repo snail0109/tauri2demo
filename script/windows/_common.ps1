@@ -210,7 +210,7 @@ function Get-RustupToolchain {
   if (-not (Get-ExePath 'rustup.exe')) { return @() }
   return @(Invoke-NativeText -FilePath 'rustup' -Arguments @('toolchain', 'list') |
     ForEach-Object { ($_ -split '\s+')[0] } |
-    Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+    Where-Object { $_ -match '^\w+-\w+-\w+-\w+' })
 }
 
 # ─── Path / process discovery ────────────────────────────────────────────────

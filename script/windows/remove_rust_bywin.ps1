@@ -56,8 +56,14 @@ function Remove-Rustup {
   }
   if (-not (Confirm-Remove "完全卸载 rustup（移除所有 Rust 工具链、~\.cargo、~\.rustup）")) { return }
   if ($DryRun) { Write-Warn "DryRun: rustup self uninstall -y"; return }
+  Write-Warn "请确保已关闭其他可能使用 Rust 的终端窗口"
   Invoke-NativeStream -Block { & rustup self uninstall -y }
-  if (Get-ExePath 'rustup.exe') { Write-Fail "rustup self uninstall 后仍能找到 rustup，可能需要重启 shell 或手动清理" }
+  if (Get-ExePath 'rustup.exe') {
+    Write-Fail "rustup self uninstall 未能完全清理（可能被进程占用）"
+    Write-Fail "请关闭所有终端后手动删除："
+    Write-Fail "  Remove-Item -Recurse -Force ~\.cargo"
+    Write-Fail "  Remove-Item -Recurse -Force ~\.rustup"
+  }
   else { Write-Ok "rustup 已卸载" }
 }
 
