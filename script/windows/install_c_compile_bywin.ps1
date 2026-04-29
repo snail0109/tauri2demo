@@ -278,8 +278,9 @@ function Install-Gnu {
 
     # 优先通过国内镜像下载 MSYS2 安装程序，避免从 GitHub 下载
     $downloaded = Save-WebFile -Urls @(
-      'https://mirrors.ustc.edu.cn/msys2/distrib/msys2-x86_64-latest.exe',
-      'https://mirrors.tuna.tsinghua.edu.cn/msys2/distrib/msys2-x86_64-latest.exe'
+      'https://mirrors.ustc.edu.cn/msys2/distrib/msys2-x86_64-latest.exe'
+      #'https://mirrors.tuna.tsinghua.edu.cn/msys2/distrib/msys2-x86_64-latest.exe',
+      #'https://github.com/msys2/msys2-installer/releases/download/2026-03-22/msys2-x86_64-20260322.exe'
     ) -OutFile $msysInstaller -MinSizeKB 10240
 
     if ($downloaded) {
