@@ -273,13 +273,33 @@ function Install-Gnu {
     }
     if (Install-MsysGcc) { return $true }
   } else {
-    if (-not (Get-ExePath 'winget.exe')) {
-      Write-Warn "winget 未找到，无法自动安装 MSYS2"
-      Write-Fail "GNU gcc 自动安装失败或被跳过"
-      return $false
+    $msysInstaller = Join-Path $env:TEMP ("msys2_installer_{0}.exe" -f ([guid]::NewGuid().ToString('N')))
+    if (-not (Confirm-Install "通过国内镜像（USTC/清华）安装 MSYS2，然后安装 mingw-w64-x86_64-gcc")) { return $false }
+
+    # 优先通过国内镜像下载 MSYS2 安装程序，避免从 GitHub 下载
+    $downloaded = Save-WebFile -Urls @(
+      'https://mirrors.ustc.edu.cn/msys2/distrib/msys2-x86_64-latest.exe',
+      'https://mirrors.tuna.tsinghua.edu.cn/msys2/distrib/msys2-x86_64-latest.exe'
+    ) -OutFile $msysInstaller -MinSizeKB 10240
+
+    if ($downloaded) {
+      Write-Ok "正在静默安装 MSYS2 到 $MsysRoot ..."
+      try {
+        Start-Process -FilePath $msysInstaller -ArgumentList @('/S', "/D=$MsysRoot") -Wait -NoNewWindow | Out-Null
+      } catch {}
+      Remove-Item -LiteralPath $msysInstaller -Force -ErrorAction SilentlyContinue
+    } else {
+      Remove-Item -LiteralPath $msysInstaller -Force -ErrorAction SilentlyContinue
+      # 国内镜像失败，回退到 winget
+      if (-not (Get-ExePath 'winget.exe')) {
+        Write-Fail "国内镜像下载失败且 winget 未找到，无法自动安装 MSYS2"
+        Write-Fail "请手动访问 https://mirrors.ustc.edu.cn/msys2/distrib/ 下载安装"
+        return $false
+      }
+      Write-Warn "国内镜像下载失败，回退到 winget 安装（注意：winget 仍会从 GitHub 下载安装包）..."
+      Invoke-NativeStream -Block { & winget install MSYS2.MSYS2 --accept-package-agreements --accept-source-agreements }
     }
-    if (-not (Confirm-Install "通过 winget 安装 MSYS2，然后安装 mingw-w64-x86_64-gcc")) { return $false }
-    Invoke-NativeStream -Block { & winget install MSYS2.MSYS2 --accept-package-agreements --accept-source-agreements }
+
     if (Test-Path -LiteralPath $MsysRoot) {
       Set-Msys2ChinaMirror | Out-Null
       Invoke-NativeStream -Block { & $MsysBash -lc "pacman-key --init && pacman-key --populate msys2 && pacman -Sy --noconfirm archlinux-msys2-keyring && pacman -Su --noconfirm && pacman -S --noconfirm --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-binutils" }
@@ -289,7 +309,7 @@ function Install-Gnu {
       Write-Warn "MSYS2 已安装但 gcc 安装可能不完整，请手动执行："
       Write-Warn "  $MsysBash -lc 'pacman -S --noconfirm mingw-w64-x86_64-gcc'"
     } else {
-      Write-Warn "winget 安装 MSYS2 后未在 $MsysRoot 找到安装目录"
+      Write-Warn "MSYS2 安装后未在 $MsysRoot 找到安装目录"
     }
   }
 
