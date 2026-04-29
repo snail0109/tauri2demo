@@ -22,14 +22,23 @@ function Remove-Msys2 {
   Write-Warn "卸载 MSYS2 将删除整个 C:\msys64 目录及所有已装包（含其他工具）"
   if (-not (Confirm-Remove "继续卸载整个 MSYS2")) { return }
 
-  if ($DryRun) { Write-Warn "DryRun: winget uninstall MSYS2.MSYS2"; return }
+  if ($DryRun) { Write-Warn "DryRun: Remove-Item -Recurse -Force C:\msys64"; return }
   if (Get-ExePath 'winget.exe') {
     Invoke-NativeStream -Block { & winget uninstall MSYS2.MSYS2 --silent }
   }
   Start-Sleep -Seconds 2
   if (Test-Path -LiteralPath $msysRoot) {
-    Write-Warn "winget 卸载后 C:\msys64 仍存在。请关闭所有 MSYS2 / Git Bash 终端，"
-    Write-Warn "然后在 PowerShell（管理员）中手动删除："
+    # winget 未匹配或卸载失败，尝试直接删除
+    Write-Host "  尝试直接删除 $msysRoot ..." -ForegroundColor Cyan
+    try {
+      Remove-Item -Recurse -Force -LiteralPath $msysRoot -ErrorAction Stop
+    } catch {
+      Write-Warn "自动删除失败：$($_.Exception.Message)"
+    }
+  }
+  if (Test-Path -LiteralPath $msysRoot) {
+    Write-Warn "无法自动删除 C:\msys64（可能被其他进程占用）"
+    Write-Warn "请关闭所有 MSYS2 / Git Bash 终端后手动执行："
     Write-Warn "  Remove-Item -Recurse -Force C:\msys64"
     Write-Fail "MSYS2 未完全卸载（目录仍存在）"
   } else {
