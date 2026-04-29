@@ -13,52 +13,6 @@ $Failed = $false
 
 if ($Yes) { Enable-AutoConfirm }
 
-function Remove-RustToolchainAbi {
-  param([ValidateSet('msvc', 'gnu')] [string]$Abi)
-
-  $toolchain = "stable-x86_64-pc-windows-$Abi"
-  if (-not (Get-ExePath 'rustup.exe')) {
-    Write-Warn "未检测到 rustup，跳过 Rust 工具链卸载"
-    return
-  }
-  $list = Get-RustupToolchain
-  if ($list -notcontains $toolchain) {
-    Write-Warn "Rust 工具链 $toolchain 未安装，跳过"
-    return
-  }
-  if (-not (Confirm-Remove "卸载 Rust 工具链 $toolchain")) {
-    Write-Warn "已跳过 $toolchain"
-    return
-  }
-  if ($DryRun) { Write-Warn "DryRun: rustup toolchain uninstall $toolchain"; return }
-  Invoke-NativeStream -Block { & rustup toolchain uninstall $toolchain }
-  if ($LASTEXITCODE -eq 0) { Write-Ok "已卸载 $toolchain" } else { Write-Fail "rustup toolchain uninstall $toolchain 失败" }
-}
-
-function Remove-AllRustToolchain {
-  if (-not (Get-ExePath 'rustup.exe')) { return }
-  $toolchains = Get-RustupToolchain
-  if ($toolchains.Count -eq 0) { return }
-  if (-not (Confirm-Remove "卸载所有 Rust 工具链（共 $($toolchains.Count) 个）")) { return }
-  foreach ($tc in $toolchains) {
-    if ($DryRun) { Write-Warn "DryRun: rustup toolchain uninstall $tc"; continue }
-    Invoke-NativeStream -Block { & rustup toolchain uninstall $tc }
-    if ($LASTEXITCODE -eq 0) { Write-Ok "已卸载 $tc" } else { Write-Fail "卸载 $tc 失败" }
-  }
-}
-
-function Remove-Rustup {
-  if (-not (Get-ExePath 'rustup.exe')) {
-    Write-Warn "未检测到 rustup"
-    return
-  }
-  if (-not (Confirm-Remove "完全卸载 rustup（移除所有 Rust 工具链、~\.cargo、~\.rustup）")) { return }
-  if ($DryRun) { Write-Warn "DryRun: rustup self uninstall -y"; return }
-  Invoke-NativeStream -Block { & rustup self uninstall -y }
-  if (Get-ExePath 'rustup.exe') { Write-Fail "rustup self uninstall 后仍能找到 rustup，可能需要重启 shell 或手动清理" }
-  else { Write-Ok "rustup 已卸载" }
-}
-
 function Remove-Msys2 {
   $msysRoot = 'C:\msys64'
   if (-not (Test-Path -LiteralPath $msysRoot)) {
@@ -116,33 +70,27 @@ Write-Warn "本脚本会卸载系统级开发工具，可能影响其它项目�
 Write-Host ""
 
 $selected = Select-MenuOption -Prompt '请选择要卸载的内容：' -Options @(
-  'Rust(gnu) + MinGW gcc + rustup + MSYS2',
-  'Rust(msvc) + MSVC + rustup + MSYS2',
-  '全部卸载（rustup + MSYS2 + MSVC）'
+  '卸载 MSYS2 + MinGW gcc',
+  '卸载 Visual Studio Build Tools (MSVC) + MSYS2',
+  '全部卸载（MSYS2 + MSVC）'
 )
 
 switch ($selected) {
   1 {
     Enable-AutoConfirm
-    Remove-RustToolchainAbi -Abi 'gnu'
-    Remove-Rustup
     Remove-Msys2
   }
   2 {
     Enable-AutoConfirm
-    Remove-RustToolchainAbi -Abi 'msvc'
     Remove-Msvc
-    Remove-Rustup
     Remove-Msys2
   }
   3 {
-    Write-Warn "即将依次卸载：所有 Rust 工具链 → rustup → MSYS2 → MSVC"
+    Write-Warn "即将依次卸载：MSYS2 → MSVC"
     if (-not (Confirm-Remove "确认执行全部卸载（请慎重）")) {
       Exit-NoOp "已退出，未卸载任何内容。"
     }
     Enable-AutoConfirm
-    Remove-AllRustToolchain
-    Remove-Rustup
     Remove-Msys2
     Remove-Msvc
   }
@@ -156,12 +104,10 @@ Write-Banner -Title '卸载结束摘要                            ' -Color Cyan
 
 $hasMsvc = $null -ne (Get-ExePath 'cl.exe')
 $hasGcc = $null -ne (Get-ExePath 'gcc.exe')
-$hasRustup = $null -ne (Get-ExePath 'rustup.exe')
 $hasMsys2 = Test-Path -LiteralPath 'C:\msys64'
 
 Write-RemovedStatus -Label 'MSVC      ' -NotPresent (-not $hasMsvc)
 Write-RemovedStatus -Label 'GNU GCC   ' -NotPresent (-not $hasGcc)
-Write-RemovedStatus -Label 'rustup    ' -NotPresent (-not $hasRustup)
 Write-RemovedStatus -Label 'MSYS2     ' -NotPresent (-not $hasMsys2)
 
 Write-Host ""
