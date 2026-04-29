@@ -45,7 +45,7 @@ function Test-RustToolchain {
     $rustc = Get-ExePath 'rustc.exe'
   }
 
-  if (-not $Quiet) { Write-Host "rustc 路径：$rustc" }
+
   if (-not $rustc) { return $false }
   $versionOutput = Invoke-NativeText -FilePath 'rustc' -Arguments @('--version')
   $script:RustcVersion = ($versionOutput | Select-Object -First 1)
@@ -93,8 +93,7 @@ function Install-Rustup {
   $downloadUrls = @(
     'https://mirrors.aliyun.com/rustup/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe',
     'https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe',
-    'https://mirrors.ustc.edu.cn/rust-static/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe',
-    'https://win.rustup.rs/x86_64'
+    'https://mirrors.ustc.edu.cn/rust-static/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe'
   )
   $downloaded = $false
   foreach ($url in $downloadUrls) {
