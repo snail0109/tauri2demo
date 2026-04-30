@@ -5,20 +5,14 @@
   - 先检测是否已存在 MSVC cl.exe 或 GNU gcc.exe
   - 若都不存在，提供菜单选择安装 MSVC 或 GNU（MSYS2 + mingw-w64）
   - 会尽量配置国内镜像源以加速 MSYS2 pacman 下载
-.PARAMETER Yes
-  自动确认（静默模式）。
 #>
-param(
-  [Alias('y')]
-  [switch]$Yes
-)
 
 $ErrorActionPreference = 'Stop'
 $Failed = $false
 
 . (Join-Path $PSScriptRoot '_common.ps1')
 
-if ($Yes) { Enable-AutoConfirm }
+Enable-AutoConfirm
 
 $MsysRoot     = 'C:\msys64'
 $MsysBash     = Join-Path $MsysRoot 'usr\bin\bash.exe'
@@ -389,11 +383,9 @@ $selected = Select-MenuOption -Prompt '请选择要安装的编译工具链：' 
 
 switch ($selected) {
   1 {
-    Enable-AutoConfirm
     Install-Msvc | Out-Null
   }
   2 {
-    Enable-AutoConfirm
     Install-Gnu | Out-Null
   }
   0 {
