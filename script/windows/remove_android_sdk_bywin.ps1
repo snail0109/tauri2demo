@@ -10,20 +10,12 @@
 .PARAMETER DryRun
   演练模式：不真正删除目录/卸载 targets/修改环境变量。
 #>
-param(
-  [Alias('y')]
-  [switch]$Yes,
-
-  [Alias('WhatIf')]
-  [switch]$DryRun
-)
-
 $ErrorActionPreference = 'Stop'
 $Failed = $false
 
 . (Join-Path $PSScriptRoot '_common.ps1')
 
-if ($Yes) { Enable-AutoConfirm }
+Enable-AutoConfirm
 
 <#
 .SYNOPSIS
@@ -63,12 +55,7 @@ function Remove-RustAndroidTarget {
     Write-Warn "未检测到任何 Android Rust 编译目标，跳过"
     return
   }
-  if (-not (Confirm-Remove "卸载 $($present.Count) 个 Rust Android 编译目标")) {
-    Write-Warn "已跳过 Rust Android 编译目标卸载"
-    return
-  }
   foreach ($t in $present) {
-    if ($DryRun) { Write-Warn "DryRun: rustup target remove $t"; continue }
     Invoke-NativeStream -Block { & rustup target remove $t }
     if ($LASTEXITCODE -eq 0) { Write-Ok "已卸载 $t" } else { Write-Fail "rustup target remove $t 失败" }
   }
@@ -88,16 +75,6 @@ function Remove-AndroidSdkDir {
     return
   }
   Write-Warn "删除 SDK 目录将移除以下组件：platform-tools / cmdline-tools / ndk / platforms / build-tools"
-  if (-not (Confirm-Remove "删除整个 Android SDK 目录：$sdk")) {
-    Write-Warn "已跳过 Android SDK 目录删除"
-    return
-  }
-
-  if ($DryRun) {
-    Write-Warn "DryRun: Stop-AndroidProcess"
-    Write-Warn "DryRun: Remove-Item -Recurse -Force `"$sdk`""
-    return
-  }
 
   Stop-AndroidProcess
   try {
@@ -117,16 +94,6 @@ function Remove-AndroidSdkDir {
   - DryRun 时只打印将执行的操作
 #>
 function Remove-AndroidEnvVar {
-  if (-not (Confirm-Remove "清理 ANDROID_HOME / ANDROID_NDK_HOME 用户环境变量及 PATH 中的 platform-tools 段")) {
-    Write-Warn "已跳过环境变量清理"
-    return
-  }
-
-  if ($DryRun) {
-    Write-Warn "DryRun: 清理用户环境变量 ANDROID_HOME / ANDROID_NDK_HOME / PATH(platform-tools)"
-    return
-  }
-
   if (Set-UserEnv -Name 'ANDROID_HOME' -ValueOrNull $null) { Write-Ok "ANDROID_HOME 已从用户环境变量移除" } else { Write-Fail "移除 ANDROID_HOME 失败" }
   if (Set-UserEnv -Name 'ANDROID_NDK_HOME' -ValueOrNull $null) { Write-Ok "ANDROID_NDK_HOME 已从用户环境变量移除" } else { Write-Fail "移除 ANDROID_NDK_HOME 失败" }
 
@@ -227,39 +194,12 @@ Write-Banner -Title 'Android SDK 卸载（Windows PowerShell）  ' -Color Red
 Write-Host ""
 
 Show-InstallationStatus
-Write-Warn "本脚本会卸载 Android 开发工具，可能影响其它项目。请确认你了解每一步。"
+Write-Warn "即将完全卸载：Rust Android targets → Android SDK 目录 → 环境变量"
 Write-Host ""
 
-$selected = Select-MenuOption -Prompt '请选择要卸载的内容：' -Options @(
-  'Rust Android 编译目标（保留 Android SDK）',
-  'Android SDK 目录 + 环境变量（保留 Rust Android targets）',
-  '全部卸载（Rust targets + Android SDK + 环境变量）'
-)
-
-switch ($selected) {
-  1 {
-    Enable-AutoConfirm
-    Remove-RustAndroidTarget
-  }
-  2 {
-    Enable-AutoConfirm
-    Remove-AndroidSdkDir
-    Remove-AndroidEnvVar
-  }
-  3 {
-    Write-Warn "即将依次卸载：Rust Android targets → Android SDK 目录 → 环境变量"
-    if (-not (Confirm-Remove "确认执行全部卸载（请慎重）")) {
-      Exit-NoOp "已退出，未卸载任何内容。"
-    }
-    Enable-AutoConfirm
-    Remove-RustAndroidTarget
-    Remove-AndroidSdkDir
-    Remove-AndroidEnvVar
-  }
-  0 {
-    Exit-NoOp "已退出，未卸载任何内容。"
-  }
-}
+Remove-RustAndroidTarget
+Remove-AndroidSdkDir
+Remove-AndroidEnvVar
 
 Write-Host ""
 Write-Banner -Title '卸载结束摘要                            ' -Color Cyan
