@@ -224,7 +224,7 @@ function Find-MsvcCl {
 
   # 用 vswhere 找“最新的、包含 VC Tools 组件”的安装（避免匹配到只装了 IDE 但没装 C++ 工具链的 VS）
   if ($vswhere) {
-    Write-Host "  运行命令：$vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath" -ForegroundColor Cyan
+    Write-Host "  运行命令：`"$vswhere`" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath" -ForegroundColor Cyan
     $installPath = (Invoke-NativeText -FilePath $vswhere -Arguments @('-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath') | Select-Object -First 1)
     if ($installPath) {
       # VC 工具链实际存放目录：<VS>\VC\Tools\MSVC\<version>\bin\Hostx64\x64\cl.exe

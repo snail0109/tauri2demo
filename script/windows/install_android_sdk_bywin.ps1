@@ -136,8 +136,9 @@ function Invoke-SdkManager {
   $yesFile = Join-Path $env:TEMP ("sdkmanager_yes_{0}.txt" -f ([guid]::NewGuid().ToString('N')))
   (1..2500 | ForEach-Object { 'y' }) | Set-Content -LiteralPath $yesFile -Encoding ASCII
   try {
-    $cmd = "type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
-    Invoke-NativeStream -Block { & cmd /c $cmd }
+    $cmd_str = "type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
+    Write-Host "  运行命令： `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs" -ForegroundColor Cyan
+    & $cmd_str
   } finally {
     Remove-Item -LiteralPath $yesFile -Force -ErrorAction SilentlyContinue
   }
