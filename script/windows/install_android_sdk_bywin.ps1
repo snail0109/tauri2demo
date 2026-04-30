@@ -135,14 +135,12 @@ function Invoke-SdkManager {
   $pkgArgs = ($Packages | ForEach-Object { '"{0}"' -f $_ }) -join ' '
 
   # 给 JLine 一个足够宽的伪终端宽度，防止它截断 "Unzipping... <长路径>" 这类行
-  $origColumns = $env:COLUMNS
-  $env:COLUMNS = '800'
+  # 必须在 cmd 命令内部 set，因为 cmd.exe /c 起的新进程不会继承外层 PowerShell 的 COLUMNS
   try {
     $yesFile = Join-Path $env:TEMP ("sdkmanager_yes_{0}.txt" -f ([guid]::NewGuid().ToString('N')))
-    # 写足够多的 y，覆盖 sdkmanager 在安装/许可阶段的所有确认提示
     (1..2500 | ForEach-Object { 'y' }) | Set-Content -LiteralPath $yesFile -Encoding ASCII
     try {
-      $cmd = "type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
+      $cmd = "set COLUMNS=800 && type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
       Write-Host "  执行命令：$cmd" -ForegroundColor Cyan
       Write-Host ""
       Invoke-NativeStream -Block { & cmd.exe /c $cmd }
@@ -154,8 +152,6 @@ function Invoke-SdkManager {
       return $false
     }
     return $true
-  } finally {
-    $env:COLUMNS = $origColumns
   }
 }
 

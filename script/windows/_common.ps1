@@ -692,7 +692,7 @@ function Save-WebFile {
     if (-not $result) { continue }
     try { $uri = [System.Uri]::new($result.Url); $shortName = $uri.Host } catch { $shortName = $result.Url }
     if ($result.Error) {
-      Write-Host ("    {0} ✗ {1}" -f $shortName, $result.Error) -ForegroundColor Red
+      Write-Host ("    {0} ✗" -f $shortName, $result.Error) -ForegroundColor Red
     } else {
       Write-Host ("    {0}  {1:N0} KB/s" -f $shortName, $result.SpeedKBps) -ForegroundColor Cyan
       $raceResults += $result
