@@ -110,6 +110,7 @@ function Install-Rustup {
     return $false
   }
   Write-Ok "启动 rustup-init（使用国内镜像，默认 toolchain=none，由本脚本后续配置）..."
+  Write-Host "  运行命令：`"$installer`" -y --default-toolchain none --no-modify-path" -ForegroundColor Cyan
   & $installer -y --default-toolchain none --no-modify-path
   Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
 
