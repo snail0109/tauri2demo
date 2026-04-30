@@ -158,19 +158,15 @@ function Install-RustToolchainAbi {
   if ($needInstall) {
     Set-RustupChinaMirror
     Write-Host "  运行命令：rustup toolchain install $toolchain" -ForegroundColor Cyan
-    Invoke-NativeStream -Block { & rustup toolchain install $toolchain }
-    if ($LASTEXITCODE -ne 0) {
-      Write-Fail "rustup toolchain install $toolchain 失败"
-      return $false
-    }
+    & rustup toolchain install $toolchain
     Write-Ok "Rust 工具链 $toolchain 安装成功"
   }
 
   $defaultLine = Invoke-NativeText -FilePath 'rustup' -Arguments @('default') | Select-Object -First 1
   $currentDefault = if ($defaultLine) { ($defaultLine -split '\s+')[0] } else { '' }
   if ($currentDefault -ne $toolchain) {
-    Invoke-NativeStream -Block { & rustup default $toolchain }
-    if ($LASTEXITCODE -ne 0) { Write-Warn "设置默认工具链失败" }
+    Write-Host "  运行命令：rustup default $toolchain" -ForegroundColor Cyan
+    & rustup default $toolchain
   }
 
   return $true
