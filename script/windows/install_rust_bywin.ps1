@@ -207,24 +207,33 @@ Write-Host "[1/2] 检测 C/C++ 编译环境" -ForegroundColor Cyan
   cl.exe 可能不在 PATH（例如仅安装了 Build Tools），因此需要通过 vswhere 定位安装目录。
 #>
 function Find-MsvcCl {
+  # 优先用 PATH 直接定位（最快；若用户已运行过 vcvars64.bat 或已把工具链加入 PATH，则可命中）
   $cl = Get-ExePath 'cl.exe'
   if ($cl) { return $cl }
-  # cl.exe 不在 PATH 中时，用 vswhere 定位 VS 安装
+
+  # cl.exe 不在 PATH 时：通过 vswhere 定位 Visual Studio / Build Tools 安装根目录
+  # vswhere.exe 通常随 VS Installer 安装，可能位于 ProgramFiles(x86) 或 ProgramFiles
   $vswhere = Get-ExePath 'vswhere.exe'
   if (-not $vswhere) {
     $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-    if (-not (Test-Path -LiteralPath $vswhere)) {
+    if (-not (Test-Path -LiteralPath $vswhere)) { # -LiteralPath 不做通配符解释，把字符串当作真实路径原样处理。
       $vswhere = Join-Path $env:ProgramFiles 'Microsoft Visual Studio\Installer\vswhere.exe'
       if (-not (Test-Path -LiteralPath $vswhere)) { $vswhere = $null }
     }
   }
+
+  # 用 vswhere 找“最新的、包含 VC Tools 组件”的安装（避免匹配到只装了 IDE 但没装 C++ 工具链的 VS）
   if ($vswhere) {
+    Write-Host "  运行命令：$vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath" -ForegroundColor Cyan
     $installPath = (Invoke-NativeText -FilePath $vswhere -Arguments @('-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath') | Select-Object -First 1)
     if ($installPath) {
+      # VC 工具链实际存放目录：<VS>\VC\Tools\MSVC\<version>\bin\Hostx64\x64\cl.exe
       $msvcDir = Join-Path $installPath 'VC\Tools\MSVC'
       if (Test-Path -LiteralPath $msvcDir) {
         $cl = Get-ChildItem -LiteralPath $msvcDir -Recurse -Filter 'cl.exe' -ErrorAction SilentlyContinue |
+        # 仅保留 x64 编译器（Hostx64\x64）；避免命中 x86/arm64 目录下的 cl.exe
         Where-Object { $_.Directory.Name -eq 'x64' } |
+        # 多版本并存时按路径倒序取最新版本（通常目录名包含版本号）
         Sort-Object FullName -Descending |
         Select-Object -First 1
         if ($cl) { return $cl.FullName }
@@ -256,7 +265,7 @@ else {
   if ($hasGnu) { $selectedAbi = 'gnu' }
   else { $selectedAbi = 'msvc' }
 }
-Write-Host "  → 选择 Rust 工具链 $selectedAbi (stable-x86_64-pc-windows-$selectedAbi)" -ForegroundColor DarkGray
+Write-Host "  匹配Rust的工具链为 $selectedAbi (stable-x86_64-pc-windows-$selectedAbi)" -ForegroundColor DarkGray
 
 # [2/2] 检测并安装 Rust 工具链
 Write-Host ""
@@ -273,7 +282,7 @@ if (-not (Get-ExePath 'rustup.exe')) {
 }
 
 Install-RustToolchainAbi -Abi $selectedAbi | Out-Null
-Test-RustToolchain -Quiet | Out-Null
+Test-RustToolchain | Out-Null
 
 # 将 ~\.cargo\bin 写入用户 PATH，使新终端也能直接使用 rustup、rustc、cargo
 $cargoBin = Join-Path $HOME '.cargo\bin'
