@@ -167,7 +167,7 @@ function Install-RustToolchainAbi {
 function Write-EnvSummary {
   param([bool]$HasMsvc, [bool]$HasGnu)
   Write-StatusLine -Label 'MSVC      ' -Ok:$HasMsvc
-  Write-StatusLine -Label 'GNU GCC   ' -Ok:$HasGnu
+  Write-StatusLine -Label 'Gnu GCC   ' -Ok:$HasGnu
   Write-StatusLine -Label 'Rust      ' -Ok:(-not [string]::IsNullOrWhiteSpace($script:RustcHost))
 }
 
@@ -262,7 +262,7 @@ if (Get-ExePath 'rustup.exe') {
 # 将 ~\.cargo\bin 写入用户 PATH，使新终端也能直接使用 rustup、rustc、cargo
 $cargoBin = Join-Path $HOME '.cargo\bin'
 if (Test-Path -LiteralPath $cargoBin) {
-  Add-UserPathSegment $cargoBin
+  Add-UserPathSegment $cargoBin | Out-Null
   Write-Ok "已将 ~\.cargo\bin 加入用户 PATH（新终端窗口生效）"
 }
 
