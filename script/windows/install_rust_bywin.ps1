@@ -102,21 +102,11 @@ function Install-Rustup {
   }
 
   $installer = Join-Path $env:TEMP 'rustup-init.exe'
-  # 优先从国内镜像下载 rustup-init.exe，失败再回退到官方地址
-  $downloadUrls = @(
+  if (-not (Save-WebFile -Urls @(
     'https://mirrors.aliyun.com/rustup/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe',
     'https://mirrors.tuna.tsinghua.edu.cn/rustup/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe',
     'https://mirrors.ustc.edu.cn/rust-static/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe'
-  )
-  $downloaded = $false
-  foreach ($url in $downloadUrls) {
-    if (Save-WebFile -Urls @($url) -OutFile $installer) {
-      $downloaded = $true
-      break
-    }
-    Write-Warn "下载失败，尝试下一个源..."
-  }
-  if (-not $downloaded) {
+  ) -OutFile $installer)) {
     Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
     Write-Fail "下载 rustup-init.exe 失败（已尝试国内镜像和官方地址）"
     Write-Fail "请手动访问 https://rustup.rs 安装"
