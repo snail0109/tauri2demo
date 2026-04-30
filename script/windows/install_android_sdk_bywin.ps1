@@ -85,12 +85,14 @@ function Invoke-SdkManager {
 
   # 给 JLine 一个足够宽的伪终端宽度，防止它截断 "Unzipping... <长路径>" 这类行。
   $origColumns = $env:COLUMNS
-  $env:COLUMNS = '300'
+  $env:COLUMNS = '800'
   try {
     $yesFile = Join-Path $env:TEMP ("sdkmanager_yes_{0}.txt" -f ([guid]::NewGuid().ToString('N')))
     (1..2500 | ForEach-Object { 'y' }) | Set-Content -LiteralPath $yesFile -Encoding ASCII
     try {
       $cmd = "type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
+      Write-Host "  执行命令：$cmd" -ForegroundColor Cyan
+      Write-Host ""
       Invoke-NativeStream -Block { & cmd.exe /c $cmd }
     } finally {
       Remove-Item -LiteralPath $yesFile -Force -ErrorAction SilentlyContinue
