@@ -1,14 +1,7 @@
-param(
-  [Alias('y')]
-  [switch]$Yes
-)
-
 $ErrorActionPreference = 'Stop'
 $Failed = $false
 
 . (Join-Path $PSScriptRoot '_common.ps1')
-
-if ($Yes) { Enable-AutoConfirm }
 
 # ─── Rust 检测与安装函数 ─────────────────────────────────────────────────────
 
@@ -71,8 +64,8 @@ function Test-RustToolchain {
   if (-not $Quiet) {
     Write-Ok "Rust 工具链已安装"
     if ($rustupVersion) { Write-Host "    rustup：$rustupVersion" }
-    if (-not [string]::IsNullOrWhiteSpace($script:RustcHost)) { Write-Host "    host：$($script:RustcHost)" }
     if (-not [string]::IsNullOrWhiteSpace($script:RustcVersion)) { Write-Host "    rustc：$($script:RustcVersion)" }
+    if (-not [string]::IsNullOrWhiteSpace($script:RustcHost)) { Write-Host "    toolchain：$($script:RustcHost)" }
   }
   return $true
 }
@@ -227,11 +220,6 @@ if ($hasGnu) { Write-Ok "检测到 GNU GCC（gcc.exe）" }
 if (-not $hasMsvc -and -not $hasGnu) {
   Write-Warn "未检测到 C/C++ 编译器，Rust 编译需要至少一种 C 链接器"
   Write-Warn "请先运行 install_c_compile_bywin.ps1 安装 C/C++ 编译工具，或手动安装后重试"
-  if ($Yes) {
-    Write-Warn "-y 模式下默认选择 GNU ABI（x86_64-pc-windows-gnu）"
-    $selectedAbi = 'gnu'
-  }
-  else {
     Write-Host ""
     $abiOptions = @('GNU (x86_64-pc-windows-gnu)', 'MSVC (x86_64-pc-windows-msvc)')
     $abiChoice = Select-MenuOption -Prompt '仍要继续？请选择 Rust 工具链 ABI：' -Options $abiOptions
@@ -239,7 +227,6 @@ if (-not $hasMsvc -and -not $hasGnu) {
       Exit-NoOp "已退出，未安装 Rust 工具链。" -Code 0
     }
     $selectedAbi = if ($abiChoice -eq 1) { 'gnu' } else { 'msvc' }
-  }
 }
 else {
   if ($hasGnu) { $selectedAbi = 'gnu' }
