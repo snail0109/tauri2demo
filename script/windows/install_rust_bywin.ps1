@@ -262,6 +262,13 @@ if (Get-ExePath 'rustup.exe') {
   Install-RustToolchainAbi -Abi $selectedAbi | Out-Null
 }
 
+# 将 ~\.cargo\bin 写入用户 PATH，使新终端也能直接使用 rustup、rustc、cargo
+$cargoBin = Join-Path $HOME '.cargo\bin'
+if (Test-Path -LiteralPath $cargoBin) {
+  Add-UserPathSegment $cargoBin
+  Write-Ok "已将 ~\.cargo\bin 加入用户 PATH（新终端窗口生效）"
+}
+
 # 环境摘要
 Write-Host ""
 Write-Host "环境摘要" -ForegroundColor Cyan
