@@ -253,6 +253,7 @@ if (-not (Test-RustToolchain)) {
 
 if (Get-ExePath 'rustup.exe') {
   Install-RustToolchainAbi -Abi $selectedAbi | Out-Null
+  Test-RustToolchain -Quiet | Out-Null
 }
 
 # 将 ~\.cargo\bin 写入用户 PATH，使新终端也能直接使用 rustup、rustc、cargo
