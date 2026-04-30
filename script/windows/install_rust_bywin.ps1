@@ -157,6 +157,7 @@ function Install-RustToolchainAbi {
 
   if ($needInstall) {
     Set-RustupChinaMirror
+    Write-Host "  运行命令：rustup toolchain install $toolchain" -ForegroundColor Cyan
     Invoke-NativeStream -Block { & rustup toolchain install $toolchain }
     if ($LASTEXITCODE -ne 0) {
       Write-Fail "rustup toolchain install $toolchain 失败"
