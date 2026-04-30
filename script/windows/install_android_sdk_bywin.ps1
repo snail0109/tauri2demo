@@ -1,7 +1,4 @@
 param(
-  [Alias('y')]
-  [switch]$Yes,
-
   [string]$SdkRoot
 )
 
@@ -9,7 +6,7 @@ $ErrorActionPreference = 'Stop'
 
 . (Join-Path $PSScriptRoot '_common.ps1')
 
-if ($Yes) { Enable-AutoConfirm }
+Enable-AutoConfirm
 
 function Install-SdkManagerBootstrap {
   param([string]$SdkRootPath)
@@ -90,30 +87,14 @@ function Invoke-SdkManager {
   $origColumns = $env:COLUMNS
   $env:COLUMNS = '300'
   try {
-    if ($Yes) {
-      Write-Host "  静默模式：自动接受所有许可协议" -ForegroundColor Yellow
-      Write-Host ""
-      $yesFile = Join-Path $env:TEMP ("sdkmanager_yes_{0}.txt" -f ([guid]::NewGuid().ToString('N')))
-      (1..2500 | ForEach-Object { 'y' }) | Set-Content -LiteralPath $yesFile -Encoding ASCII
-      try {
-        $cmd = "type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
-        Invoke-NativeStream -Block { & cmd.exe /c $cmd }
-      } finally {
-        Remove-Item -LiteralPath $yesFile -Force -ErrorAction SilentlyContinue
-      }
-      if ($LASTEXITCODE -ne 0) {
-        Write-Fail "Android SDK 组件安装失败"
-        return $false
-      }
-      return $true
+    $yesFile = Join-Path $env:TEMP ("sdkmanager_yes_{0}.txt" -f ([guid]::NewGuid().ToString('N')))
+    (1..2500 | ForEach-Object { 'y' }) | Set-Content -LiteralPath $yesFile -Encoding ASCII
+    try {
+      $cmd = "type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
+      Invoke-NativeStream -Block { & cmd.exe /c $cmd }
+    } finally {
+      Remove-Item -LiteralPath $yesFile -Force -ErrorAction SilentlyContinue
     }
-
-    Write-Host "  交互模式：安装过程中需要手动接受许可协议" -ForegroundColor Yellow
-    Write-Host "  （如需自动接受，请使用 -y 参数重新运行）" -ForegroundColor Yellow
-    Write-Host ""
-
-    $cmd = "`"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
-    Invoke-NativeStream -Block { & cmd.exe /c $cmd }
     if ($LASTEXITCODE -ne 0) {
       Write-Fail "Android SDK 组件安装失败"
       return $false
@@ -141,10 +122,6 @@ if ($sdkmanager) {
 } else {
   $expected = Join-Path $sdkRootDefault 'cmdline-tools\latest\bin\sdkmanager.bat'
   Write-Warn "SDKManager 未找到：$expected"
-  if (-not (Confirm-Continue "自动下载 Android 命令行工具包到 $sdkRootDefault")) {
-    Write-Fail "已跳过命令行工具包下载，无法继续"
-    exit 1
-  }
   New-DirectoryIfMissing $sdkRootDefault
   if (-not (Install-SdkManagerBootstrap -SdkRootPath $sdkRootDefault)) {
     Write-Fail "命令行工具包下载/安装失败"

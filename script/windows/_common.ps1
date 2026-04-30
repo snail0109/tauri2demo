@@ -349,7 +349,7 @@ function Save-WebFile {
   # 并行竞速 + 单线程下载：先用 Start-Job 对所有 URL 并行采样测速，选出最快的源，
   # 再用 Save-WebFileSingle（同步 I/O）从该源完成完整下载。
   # MinSizeKB 参数：下载完成后校验文件大小，小于此值视为无效（如代理返回错误页面）。
-  param([string[]]$Urls, [string]$OutFile, [int]$TimeoutSec = 30, [int]$MinSizeKB = 0, [int]$RaceSec = 5)
+  param([string[]]$Urls, [string]$OutFile, [int]$TimeoutSec = 30, [int]$MinSizeKB = 0, [int]$RaceSec = 15)
 
   $urlList = @(
     $Urls |
