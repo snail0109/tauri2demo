@@ -273,7 +273,11 @@ $ndkHome = if ($ndkInfo) { $ndkInfo.Path } else { $null }
 $platformTools = Join-Path $androidHome 'platform-tools'
 
 # 写入用户级环境变量（需要新开终端窗口才会影响新的 shell）
-Set-UserEnvIfChanged -Name 'ANDROID_HOME' -Value $androidHome
+if ($androidHome) {
+  Set-UserEnvIfChanged -Name 'ANDROID_HOME' -Value $androidHome
+} else {
+  Write-Warn "未检测到 ANDROID_HOME 版本，跳过 ANDROID_HOME 设置"
+}
 
 if ($ndkHome) {
   Set-UserEnvIfChanged -Name 'ANDROID_NDK_HOME' -Value $ndkHome
@@ -281,19 +285,15 @@ if ($ndkHome) {
   Write-Warn "未检测到 NDK 版本，跳过 ANDROID_NDK_HOME 设置"
 }
 
-if (Add-UserPathSegment -Segment $platformTools) {
-  Write-Ok "PATH 已追加：$platformTools"
-  Write-Ok "（新开终端窗口后生效）"
-} else {
-  Write-Warn "写入用户 PATH 失败，请手动添加"
-  Write-Warn "  系统设置 → 环境变量 → 用户变量 → 编辑 PATH → 添加 $platformTools"
+if (-not (Add-UserPathSegment -Segment $platformTools)) {
+  Write-Warn "set PATH = $env:Path;$platformTools (失败)"
 }
 
 # 同步到当前会话环境变量，便于脚本后续步骤/当前终端立即可用
 $env:ANDROID_HOME = $androidHome
 if ($ndkHome) { $env:ANDROID_NDK_HOME = $ndkHome }
 $env:Path = "$platformTools;$env:Path"
-Write-Ok "当前 shell 环境变量已生效（export）"
+Write-Ok "当前 shell 环境变量变更已生效（export）"
 
 Write-Host ""
 Write-Banner -Title 'Android SDK 安装 & 配置完成！                         ' -Color Cyan -TitleColor Green -Width 55

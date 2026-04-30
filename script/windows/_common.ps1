@@ -486,6 +486,7 @@ function Add-UserPathSegment([string]$Segment) {
     if ($p.Trim().ToLowerInvariant() -eq $seg.ToLowerInvariant()) { return $true }
   }
   $new = if ([string]::IsNullOrWhiteSpace($userPath)) { $seg } else { "$userPath;$seg" }
+  Write-Ok "PATH 已追加：$seg"
   return (Set-UserEnv -Name 'PATH' -ValueOrNull $new)
 }
 
@@ -505,15 +506,12 @@ function Set-UserEnvIfChanged {
   param([string]$Name, [string]$Value)
   $current = [Environment]::GetEnvironmentVariable($Name, 'User')
   if ($current -eq $Value) {
-    Write-Ok "$Name 环境变量已正确设置：$Value"
     return
   }
   if (Set-UserEnv -Name $Name -ValueOrNull $Value) {
-    Write-Ok "$Name 已写入用户环境变量：$Value"
-    Write-Ok "（新开终端窗口后生效）"
+    Write-Ok "set $Name = $Value"
   } else {
-    Write-Warn "写入 $Name 失败，请手动设置"
-    Write-Warn "  系统设置 → 环境变量 → 用户变量 → 新建 $Name = $Value"
+    Write-Warn "set $Name = $Value (失败)"
   }
 }
 
