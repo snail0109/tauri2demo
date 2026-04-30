@@ -141,7 +141,7 @@ function Invoke-SdkManager {
   $yesFile = Join-Path $env:TEMP ("sdkmanager_yes_{0}.txt" -f ([guid]::NewGuid().ToString('N')))
   (1..2500 | ForEach-Object { 'y' }) | Set-Content -LiteralPath $yesFile -Encoding ASCII
   try {
-    $cmd = "type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
+    $cmd = "set JAVA_OPTS=-Dorg.jline.terminal.width=400 && type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
     Write-Host "  执行命令：$cmd" -ForegroundColor Cyan
     Write-Host ""
     Invoke-NativeStream -Block { & cmd.exe /c $cmd }
