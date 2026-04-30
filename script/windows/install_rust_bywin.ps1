@@ -110,8 +110,11 @@ function Install-Rustup {
     return $false
   }
   Write-Ok "启动 rustup-init（使用国内镜像，默认 toolchain=none，由本脚本后续配置）..."
+  $installerArgs = @('-y', '--default-toolchain', 'none', '--no-modify-path')
+  $printedArgs = ($installerArgs | ForEach-Object { if ($_ -match '\s') { '"{0}"' -f $_ } else { $_ } }) -join ' '
+  Write-Host "  运行命令：`"$installer`" $printedArgs" -ForegroundColor Cyan
   try {
-    Start-Process -FilePath $installer -ArgumentList @('-y', '--default-toolchain', 'none', '--no-modify-path') -Wait -NoNewWindow | Out-Null
+    Start-Process -FilePath $installer -ArgumentList $installerArgs -Wait -NoNewWindow | Out-Null
   }
   catch {}
   Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
