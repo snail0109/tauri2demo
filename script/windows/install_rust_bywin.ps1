@@ -60,10 +60,19 @@ function Test-RustToolchain {
   Where-Object { $_ -match '^host:\s*' } |
   Select-Object -First 1
   if ($hostLine) { $script:RustcHost = ($hostLine -replace '^host:\s*', '').Trim() }
+
+  $rustupVersion = ''
+  $rustup = Get-ExePath 'rustup.exe'
+  if (-not $rustup) { Add-CargoBinPath; $rustup = Get-ExePath 'rustup.exe' }
+  if ($rustup) {
+    $rustupVersion = (Invoke-NativeText -FilePath 'rustup' -Arguments @('--version') | Select-Object -First 1)
+  }
+
   if (-not $Quiet) {
     Write-Ok "Rust 工具链已安装"
+    if ($rustupVersion) { Write-Host "    rustup：$rustupVersion" }
     if (-not [string]::IsNullOrWhiteSpace($script:RustcHost)) { Write-Host "    host：$($script:RustcHost)" }
-    if (-not [string]::IsNullOrWhiteSpace($script:RustcVersion)) { Write-Host "    版本：$($script:RustcVersion)" }
+    if (-not [string]::IsNullOrWhiteSpace($script:RustcVersion)) { Write-Host "    rustc：$($script:RustcVersion)" }
   }
   return $true
 }
