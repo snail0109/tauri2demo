@@ -168,9 +168,9 @@ function Install-RustToolchainAbi {
 
 function Write-EnvSummary {
   param([bool]$HasMsvc, [bool]$HasGnu)
-  Write-StatusLine -Label 'MSVC      ' -Ok:$HasMsvc
-  Write-StatusLine -Label 'Gnu GCC   ' -Ok:$HasGnu
-  Write-StatusLine -Label 'Rust      ' -Ok:(-not [string]::IsNullOrWhiteSpace($script:RustcHost))
+  Write-StatusLine -Label 'MSVC             ' -Ok:$HasMsvc
+  Write-StatusLine -Label 'Gnu GCC          ' -Ok:$HasGnu
+  Write-StatusLine -Label 'Rust + Toolchain ' -Ok:(-not [string]::IsNullOrWhiteSpace($script:RustcHost))
 }
 
 # ─── 主流程 ───────────────────────────────────────────────────────────────────
