@@ -8,6 +8,30 @@ $ErrorActionPreference = 'Stop'
 
 Enable-AutoConfirm
 
+<#
+.SYNOPSIS
+  安装/修复 Android SDK（Windows），并配置当前会话及用户级环境变量。
+.DESCRIPTION
+  主要流程：
+  1) 定位或自举安装 sdkmanager（cmdline-tools）
+  2) 校验 Java 17 环境
+  3) 安装 platform-tools / NDK / platform / build-tools 等组件
+  4) 安装 Rust Android 交叉编译目标（如 rustup 可用）
+  5) 写入 ANDROID_HOME / ANDROID_NDK_HOME，并把 platform-tools 加入用户 PATH
+.PARAMETER SdkRoot
+  优先使用的 SDK 根目录。若为空，将依次回退到 ANDROID_HOME 或默认路径。
+#>
+
+<#
+.SYNOPSIS
+  下载并安装 Android commandline-tools（用于提供 sdkmanager）。
+.PARAMETER SdkRootPath
+  Android SDK 根目录（会在其下创建 cmdline-tools\latest）。
+.OUTPUTS
+  [bool] 是否安装成功。
+.NOTES
+  仅负责把 cmdline-tools 放到 <SdkRootPath>\cmdline-tools\latest，不安装具体 SDK 组件。
+#>
 function Install-SdkManagerBootstrap {
   param([string]$SdkRootPath)
 
@@ -18,8 +42,10 @@ function Install-SdkManagerBootstrap {
     "https://dl.google.com/android/repository/$zipName"
   )
 
+  # cmdline-tools 的标准目录结构：<SDK>\cmdline-tools\latest\bin\sdkmanager.bat
   New-DirectoryIfMissing (Join-Path $SdkRootPath 'cmdline-tools')
 
+  # 使用临时目录下载/解压，避免污染 SDK 目录；用 guid 避免并发/重入时冲突
   $tmpZip = Join-Path $env:TEMP ("cmdline-tools_{0}.zip" -f ([guid]::NewGuid().ToString('N')))
   $tmpExtract = Join-Path $env:TEMP ("cmdline-tools_extract_{0}" -f ([guid]::NewGuid().ToString('N')))
   New-DirectoryIfMissing $tmpExtract
@@ -44,6 +70,7 @@ function Install-SdkManagerBootstrap {
       return $false
     }
 
+    # 统一写入到 latest：如果目录已存在则先清理，确保脚本可重复执行
     $latest = Join-Path $SdkRootPath 'cmdline-tools\latest'
     if (Test-Path -LiteralPath $latest) {
       Remove-Item -LiteralPath $latest -Recurse -Force -ErrorAction SilentlyContinue
@@ -58,11 +85,18 @@ function Install-SdkManagerBootstrap {
     Write-Fail "安装后仍未找到 SDKManager.bat"
     return $false
   } finally {
+    # 保证清理临时文件，即使下载/解压/移动过程中失败也不留下垃圾
     Remove-Item -LiteralPath $tmpZip -Force -ErrorAction SilentlyContinue
     Remove-Item -LiteralPath $tmpExtract -Recurse -Force -ErrorAction SilentlyContinue
   }
 }
 
+<#
+.SYNOPSIS
+  打印 sdkmanager 的版本信息（用于快速判断 cmdline-tools 是否可运行）。
+.PARAMETER SdkManagerPath
+  sdkmanager.bat 的路径。
+#>
 function Show-SdkManagerVersion([string]$SdkManagerPath) {
   $ver = Invoke-NativeText -FilePath $SdkManagerPath -Arguments @('--version') |
     Where-Object { $_ -match '^[0-9]' } |
@@ -74,6 +108,23 @@ function Show-SdkManagerVersion([string]$SdkManagerPath) {
   }
 }
 
+<#
+.SYNOPSIS
+  调用 sdkmanager 安装指定 Android SDK 组件，并自动接受 license。
+.DESCRIPTION
+  sdkmanager 在 Windows 下与管道/终端交互有兼容性问题，这里通过：
+  - 生成大量 y 的临时文件以自动回答 license 提示
+  - 设置 COLUMNS 防止 JLine 截断长路径输出导致显示混乱
+  - 使用 cmd.exe /c 执行管道命令，避免 PowerShell 管道行为差异
+.PARAMETER SdkManagerPath
+  sdkmanager.bat 的路径。
+.PARAMETER AndroidHome
+  Android SDK 根目录（会传入 --sdk_root=...）。
+.PARAMETER Packages
+  需要安装的包列表（如 platform-tools、ndk;xx、platforms;android-xx）。
+.OUTPUTS
+  [bool] 是否安装成功。
+#>
 function Invoke-SdkManager {
   param(
     [string]$SdkManagerPath,
@@ -83,11 +134,12 @@ function Invoke-SdkManager {
   $sdkRootArg = "--sdk_root=$AndroidHome"
   $pkgArgs = ($Packages | ForEach-Object { '"{0}"' -f $_ }) -join ' '
 
-  # 给 JLine 一个足够宽的伪终端宽度，防止它截断 "Unzipping... <长路径>" 这类行。
+  # 给 JLine 一个足够宽的伪终端宽度，防止它截断 "Unzipping... <长路径>" 这类行
   $origColumns = $env:COLUMNS
   $env:COLUMNS = '800'
   try {
     $yesFile = Join-Path $env:TEMP ("sdkmanager_yes_{0}.txt" -f ([guid]::NewGuid().ToString('N')))
+    # 写足够多的 y，覆盖 sdkmanager 在安装/许可阶段的所有确认提示
     (1..2500 | ForEach-Object { 'y' }) | Set-Content -LiteralPath $yesFile -Encoding ASCII
     try {
       $cmd = "type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
@@ -112,6 +164,7 @@ Write-Banner -Title 'Android SDK 自动安装脚本（Windows PowerShell）     
 Write-Host ""
 
 $sdkRootDefault = $SdkRoot
+# 目录优先级：参数 > 环境变量 ANDROID_HOME > 脚本默认路径
 if ([string]::IsNullOrWhiteSpace($sdkRootDefault)) { $sdkRootDefault = $env:ANDROID_HOME }
 if ([string]::IsNullOrWhiteSpace($sdkRootDefault)) { $sdkRootDefault = 'C:\DevDisk\DevTools\AndroidSDK' }
 $sdkRootDefault = $sdkRootDefault.Trim('"')
@@ -122,6 +175,7 @@ if ($sdkmanager) {
   Write-Ok "SDKManager 已找到：$sdkmanager"
   Show-SdkManagerVersion $sdkmanager
 } else {
+  # 常见期望路径：<SDK>\cmdline-tools\latest\bin\sdkmanager.bat
   $expected = Join-Path $sdkRootDefault 'cmdline-tools\latest\bin\sdkmanager.bat'
   Write-Warn "SDKManager 未找到：$expected"
   New-DirectoryIfMissing $sdkRootDefault
@@ -137,6 +191,7 @@ if ($sdkmanager) {
   }
 }
 
+# 通过 sdkmanager 反推真实 SDK 根目录，避免用户传入/环境变量指向错误位置
 $androidHome = Get-AndroidHomeFromSdkManager -SdkManagerPath $sdkmanager
 Write-Ok "ANDROID_HOME 推导为：$androidHome"
 $env:ANDROID_HOME = $androidHome
@@ -153,11 +208,13 @@ $packages = @(
 )
 $sdkmanagerOnDisk = Join-Path $androidHome 'cmdline-tools\latest\bin\sdkmanager.bat'
 if (-not (Test-Path -LiteralPath $sdkmanagerOnDisk)) {
+  # 若当前 SDK 目录里还没有 cmdline-tools，则先让 sdkmanager 自己安装 cmdline-tools;latest
   $packages = @('cmdline-tools;latest') + $packages
 }
 
 $latest2 = Join-Path $androidHome 'cmdline-tools\latest-2'
 if (Test-Path -LiteralPath $latest2) {
+  # 某些历史脚本/手工操作会留下 latest-2，可能干扰 Find-SdkManager/升级逻辑，直接清理
   Write-Warn "检测到遗留目录 cmdline-tools\latest-2，正在清理 ..."
   Remove-Item -LiteralPath $latest2 -Recurse -Force -ErrorAction SilentlyContinue
   Write-Ok "已清理 cmdline-tools\latest-2"
@@ -181,6 +238,7 @@ $requiredTargets = Get-AndroidRustTarget
 if ($null -eq (Get-ExePath 'rustup.exe')) { Add-CargoBinPath }
 
 if ($null -ne (Get-ExePath 'rustup.exe')) {
+  # 只安装缺失 target，避免每次都重复执行 rustup target add
   $installedTargets = Get-RustupInstalledTarget
   $missing = New-Object System.Collections.Generic.List[string]
   foreach ($t in $requiredTargets) {
@@ -214,6 +272,7 @@ $ndkInfo = Resolve-AndroidNdk -AndroidHome $androidHome
 $ndkHome = if ($ndkInfo) { $ndkInfo.Path } else { $null }
 $platformTools = Join-Path $androidHome 'platform-tools'
 
+# 写入用户级环境变量（需要新开终端窗口才会影响新的 shell）
 Set-UserEnvIfChanged -Name 'ANDROID_HOME' -Value $androidHome
 
 if ($ndkHome) {
@@ -230,6 +289,7 @@ if (Add-UserPathSegment -Segment $platformTools) {
   Write-Warn "  系统设置 → 环境变量 → 用户变量 → 编辑 PATH → 添加 $platformTools"
 }
 
+# 同步到当前会话环境变量，便于脚本后续步骤/当前终端立即可用
 $env:ANDROID_HOME = $androidHome
 if ($ndkHome) { $env:ANDROID_NDK_HOME = $ndkHome }
 $env:Path = "$platformTools;$env:Path"
