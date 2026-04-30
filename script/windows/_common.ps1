@@ -486,7 +486,6 @@ function Add-UserPathSegment([string]$Segment) {
     if ($p.Trim().ToLowerInvariant() -eq $seg.ToLowerInvariant()) { return $true }
   }
   $new = if ([string]::IsNullOrWhiteSpace($userPath)) { $seg } else { "$userPath;$seg" }
-  Write-Ok "PATH 已追加：$seg"
   return (Set-UserEnv -Name 'PATH' -ValueOrNull $new)
 }
 

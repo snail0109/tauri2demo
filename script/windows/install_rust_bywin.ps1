@@ -97,7 +97,8 @@ function Install-Rustup {
   if (Get-ExePath 'rustup.exe') { return $true }
   Write-Host ""
   Write-Host "═══ 安装 rustup ═══" -ForegroundColor Cyan
-
+  Write-Host ""
+  Write-Host "准备下载安装介质 rustup-init.exe"
   $installer = Join-Path $env:TEMP 'rustup-init.exe'
   if (-not (Save-WebFile -Urls @(
     'https://mirrors.aliyun.com/rustup/rustup/dist/x86_64-pc-windows-msvc/rustup-init.exe',
@@ -109,12 +110,14 @@ function Install-Rustup {
     Write-Fail "请手动访问 https://rustup.rs 安装"
     return $false
   }
-  Write-Ok "启动 rustup-init（使用国内镜像，默认 toolchain=none，由本脚本后续配置）..."
-  Write-Host "  运行命令：`"$installer`" -y --default-toolchain none --no-modify-path" -ForegroundColor Cyan
+  Write-Host ""
+  Write-Host "通过 rustup-init 安装 rustup + rustc"
+  Write-Host "运行命令：`"$installer`" -y --default-toolchain none --no-modify-path" -ForegroundColor Cyan
   & $installer -y --default-toolchain none --no-modify-path
-  Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
+  # Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
 
   Add-CargoBinPath
+
   if (Get-ExePath 'rustup.exe') {
     $v = (Invoke-NativeText -FilePath 'rustup' -Arguments @('--version') | Select-Object -First 1)
     Write-Ok "rustup 安装成功：$v"
@@ -139,6 +142,8 @@ function Install-Rustup {
 function Install-RustToolchainAbi {
   param([ValidateSet('msvc', 'gnu')] [string]$Abi)
 
+  Write-Host ""
+  Write-Host "Rust 工具链 $toolchain 准备安装"
   $target = "x86_64-pc-windows-$Abi"
   $toolchain = "stable-$target"
 
@@ -148,6 +153,7 @@ function Install-RustToolchainAbi {
     # 列表中有该 toolchain，但校验是否真的可用（可能残留损坏记录），静默检查避免重复日志
     $needInstall = -not (Test-RustToolchain -Quiet)
   }
+
   if ($needInstall) {
     Set-RustupChinaMirror
     Invoke-NativeStream -Block { & rustup toolchain install $toolchain }
@@ -252,7 +258,7 @@ else {
   if ($hasGnu) { $selectedAbi = 'gnu' }
   else { $selectedAbi = 'msvc' }
 }
-Write-Host "  → 选择 Rust ABI：$selectedAbi (stable-x86_64-pc-windows-$selectedAbi)" -ForegroundColor DarkGray
+Write-Host "  → 选择 Rust 工具链 $selectedAbi (stable-x86_64-pc-windows-$selectedAbi)" -ForegroundColor DarkGray
 
 # [2/2] 检测并安装 Rust 工具链
 Write-Host ""
@@ -261,15 +267,11 @@ Add-CargoBinPath
 
 # 一次性确保 rustup 可用，后续不再检测
 if (-not (Get-ExePath 'rustup.exe')) {
-  Write-Warn "未检测到 rustup，正在安装..."
+  Write-Warn "未检测到 rustup，准备安装..."
   if (-not (Install-Rustup)) {
     Write-Fail "rustup 安装失败，请手动访问 https://rustup.rs 安装"
     exit 1
   }
-}
-
-if (-not (Test-RustToolchain)) {
-  Write-Warn "Rust 工具链不可用，将重新安装"
 }
 
 Install-RustToolchainAbi -Abi $selectedAbi | Out-Null
