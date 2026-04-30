@@ -159,9 +159,6 @@ function Install-RustToolchainAbi {
     }
   }
 
-  Test-RustToolchain -Quiet | Out-Null
-  Write-Host ""
-  Write-Banner -Title 'Rust 工具链已就绪' -Color Green
   return $true
 }
 
