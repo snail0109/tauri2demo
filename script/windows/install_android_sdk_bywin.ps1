@@ -115,8 +115,6 @@ function Show-SdkManagerVersion([string]$SdkManagerPath) {
   sdkmanager 在 Windows 下与管道/终端交互有兼容性问题，这里通过：
   - 生成大量 y 的临时文件以自动回答 license 提示
   - 使用 cmd.exe /c 执行管道命令，避免 PowerShell 管道行为差异
-  - 使用 Start-Process -NoNewWindow 让 sdkmanager (Java/JNA) 拿到真实控制台句柄
-  - 通过 mode con cols=400 扩大控制台缓冲区宽度，防止 JNA 检测到窄终端而截断路径
 .PARAMETER SdkManagerPath
   sdkmanager.bat 的路径。
 .PARAMETER AndroidHome
@@ -138,13 +136,8 @@ function Invoke-SdkManager {
   $yesFile = Join-Path $env:TEMP ("sdkmanager_yes_{0}.txt" -f ([guid]::NewGuid().ToString('N')))
   (1..2500 | ForEach-Object { 'y' }) | Set-Content -LiteralPath $yesFile -Encoding ASCII
   try {
-    # 通过 Start-Process -NoNewWindow 让 sdkmanager (Java/JNA) 拿到真实控制台句柄，
-    # 避免因管道重定向导致 JNA 无法检测控制台宽度而截断路径输出。
-    # mode con cols=400 在 cmd 内部设置缓冲区宽度（有真实控制台时生效，失败也不影响安装）。
-    # 使用 < 重定向 stdin 代替管道，避免无控制台环境下管道断裂。
-    $cmd = "mode con cols=400 >nul 2>&1 & `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs < `"$yesFile`""
-    $proc = Start-Process -FilePath 'cmd.exe' -ArgumentList @('/c', $cmd) -NoNewWindow -Wait -PassThru
-    if ($proc.ExitCode -ne 0) { $global:LASTEXITCODE = $proc.ExitCode }
+    $cmd = "type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
+    Invoke-NativeStream -Block { & cmd /c $cmd }
   } finally {
     Remove-Item -LiteralPath $yesFile -Force -ErrorAction SilentlyContinue
   }
