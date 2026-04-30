@@ -134,16 +134,20 @@ function Invoke-SdkManager {
   $sdkRootArg = "--sdk_root=$AndroidHome"
   $pkgArgs = ($Packages | ForEach-Object { '"{0}"' -f $_ }) -join ' '
 
-  # 给 JLine 一个足够宽的伪终端宽度（在 cmd 内部 set，因其不继承外层 PS 的 COLUMNS）
+  # 临时调大控制台缓冲区宽度，JLine（JNA）据此决定输出宽度，防止截断路径
+  $prevBufWidth = [Console]::BufferWidth
+  [Console]::BufferWidth = 400
+
   $yesFile = Join-Path $env:TEMP ("sdkmanager_yes_{0}.txt" -f ([guid]::NewGuid().ToString('N')))
   (1..2500 | ForEach-Object { 'y' }) | Set-Content -LiteralPath $yesFile -Encoding ASCII
   try {
-    $cmd = "set COLUMNS=800 && type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
+    $cmd = "type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
     Write-Host "  执行命令：$cmd" -ForegroundColor Cyan
     Write-Host ""
     Invoke-NativeStream -Block { & cmd.exe /c $cmd }
   } finally {
     Remove-Item -LiteralPath $yesFile -Force -ErrorAction SilentlyContinue
+    [Console]::BufferWidth = $prevBufWidth
   }
   if ($LASTEXITCODE -ne 0) {
     Write-Fail "Android SDK 组件安装失败"
