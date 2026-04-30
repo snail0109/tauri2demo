@@ -53,11 +53,6 @@ registry = "sparse+https://mirrors.aliyun.com/crates.io-index/"
 function Test-RustToolchain {
   param([switch]$Quiet)
   $rustc = Get-ExePath 'rustc.exe'
-  if (-not $rustc) {
-    Write-Host "未找到 rustc.exe，尝试添加 ~\.cargo\bin 到 PATH"
-    Add-CargoBinPath
-    $rustc = Get-ExePath 'rustc.exe'
-  }
   if (-not $rustc) { return $false }
 
   $versionOutput = Invoke-NativeText -FilePath 'rustc' -Arguments @('--version')
@@ -70,17 +65,12 @@ function Test-RustToolchain {
     return $false
   }
   $hostLine = Invoke-NativeText -FilePath 'rustc' -Arguments @('-vV') |
-  Where-Object { $_ -match '^host:\s*' } |
-  Select-Object -First 1
+    Where-Object { $_ -match '^host:\s*' } |
+    Select-Object -First 1
   if ($hostLine) { $script:RustcHost = ($hostLine -replace '^host:\s*', '').Trim() }
 
   $rustupVersion = ''
   $rustup = Get-ExePath 'rustup.exe'
-  if (-not $rustup) {
-    Write-Host "未找到 rustup.exe，尝试添加 ~\.cargo\bin 到 PATH"
-    Add-CargoBinPath;
-    $rustup = Get-ExePath 'rustup.exe'
-  }
   if ($rustup) {
     $rustupVersion = (Invoke-NativeText -FilePath 'rustup' -Arguments @('--version') | Select-Object -First 1)
   }
@@ -166,14 +156,9 @@ function Install-Rustup {
 #>
 function Install-RustToolchainAbi {
   param([ValidateSet('msvc', 'gnu')] [string]$Abi)
-  Write-Host "安装 Rust 工具链(Install-RustToolchainAbi) $toolchain"
 
   $target = "x86_64-pc-windows-$Abi"
   $toolchain = "stable-$target"
-
-  if (-not (Get-ExePath 'rustup.exe')) {
-    if (-not (Install-Rustup)) { return $false }
-  }
 
   $list = Get-RustupToolchain
   $needInstall = ($list -notcontains $toolchain)
@@ -298,21 +283,22 @@ Write-Host "  → 选择 Rust ABI：$selectedAbi (stable-x86_64-pc-windows-$sele
 Write-Host ""
 Write-Host "[2/2] 检查 Rust 工具链" -ForegroundColor Cyan
 Add-CargoBinPath
-$rustupExisted = (Get-ExePath 'rustup.exe') -ne $null
-if (-not (Test-RustToolchain)) {
-  if ($rustupExisted) {
-    Write-Warn "rustup 已安装但 Rust 工具链不可用，将重新安装"
-  }
-  else {
-    Write-Warn "未检测到 rustup"
-    Install-Rustup | Out-Null
+
+# 一次性确保 rustup 可用，后续不再检测
+if (-not (Get-ExePath 'rustup.exe')) {
+  Write-Warn "未检测到 rustup，正在安装..."
+  if (-not (Install-Rustup)) {
+    Write-Fail "rustup 安装失败，请手动访问 https://rustup.rs 安装"
+    exit 1
   }
 }
 
-if (Get-ExePath 'rustup.exe') {
-  Install-RustToolchainAbi -Abi $selectedAbi | Out-Null
-  Test-RustToolchain -Quiet | Out-Null
+if (-not (Test-RustToolchain)) {
+  Write-Warn "Rust 工具链不可用，将重新安装"
 }
+
+Install-RustToolchainAbi -Abi $selectedAbi | Out-Null
+Test-RustToolchain -Quiet | Out-Null
 
 # 将 ~\.cargo\bin 写入用户 PATH，使新终端也能直接使用 rustup、rustc、cargo
 $cargoBin = Join-Path $HOME '.cargo\bin'
