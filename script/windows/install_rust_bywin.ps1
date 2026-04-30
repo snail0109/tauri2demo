@@ -16,8 +16,11 @@ $Failed = $false
 function Set-RustupChinaMirror {
   # 设置 Rust 国内镜像源环境变量（阿里云），加速 rustup 工具链下载和 self update。
   # 参考：https://developer.aliyun.com/mirror/rustup
+  # 同时写入当前会话和用户级环境变量，确保新终端也生效。
   $env:RUSTUP_DIST_SERVER = 'https://mirrors.aliyun.com/rustup'
   $env:RUSTUP_UPDATE_ROOT = 'https://mirrors.aliyun.com/rustup/rustup'
+  Set-UserEnvIfChanged -Name 'RUSTUP_DIST_SERVER' -Value $env:RUSTUP_DIST_SERVER
+  Set-UserEnvIfChanged -Name 'RUSTUP_UPDATE_ROOT' -Value $env:RUSTUP_UPDATE_ROOT
   Write-Ok "已配置 Rust 国内镜像源（阿里云）"
 
   # 同时配置 cargo crates.io 国内源
