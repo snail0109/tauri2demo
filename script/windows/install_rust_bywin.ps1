@@ -113,7 +113,7 @@ function Install-Rustup {
   Write-Host ""
   Write-Host "通过 rustup-init 安装 rustup + rustc"
   Write-Host "  运行命令：`"$installer`" -y --default-toolchain none --no-modify-path" -ForegroundColor Cyan
-  & $installer -y --default-toolchain none --no-modify-path
+  Invoke-NativeStream -Block {& $installer -y --default-toolchain none --no-modify-path }
   # Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
 
   Add-CargoBinPath
@@ -158,7 +158,7 @@ function Install-RustToolchainAbi {
   if ($needInstall) {
     Set-RustupChinaMirror
     Write-Host "  运行命令：rustup toolchain install $toolchain" -ForegroundColor Cyan
-    & rustup toolchain install $toolchain
+    Invoke-NativeStream -Block {& rustup toolchain install $toolchain }
     Write-Ok "Rust 工具链 $toolchain 安装成功"
   }
 
@@ -166,7 +166,7 @@ function Install-RustToolchainAbi {
   $currentDefault = if ($defaultLine) { ($defaultLine -split '\s+')[0] } else { '' }
   if ($currentDefault -ne $toolchain) {
     Write-Host "  运行命令：rustup default $toolchain" -ForegroundColor Cyan
-    & rustup default $toolchain
+    Invoke-NativeStream -Block {& rustup default $toolchain }
   }
 
   return $true
