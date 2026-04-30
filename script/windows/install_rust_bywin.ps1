@@ -11,8 +11,6 @@ $Failed = $false
 
 . (Join-Path $PSScriptRoot '_common.ps1')
 
-Enable-AutoConfirm
-
 # ─── Rust 检测与安装函数 ─────────────────────────────────────────────────────
 
 function Set-RustupChinaMirror {
@@ -96,10 +94,6 @@ function Install-Rustup {
   if (Get-ExePath 'rustup.exe') { return $true }
   Write-Host ""
   Write-Host "═══ 安装 rustup ═══" -ForegroundColor Cyan
-  if (-not (Confirm-Install "安装 rustup（Rust 工具链管理器）")) {
-    Write-Warn "已跳过 rustup 安装"
-    return $false
-  }
 
   $installer = Join-Path $env:TEMP 'rustup-init.exe'
   if (-not (Save-WebFile -Urls @(
@@ -154,10 +148,6 @@ function Install-RustToolchainAbi {
     $needInstall = -not (Test-RustToolchain -Quiet)
   }
   if ($needInstall) {
-    if (-not (Confirm-Install "通过 rustup 安装 $toolchain 工具链")) {
-      Write-Warn "已跳过 Rust $toolchain 工具链安装"
-      return $false
-    }
     Set-RustupChinaMirror
     Invoke-NativeStream -Block { & rustup toolchain install $toolchain }
     if ($LASTEXITCODE -ne 0) {
@@ -170,11 +160,8 @@ function Install-RustToolchainAbi {
   $defaultLine = Invoke-NativeText -FilePath 'rustup' -Arguments @('default') | Select-Object -First 1
   $currentDefault = if ($defaultLine) { ($defaultLine -split '\s+')[0] } else { '' }
   if ($currentDefault -ne $toolchain) {
-    $currentLabel = if ([string]::IsNullOrWhiteSpace($currentDefault)) { '未设置' } else { $currentDefault }
-    if (Confirm-Install "将 $toolchain 设为默认 Rust 工具链（当前：$currentLabel）") {
-      Invoke-NativeStream -Block { & rustup default $toolchain }
-      if ($LASTEXITCODE -ne 0) { Write-Warn "设置默认工具链失败" }
-    }
+    Invoke-NativeStream -Block { & rustup default $toolchain }
+    if ($LASTEXITCODE -ne 0) { Write-Warn "设置默认工具链失败" }
   }
 
   return $true
