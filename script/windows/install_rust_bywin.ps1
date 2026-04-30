@@ -52,12 +52,12 @@ function Test-RustToolchain {
   param([switch]$Quiet)
   $rustc = Get-ExePath 'rustc.exe'
   if (-not $rustc) {
+    Write-Host "未找到 rustc.exe，尝试添加 ~\.cargo\bin 到 PATH"
     Add-CargoBinPath
     $rustc = Get-ExePath 'rustc.exe'
   }
-
-
   if (-not $rustc) { return $false }
+
   $versionOutput = Invoke-NativeText -FilePath 'rustc' -Arguments @('--version')
   $script:RustcVersion = ($versionOutput | Select-Object -First 1)
   # 校验输出版本号格式（如 "rustc 1.85.0 (...)"），排除 error/warning 等异常输出
@@ -74,7 +74,11 @@ function Test-RustToolchain {
 
   $rustupVersion = ''
   $rustup = Get-ExePath 'rustup.exe'
-  if (-not $rustup) { Add-CargoBinPath; $rustup = Get-ExePath 'rustup.exe' }
+  if (-not $rustup) {
+    Write-Host "未找到 rustup.exe，尝试添加 ~\.cargo\bin 到 PATH"
+    Add-CargoBinPath;
+    $rustup = Get-ExePath 'rustup.exe'
+  }
   if ($rustup) {
     $rustupVersion = (Invoke-NativeText -FilePath 'rustup' -Arguments @('--version') | Select-Object -First 1)
   }
@@ -160,6 +164,7 @@ function Install-Rustup {
 #>
 function Install-RustToolchainAbi {
   param([ValidateSet('msvc', 'gnu')] [string]$Abi)
+  Write-Host "安装 Rust 工具链 $toolchain"
 
   $target = "x86_64-pc-windows-$Abi"
   $toolchain = "stable-$target"
@@ -273,13 +278,13 @@ if ($hasGnu) { Write-Ok "检测到 GNU GCC（gcc.exe）" }
 if (-not $hasMsvc -and -not $hasGnu) {
   Write-Warn "未检测到 C/C++ 编译器，Rust 编译需要至少一种 C 链接器"
   Write-Warn "请先运行 install_c_compile_bywin.ps1 安装 C/C++ 编译工具，或手动安装后重试"
-    Write-Host ""
-    $abiOptions = @('GNU (x86_64-pc-windows-gnu)', 'MSVC (x86_64-pc-windows-msvc)')
-    $abiChoice = Select-MenuOption -Prompt '仍要继续？请选择 Rust 工具链 ABI：' -Options $abiOptions
-    if ($abiChoice -eq 0) {
-      Exit-NoOp "已退出，未安装 Rust 工具链。" -Code 0
-    }
-    $selectedAbi = if ($abiChoice -eq 1) { 'gnu' } else { 'msvc' }
+  Write-Host ""
+  $abiOptions = @('GNU (x86_64-pc-windows-gnu)', 'MSVC (x86_64-pc-windows-msvc)')
+  $abiChoice = Select-MenuOption -Prompt '仍要继续？请选择 Rust 工具链 ABI：' -Options $abiOptions
+  if ($abiChoice -eq 0) {
+    Exit-NoOp "已退出，未安装 Rust 工具链。" -Code 0
+  }
+  $selectedAbi = if ($abiChoice -eq 1) { 'gnu' } else { 'msvc' }
 }
 else {
   if ($hasGnu) { $selectedAbi = 'gnu' }
