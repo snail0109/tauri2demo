@@ -137,8 +137,8 @@ function Invoke-SdkManager {
   (1..2500 | ForEach-Object { 'y' }) | Set-Content -LiteralPath $yesFile -Encoding ASCII
   try {
     $cmd_str = "type `"$yesFile`" | `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs"
-    Write-Host "  运行命令： `"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs" -ForegroundColor Cyan
-    & $cmd_str
+    Write-Host "  运行命令：`"$SdkManagerPath`" `"$sdkRootArg`" $pkgArgs" -ForegroundColor Cyan
+    Invoke-NativeStream -Block {& cmd.exe /c $cmd_str }
   } finally {
     Remove-Item -LiteralPath $yesFile -Force -ErrorAction SilentlyContinue
   }
