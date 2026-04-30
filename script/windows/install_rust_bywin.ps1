@@ -101,14 +101,6 @@ function Install-Rustup {
     return $false
   }
 
-  $verifyInstalled = {
-    Add-CargoBinPath
-    if (-not (Get-ExePath 'rustup.exe')) { return $false }
-    $v = (Invoke-NativeText -FilePath 'rustup' -Arguments @('--version') | Select-Object -First 1)
-    Write-Ok "rustup 安装成功：$v"
-    return $true
-  }
-
   $installer = Join-Path $env:TEMP 'rustup-init.exe'
   # 优先从国内镜像下载 rustup-init.exe，失败再回退到官方地址
   $downloadUrls = @(
@@ -137,7 +129,12 @@ function Install-Rustup {
   catch {}
   Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
 
-  if (& $verifyInstalled) { return $true }
+  Add-CargoBinPath
+  if (Get-ExePath 'rustup.exe') {
+    $v = (Invoke-NativeText -FilePath 'rustup' -Arguments @('--version') | Select-Object -First 1)
+    Write-Ok "rustup 安装成功：$v"
+    return $true
+  }
 
   Write-Fail "rustup 自动安装失败，请手动访问 https://rustup.rs 安装"
   return $false
