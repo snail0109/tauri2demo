@@ -346,14 +346,31 @@ else {
   }
 }
 
-Write-Host "[7/8] pnpm" -ForegroundColor Cyan
+Write-Host "[7/8] 检查 pnpm 编译环境" -ForegroundColor Cyan
 $pnpmExe = Get-PnpmExe
 if ($pnpmExe) {
   $v = (Invoke-NativeText -FilePath $pnpmExe -Arguments @('--version') | Select-Object -First 1)
   Write-Ok "pnpm $v 已安装"
 }
 else {
-  Write-Fail "未找到 pnpm，请手动运行：npm install -g pnpm"
+  Write-Warn "未找到 pnpm，准备自动安装 ..."
+    $npm = Get-ExePath 'npm.cmd'
+    if (-not $npm) { $npm = Get-ExePath 'npm.exe' }
+    if (-not $npm) {
+      Write-Fail "未找到 npm，无法自动安装 pnpm"
+      Write-Fail "请先安装 Node.js，然后重试"
+    }
+    else {
+      Write-Host "  运行命令：npm install -g pnpm" -ForegroundColor Cyan
+      Invoke-NativeStream -Block { & npm install -g pnpm }
+      $pnpmExe = Get-PnpmExe
+      if ($pnpmExe) {
+        $v = (Invoke-NativeText -FilePath $pnpmExe -Arguments @('--version') | Select-Object -First 1)
+        Write-Ok "pnpm $v 安装成功"
+      } else {
+        Write-Fail "pnpm 自动安装失败，请手动安装：npm install -g pnpm"
+      }
+    }
 }
 
 Write-Host "[8/8] keystore.properties" -ForegroundColor Cyan
