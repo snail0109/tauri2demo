@@ -112,7 +112,7 @@ function Install-Rustup {
   }
   Write-Host ""
   Write-Host "通过 rustup-init 安装 rustup + rustc"
-  Write-Host "运行命令：`"$installer`" -y --default-toolchain none --no-modify-path" -ForegroundColor Cyan
+  Write-Host "  运行命令：`"$installer`" -y --default-toolchain none --no-modify-path" -ForegroundColor Cyan
   & $installer -y --default-toolchain none --no-modify-path
   # Remove-Item -LiteralPath $installer -Force -ErrorAction SilentlyContinue
 
@@ -142,10 +142,11 @@ function Install-Rustup {
 function Install-RustToolchainAbi {
   param([ValidateSet('msvc', 'gnu')] [string]$Abi)
 
-  Write-Host ""
-  Write-Host "Rust 工具链 $toolchain 准备安装"
   $target = "x86_64-pc-windows-$Abi"
   $toolchain = "stable-$target"
+
+  Write-Host ""
+  Write-Host "Rust 工具链 $toolchain 准备安装"
 
   $list = Get-RustupToolchain
   $needInstall = ($list -notcontains $toolchain)
