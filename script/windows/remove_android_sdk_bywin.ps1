@@ -1,3 +1,15 @@
+<#
+.SYNOPSIS
+  卸载 Android SDK / Rust Android targets，并清理相关用户环境变量（Windows）。
+.DESCRIPTION
+  - 支持 -DryRun：只输出将执行的命令，不实际修改系统
+  - 提供菜单选择：仅卸载 Rust targets / 仅删除 SDK+环境变量 / 全部卸载
+  - 会先展示当前安装状态，避免误删
+.PARAMETER Yes
+  自动确认（静默模式）。
+.PARAMETER DryRun
+  演练模式：不真正删除目录/卸载 targets/修改环境变量。
+#>
 param(
   [Alias('y')]
   [switch]$Yes,
@@ -13,6 +25,12 @@ $Failed = $false
 
 if ($Yes) { Enable-AutoConfirm }
 
+<#
+.SYNOPSIS
+  尝试结束可能占用 Android SDK 的进程（adb/Android Studio/Gradle 等），降低删除失败概率。
+.NOTES
+  该步骤只用于“删除 SDK 目录”前的清理，失败不会阻止后续尝试。
+#>
 function Stop-AndroidProcess {
   Write-Warn "正在结束 adb / Android Studio / Gradle 相关进程..."
   $names = @('adb', 'studio64', 'studio', 'gradle', 'gradlew', 'fsnotifier')
@@ -26,6 +44,13 @@ function Stop-AndroidProcess {
   Write-Ok "进程清理完成"
 }
 
+<#
+.SYNOPSIS
+  卸载 Rust Android 交叉编译目标（rustup target remove）。
+.NOTES
+  - 只卸载当前已安装的目标（与 Get-AndroidRustTarget 的交集）
+  - DryRun 时只打印命令，不实际执行
+#>
 function Remove-RustAndroidTarget {
   if (-not (Get-ExePath 'rustup.exe')) {
     Write-Warn "未检测到 rustup，跳过 Rust Android 编译目标卸载"
@@ -49,6 +74,13 @@ function Remove-RustAndroidTarget {
   }
 }
 
+<#
+.SYNOPSIS
+  删除 Android SDK 根目录（ANDROID_HOME 指向的目录）。
+.NOTES
+  - 会提示用户确认
+  - DryRun 时只打印将执行的操作
+#>
 function Remove-AndroidSdkDir {
   $sdk = Resolve-AndroidHome
   if (-not $sdk) {
@@ -77,6 +109,13 @@ function Remove-AndroidSdkDir {
   }
 }
 
+<#
+.SYNOPSIS
+  清理用户级环境变量：ANDROID_HOME、ANDROID_NDK_HOME，并从用户 PATH 移除 platform-tools 段。
+.NOTES
+  - 仅影响用户环境变量（User scope），需要新开终端窗口才会对新会话生效
+  - DryRun 时只打印将执行的操作
+#>
 function Remove-AndroidEnvVar {
   if (-not (Confirm-Remove "清理 ANDROID_HOME / ANDROID_NDK_HOME 用户环境变量及 PATH 中的 platform-tools 段")) {
     Write-Warn "已跳过环境变量清理"
@@ -106,6 +145,16 @@ function Remove-AndroidEnvVar {
   Write-Ok "环境变量清理完成（新开终端窗口后生效）"
 }
 
+<#
+.SYNOPSIS
+  打印目录下的一级子目录名称（用于展示已安装的 platforms/build-tools 等）。
+.PARAMETER Label
+  显示标签。
+.PARAMETER Path
+  目录路径。
+.PARAMETER NotInstalledLabel
+  不存在时的提示文本。
+#>
 function Show-DirChildren {
   param([string]$Label, [string]$Path, [string]$NotInstalledLabel = '未装')
   if (-not (Test-Path -LiteralPath $Path)) { Write-Warn "  $Label（$NotInstalledLabel）"; return }
@@ -113,6 +162,15 @@ function Show-DirChildren {
   if ($names) { Write-Ok ("  {0} → {1}" -f $Label, ($names -join ' ')) } else { Write-Warn "  $Label（$NotInstalledLabel）" }
 }
 
+<#
+.SYNOPSIS
+  展示当前安装状态，并在“确实没有可卸载内容”时提前退出。
+.DESCRIPTION
+  会检测：
+  - Android SDK（cmdline-tools/platform-tools/ndk/platforms/build-tools）
+  - Rust Android targets
+  - 用户环境变量 ANDROID_HOME / ANDROID_NDK_HOME
+#>
 function Show-InstallationStatus {
   Write-Banner -Title '当前安装状态检测                         ' -Color Cyan
 

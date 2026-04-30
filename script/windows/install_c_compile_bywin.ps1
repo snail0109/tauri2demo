@@ -1,3 +1,13 @@
+<#
+.SYNOPSIS
+  在 Windows 上检测并安装 C/C++ 编译环境（MSVC 或 MSYS2/MinGW-w64 GNU 工具链）。
+.DESCRIPTION
+  - 先检测是否已存在 MSVC cl.exe 或 GNU gcc.exe
+  - 若都不存在，提供菜单选择安装 MSVC 或 GNU（MSYS2 + mingw-w64）
+  - 会尽量配置国内镜像源以加速 MSYS2 pacman 下载
+.PARAMETER Yes
+  自动确认（静默模式）。
+#>
 param(
   [Alias('y')]
   [switch]$Yes
@@ -16,6 +26,14 @@ $MingwBin     = Join-Path $MsysRoot 'mingw64\bin'
 $MingwGccExe  = Join-Path $MingwBin 'gcc.exe'
 $MingwAsExe   = Join-Path $MingwBin 'as.exe'
 
+<#
+.SYNOPSIS
+  检测 MSVC cl.exe 是否可用（包含 vswhere 回退定位）。
+.OUTPUTS
+  [bool]
+.NOTES
+  cl.exe 可能不在 PATH（例如仅装了 Build Tools），因此需要通过 vswhere 定位安装目录。
+#>
 function Test-Msvc {
   $cl = Get-ExePath 'cl.exe'
   if (-not $cl) {
@@ -51,6 +69,15 @@ function Test-Msvc {
   return $true
 }
 
+<#
+.SYNOPSIS
+  检测 GNU 汇编器 as.exe（Rust GNU toolchain 的 dlltool/import lib 可能依赖）。
+.OUTPUTS
+  [bool]
+.NOTES
+  - 优先从 PATH 找 as.exe
+  - 若 MSYS2 已安装且 mingw64\bin\as.exe 存在，会临时加入 PATH
+#>
 function Test-GnuAssembler {
   $as = Get-ExePath 'as.exe'
   if ($as) {
@@ -67,6 +94,14 @@ function Test-GnuAssembler {
   return $false
 }
 
+<#
+.SYNOPSIS
+  为 MSYS2 pacman 配置国内镜像源（清华 TUNA）。
+.OUTPUTS
+  [bool] 已配置或无需配置返回 $true。
+.NOTES
+  用 marker 文件避免重复写入 mirrorlist。
+#>
 function Set-Msys2ChinaMirror {
   $d = Join-Path $MsysRoot 'etc\pacman.d'
   if (-not (Test-Path -LiteralPath $d)) { return $true }
@@ -93,6 +128,14 @@ function Set-Msys2ChinaMirror {
   return $true
 }
 
+<#
+.SYNOPSIS
+  安装/补齐 GNU 汇编器 as.exe（通过 MSYS2 pacman 安装 binutils）。
+.OUTPUTS
+  [bool]
+.NOTES
+  缺少 as.exe 时，Rust 的 dlltool 可能报 CreateProcess 错误，导致编译失败。
+#>
 function Install-GnuAssembler {
   if (Test-GnuAssembler) { return $true }
   Write-Warn "未找到 GNU 汇编器 as.exe，Rust dlltool 将无法创建导入库（编译会报 CreateProcess 错误）"
@@ -114,6 +157,14 @@ function Install-GnuAssembler {
   return $false
 }
 
+<#
+.SYNOPSIS
+  引导安装 Visual Studio Build Tools（MSVC）。
+.OUTPUTS
+  [bool]
+.NOTES
+  会下载 vs_BuildTools.exe 并启动安装器；用户需在安装器中勾选“使用 C++ 的桌面开发”。
+#>
 function Install-Msvc {
   Write-Host ""
   Write-Host "═══ 安装 MSVC (Visual Studio Build Tools) ═══" -ForegroundColor Cyan
@@ -155,6 +206,14 @@ function Install-Msvc {
   return $true
 }
 
+<#
+.SYNOPSIS
+  发现 gcc.exe 后的统一收尾：把 mingw64\bin 写入当前 PATH 与用户 PATH，并做一次自检。
+.PARAMETER SuccessMessage
+  成功时输出的提示文本。
+.OUTPUTS
+  [bool]
+#>
 function Confirm-MingwGccReady {
   # 找到 gcc.exe 后的统一收尾：把 mingw64\bin 前置到 PATH，跑一次自检。3 处共用。
   param([string]$SuccessMessage)
@@ -165,6 +224,12 @@ function Confirm-MingwGccReady {
   return $true
 }
 
+<#
+.SYNOPSIS
+  在已安装 MSYS2 的前提下，通过 pacman 安装 mingw-w64-x86_64-gcc 及 binutils。
+.OUTPUTS
+  [bool]
+#>
 function Install-MsysGcc {
   if (-not (Confirm-Install "通过 MSYS2 pacman 安装 mingw-w64-x86_64-gcc")) { return $false }
   Set-Msys2ChinaMirror | Out-Null
@@ -177,6 +242,15 @@ function Install-MsysGcc {
   return $false
 }
 
+<#
+.SYNOPSIS
+  安装 GNU gcc（MinGW-w64），必要时先安装 MSYS2 并使用 pacman 安装 gcc/binutils。
+.OUTPUTS
+  [bool]
+.NOTES
+  - 优先复用 C:\msys64
+  - 国内镜像失败会回退到 winget 安装 MSYS2
+#>
 function Install-Gnu {
   Write-Host ""
   Write-Host "═══ 安装 GNU gcc (MinGW-w64) ═══" -ForegroundColor Cyan
@@ -245,6 +319,12 @@ function Install-Gnu {
   return $false
 }
 
+<#
+.SYNOPSIS
+  检测 GNU gcc/g++ 是否可用，并确保 as.exe 可用。
+.OUTPUTS
+  [bool]
+#>
 function Test-Gnu {
   $gcc = Get-ExePath 'gcc.exe'
   if (-not $gcc) {
@@ -262,6 +342,14 @@ function Test-Gnu {
   return $true
 }
 
+<#
+.SYNOPSIS
+  输出 C/C++ 编译环境摘要（MSVC 与 GNU）。
+.PARAMETER HasMsvc
+  是否检测到 MSVC。
+.PARAMETER HasGnu
+  是否检测到 GNU gcc。
+#>
 function Write-EnvSummary {
   param([bool]$HasMsvc, [bool]$HasGnu)
   Write-StatusLine -Label 'MSVC      ' -Ok:$HasMsvc

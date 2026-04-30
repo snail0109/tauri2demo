@@ -7,6 +7,16 @@ $ErrorActionPreference = 'Stop'
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $Failures = New-Object System.Collections.Generic.List[string]
 
+<#
+.SYNOPSIS
+  定义一个简单的测试用例包装器：执行脚本块并打印 PASS/FAIL。
+.PARAMETER Name
+  用例名称（用于输出与失败汇总）。
+.PARAMETER Body
+  测试逻辑脚本块；抛异常即视为失败。
+.NOTES
+  失败用例会记录到 $script:Failures，最终以退出码 1 返回。
+#>
 function Test-Case {
   param([string]$Name, [scriptblock]$Body)
   Write-Host "  [TEST] $Name ... " -NoNewline

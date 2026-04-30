@@ -1,3 +1,13 @@
+<#
+.SYNOPSIS
+  卸载 Rust（rustup + 已安装的 toolchain），并输出卸载后的残留检测摘要。
+.DESCRIPTION
+  - 先卸载所有 rustup toolchain
+  - 再执行 rustup self uninstall
+  - 最后检测 rustup/rustc/toolchains 是否仍残留
+.NOTES
+  该脚本会影响系统环境与其他 Rust 项目，请确保了解后再执行。
+#>
 $ErrorActionPreference = 'Stop'
 $Failed = $false
 
@@ -5,6 +15,12 @@ $Failed = $false
 
 # ─── Rust 卸载函数 ────────────────────────────────────────────────────────────
 
+<#
+.SYNOPSIS
+  卸载所有已安装的 rustup toolchain。
+.NOTES
+  仅卸载 toolchain，不删除 rustup 本体；rustup 不存在时直接返回。
+#>
 function Remove-AllRustToolchain {
   if (-not (Get-ExePath 'rustup.exe')) { return }
   $toolchains = Get-RustupToolchain
@@ -15,6 +31,12 @@ function Remove-AllRustToolchain {
   }
 }
 
+<#
+.SYNOPSIS
+  调用 rustup self uninstall 卸载 rustup 本体，并给出手动清理提示。
+.NOTES
+  若 rustup 被其他进程占用，可能无法完全删除，需要关闭所有终端后手动删除 ~\.cargo / ~\.rustup。
+#>
 function Remove-Rustup {
   if (-not (Get-ExePath 'rustup.exe')) {
     Write-Warn "未检测到 rustup"

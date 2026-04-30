@@ -8,19 +8,53 @@
 #   - 如需追踪整体失败状态，调用脚本应在顶部声明 $Failed = $false
 
 # ─── Logging ─────────────────────────────────────────────────────────────────
+<#
+.SYNOPSIS
+  输出成功日志（绿色 ✓）。
+.PARAMETER Message
+  要输出的提示文本。
+#>
 function Write-Ok([string]$Message) {
   Write-Host "  ✓  $Message" -ForegroundColor Green
 }
 
+<#
+.SYNOPSIS
+  输出警告日志（黄色 ⚠）。
+.PARAMETER Message
+  要输出的提示文本。
+#>
 function Write-Warn([string]$Message) {
   Write-Host "  ⚠  $Message" -ForegroundColor Yellow
 }
 
+<#
+.SYNOPSIS
+  输出失败日志（红色 ✗），并把全局失败标记置为 $true。
+.PARAMETER Message
+  要输出的提示文本。
+.NOTES
+  会写入 $script:Failed = $true，便于调用脚本在结尾统一判断是否失败。
+#>
 function Write-Fail([string]$Message) {
   Write-Host "  ✗  $Message" -ForegroundColor Red
   $script:Failed = $true
 }
 
+<#
+.SYNOPSIS
+  输出“状态行”格式：Label：已安装/未安装（可自定义文本与附加说明）。
+.PARAMETER Label
+  左侧标签文本。
+.PARAMETER Ok
+  是否为“成功/已安装”状态。
+.PARAMETER OkText
+  Ok 为 $true 时显示的文本。
+.PARAMETER NotOkText
+  Ok 为 $false 时显示的文本。
+.PARAMETER Detail
+  额外说明（可为空）。
+#>
 function Write-StatusLine {
   param(
     [string]$Label,
@@ -36,12 +70,36 @@ function Write-StatusLine {
   Write-Host $line -ForegroundColor $color
 }
 
+<#
+.SYNOPSIS
+  remove_*.ps1 的卸载摘要专用状态行：固定 OkText='已移除'。
+.PARAMETER Label
+  左侧标签文本。
+.PARAMETER NotPresent
+  目标是否“不存在”（不存在即视为已移除）。
+.PARAMETER Detail
+  额外说明（可为空）。
+.PARAMETER NotOkText
+  NotPresent 为 $false 时显示文本，默认“仍存在”。
+#>
 function Write-RemovedStatus {
   # remove_*.ps1 卸载摘要专用包装：固定 OkText='已移除' / NotOkText 默认 '仍存在'。
   param([string]$Label, [bool]$NotPresent, [string]$Detail = '', [string]$NotOkText = '仍存在')
   Write-StatusLine -Label $Label -Ok:$NotPresent -OkText '已移除' -NotOkText $NotOkText -Detail $Detail
 }
 
+<#
+.SYNOPSIS
+  输出 3 行横幅：上分隔线 + 标题 + 下分隔线。
+.PARAMETER Title
+  标题文本。
+.PARAMETER Color
+  分隔线颜色。
+.PARAMETER TitleColor
+  标题颜色（默认与 Color 相同）。
+.PARAMETER Width
+  分隔线宽度（字符数）。
+#>
 function Write-Banner {
   # 输出 3 行横幅：上 ═ 条 + 标题 + 下 ═ 条。前后空行由调用方控制。
   # TitleColor 缺省与 Color 一致；少数场合（如安装完成提示）用 Green 标题 + Cyan 边。
@@ -63,9 +121,32 @@ function Write-Banner {
 # 用于 -y 静默模式，以及"主菜单选择后子操作不再重复确认"场景。
 $script:__AutoConfirm = $false
 
+<#
+.SYNOPSIS
+  启用“自动确认”模式：所有 Confirm-* 直接返回 $true。
+.NOTES
+  常用于 -y 静默模式，或主菜单确认后子操作不再重复询问。
+#>
 function Enable-AutoConfirm { $script:__AutoConfirm = $true }
+
+<#
+.SYNOPSIS
+  关闭“自动确认”模式：Confirm-* 恢复交互询问。
+#>
 function Disable-AutoConfirm { $script:__AutoConfirm = $false }
 
+<#
+.SYNOPSIS
+  交互式确认步骤（支持默认值与自动确认）。
+.PARAMETER Desc
+  交互提示文本。
+.PARAMETER Default
+  默认选项（Yes/No）。
+.PARAMETER AutoLabel
+  自动确认场景下的说明标签（目前仅用于语义表达）。
+.OUTPUTS
+  [bool] 用户是否确认继续。
+#>
 function Confirm-Step {
   param(
     [string]$Desc,
@@ -84,10 +165,44 @@ function Confirm-Step {
   }
 }
 
+<#
+.SYNOPSIS
+  询问“是否安装/自动安装”。
+.PARAMETER Desc
+  描述文本。
+.OUTPUTS
+  [bool]
+#>
 function Confirm-Install([string]$Desc) { Confirm-Step -Desc "$Desc 是否自动安装？" -Default 'Yes' }
+
+<#
+.SYNOPSIS
+  询问“是否继续”。
+.PARAMETER Desc
+  描述文本。
+.OUTPUTS
+  [bool]
+#>
 function Confirm-Continue([string]$Desc) { Confirm-Step -Desc "$Desc 是否继续？" -Default 'Yes' }
+
+<#
+.SYNOPSIS
+  询问“是否卸载”（默认 No，更安全）。
+.PARAMETER Desc
+  描述文本。
+.OUTPUTS
+  [bool]
+#>
 function Confirm-Remove([string]$Desc) { Confirm-Step -Desc "$Desc —— 是否卸载？" -Default 'No' -AutoLabel '自动确认卸载' }
 
+<#
+.SYNOPSIS
+  输出提示并退出脚本（用于“用户选择不操作”场景）。
+.PARAMETER Message
+  退出前输出的提示文本。
+.PARAMETER Code
+  退出码（默认 0）。
+#>
 function Exit-NoOp {
   # 用户在菜单或确认提示中选择放弃时的统一退出：黄字提示 + exit。
   # remove_*.ps1 的"菜单选 0 / Confirm-Remove 拒绝"以及 install_c_compile 的"菜单选 0"共用。
@@ -97,6 +212,16 @@ function Exit-NoOp {
   exit $Code
 }
 
+<#
+.SYNOPSIS
+  输出简单编号菜单并读取用户选择。
+.PARAMETER Prompt
+  菜单提示标题。
+.PARAMETER Options
+  选项列表（从 1 开始编号，0 代表退出）。
+.OUTPUTS
+  [int] 选择的编号（0 表示退出/无效输入）。
+#>
 function Select-MenuOption {
   param(
     [string]$Prompt,
@@ -120,6 +245,18 @@ function Select-MenuOption {
 # 时会被当作终止异常抛出（如 java/cl/gcc 把版本写到 stderr 就会炸）。
 # 下面两个助手在调用期间局部把 EAP 降到 Continue，避免误抛。
 
+<#
+.SYNOPSIS
+  以“文本行数组”的方式执行 native 命令（合并 stdout+stderr），且避免 PowerShell 5.1 的 NativeCommandError 终止异常。
+.PARAMETER FilePath
+  可执行文件路径或命令名。
+.PARAMETER Arguments
+  参数数组。
+.OUTPUTS
+  [string[]] 每行一条文本。
+.NOTES
+  函数内部临时把 $ErrorActionPreference 设为 Continue，执行结束后恢复。
+#>
 function Invoke-NativeText {
   # 捕获 native 命令的 stdout+stderr 为字符串数组（每行一项）。
   param([string]$FilePath, [string[]]$Arguments = @())
@@ -132,6 +269,15 @@ function Invoke-NativeText {
   }
 }
 
+<#
+.SYNOPSIS
+  执行 native 命令并把输出“流式”打印到 Host（处理 PowerShell 5.1 的 stderr/进度条兼容问题）。
+.PARAMETER Block
+  要执行的脚本块（内部应仅包含 native 命令调用）。
+.NOTES
+  - 会把 stderr 合并并强制转成字符串，避免红色 ErrorRecord 块污染日志。
+  - 对常见进度条/旋转帧做单行覆盖，减少刷屏。
+#>
 function Invoke-NativeStream {
   # 透传 native 命令的输出到 Host：把 stderr 合并进 stdout，并把 ErrorRecord
   # 强制转为字符串，避免 PowerShell 5.1 用错误格式化器显示
@@ -179,6 +325,14 @@ function Invoke-NativeStream {
   }
 }
 
+<#
+.SYNOPSIS
+  切换到指定目录后执行 native 命令（执行完必定恢复当前目录）。
+.PARAMETER Path
+  工作目录。
+.PARAMETER Block
+  要执行的脚本块（内部应包含 native 命令调用）。
+#>
 function Invoke-NativeStreamIn {
   # 在 $Path 目录下运行 $Block；总是恢复 cwd，即便 native 命令出错也不残留。
   param([string]$Path, [scriptblock]$Block)
@@ -187,13 +341,26 @@ function Invoke-NativeStreamIn {
 }
 
 # ─── Rustup helpers ──────────────────────────────────────────────────────────
+<#
+.SYNOPSIS
+  获取当前 rustup 已安装的 target 列表。
+.OUTPUTS
+  [string[]] 已安装 target；rustup 不存在时返回空数组。
+#>
 function Get-RustupInstalledTarget {
   # 已安装的 Rust 编译目标列表（string[]）。rustup 不存在时返回空数组。
-  if (-not (Get-ExePath 'rustup.exe')) { return @() }
+  # 注意：PowerShell 会枚举数组输出；若直接 return @()，调用方可能得到 $null。
+  if (-not (Get-ExePath 'rustup.exe')) { return ,([string[]]@()) }
   return @(Invoke-NativeText -FilePath 'rustup' -Arguments @('target', 'list', '--installed') |
     Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 }
 
+<#
+.SYNOPSIS
+  获取 Tauri Android 构建所需的 Rust target 列表（固定 4 个）。
+.OUTPUTS
+  [string[]]
+#>
 function Get-AndroidRustTarget {
   # Tauri Android 构建所需的 4 个 Rust 编译目标。install / remove / build 共用。
   return @(
@@ -204,27 +371,54 @@ function Get-AndroidRustTarget {
   )
 }
 
+<#
+.SYNOPSIS
+  获取当前 rustup 已安装的工具链名称列表。
+.OUTPUTS
+  [string[]] 工具链名称（去掉 "(default)" 等后缀）。
+#>
 function Get-RustupToolchain {
   # 已安装的 Rust 工具链名称列表（string[]，每行第一段，去掉 "(default)" 等后缀）。
-  if (-not (Get-ExePath 'rustup.exe')) { return @() }
+  # 注意：PowerShell 会枚举数组输出；若直接 return @()，调用方可能得到 $null。
+  if (-not (Get-ExePath 'rustup.exe')) { return ,([string[]]@()) }
   return @(Invoke-NativeText -FilePath 'rustup' -Arguments @('toolchain', 'list') |
     ForEach-Object { ($_ -split '\s+')[0] } |
     Where-Object { $_ -match '^\w+-\w+-\w+-\w+' })
 }
 
 # ─── Path / process discovery ────────────────────────────────────────────────
+<#
+.SYNOPSIS
+  解析可执行文件路径（相当于 Windows 的 where/PowerShell 的 Get-Command Source）。
+.PARAMETER Name
+  命令名（如 rustc.exe）。
+.OUTPUTS
+  [string] 可执行文件路径；不存在返回 $null。
+#>
 function Get-ExePath([string]$Name) {
   $cmd = Get-Command $Name -ErrorAction SilentlyContinue
   if ($null -eq $cmd) { return $null }
   return $cmd.Source
 }
 
+<#
+.SYNOPSIS
+  确保目录存在，不存在则创建。
+.PARAMETER Path
+  目录路径。
+#>
 function New-DirectoryIfMissing([string]$Path) {
   if (-not (Test-Path -LiteralPath $Path)) {
     New-Item -ItemType Directory -Force -Path $Path | Out-Null
   }
 }
 
+<#
+.SYNOPSIS
+  把指定目录前置到当前进程 PATH（避免重复添加）。
+.PARAMETER Prefix
+  需要前置的目录路径。
+#>
 function Add-PathPrefix([string]$Prefix) {
   if ([string]::IsNullOrWhiteSpace($Prefix)) { return }
   $parts = $env:Path -split ';'
@@ -232,18 +426,40 @@ function Add-PathPrefix([string]$Prefix) {
   $env:Path = "$Prefix;$env:Path"
 }
 
+<#
+.SYNOPSIS
+  把 ~\.cargo\bin 前置到当前进程 PATH（如果该目录存在）。
+.NOTES
+  主要用于在当前 shell 里立刻找到 rustup/rustc/cargo。
+#>
 function Add-CargoBinPath {
   # 若 ~/.cargo/bin 存在则前置到当前 shell PATH，便于随后 Get-ExePath 命中 rustup/rustc。
   $p = Join-Path $HOME '.cargo\bin'
   if (Test-Path -LiteralPath $p) { Add-PathPrefix $p }
 }
 
+<#
+.SYNOPSIS
+  获取 pnpm 可执行文件路径（优先 pnpm.cmd）。
+.OUTPUTS
+  [string] pnpm 路径；未安装返回 $null。
+#>
 function Get-PnpmExe {
   # Windows 上 pnpm 同时存在 pnpm.cmd（npm 全局装）与 pnpm.exe（独立安装器），优先 .cmd。
   return (Get-ExePath 'pnpm.cmd'), (Get-ExePath 'pnpm.exe') | Where-Object { $_ } | Select-Object -First 1
 }
 
 # ─── User environment writers ────────────────────────────────────────────────
+<#
+.SYNOPSIS
+  写入用户级环境变量（User scope）。
+.PARAMETER Name
+  变量名。
+.PARAMETER ValueOrNull
+  变量值；传 $null 表示删除该变量。
+.OUTPUTS
+  [bool] 是否写入成功。
+#>
 function Set-UserEnv([string]$Name, [string]$ValueOrNull) {
   try {
     [Environment]::SetEnvironmentVariable($Name, $ValueOrNull, 'User')
@@ -253,6 +469,14 @@ function Set-UserEnv([string]$Name, [string]$ValueOrNull) {
   }
 }
 
+<#
+.SYNOPSIS
+  把一个目录段追加到用户 PATH（User scope），避免重复添加。
+.PARAMETER Segment
+  要追加的目录路径。
+.OUTPUTS
+  [bool] 是否处理成功（含“已存在”场景）。
+#>
 function Add-UserPathSegment([string]$Segment) {
   $seg = $Segment.Trim()
   if ([string]::IsNullOrWhiteSpace($seg)) { return $true }
@@ -265,6 +489,16 @@ function Add-UserPathSegment([string]$Segment) {
   return (Set-UserEnv -Name 'PATH' -ValueOrNull $new)
 }
 
+<#
+.SYNOPSIS
+  仅在值变化时写入用户环境变量，并输出中文提示。
+.PARAMETER Name
+  变量名。
+.PARAMETER Value
+  要写入的新值。
+.NOTES
+  用于减少重复写入与重复日志。
+#>
 function Set-UserEnvIfChanged {
   # 写入用户环境变量；若与现值相同则只打印"已正确设置"日志。
   # 替代 install_android_sdk 中重复的 ANDROID_HOME / ANDROID_NDK_HOME 设置块。
@@ -284,6 +518,18 @@ function Set-UserEnvIfChanged {
 }
 
 # ─── Web download ────────────────────────────────────────────────────────────
+<#
+.SYNOPSIS
+  从单个 URL 下载文件（带简单进度显示）。
+.PARAMETER Url
+  下载地址。
+.PARAMETER OutFile
+  输出文件路径。
+.PARAMETER TimeoutSec
+  超时秒数（连接与读写）。
+.OUTPUTS
+  [bool] 是否下载成功。
+#>
 function Save-WebFileSingle {
   # 单地址直接下载，带进度显示
   param([string]$Url, [string]$OutFile, [int]$TimeoutSec = 30)
@@ -345,6 +591,22 @@ function Save-WebFileSingle {
   return $false
 }
 
+<#
+.SYNOPSIS
+  多地址下载：先并行测速选择最快源，再用单线程稳定下载。
+.PARAMETER Urls
+  候选 URL 列表（会自动去空/去空白）。
+.PARAMETER OutFile
+  输出文件路径。
+.PARAMETER TimeoutSec
+  单次下载超时秒数。
+.PARAMETER MinSizeKB
+  下载完成后的最小文件大小校验（防止下载到错误页面）。
+.PARAMETER RaceSec
+  并行测速时间（秒）。
+.OUTPUTS
+  [bool] 是否下载成功。
+#>
 function Save-WebFile {
   # 并行竞速 + 单线程下载：先用 Start-Job 对所有 URL 并行采样测速，选出最快的源，
   # 再用 Save-WebFileSingle（同步 I/O）从该源完成完整下载。
@@ -469,6 +731,14 @@ function Save-WebFile {
 }
 
 # ─── Android SDK / NDK discovery ─────────────────────────────────────────────
+<#
+.SYNOPSIS
+  获取 Android SDK 根目录候选列表（按优先级）。
+.PARAMETER PreferredRoot
+  显式指定的优先路径（通常来自脚本参数）。
+.OUTPUTS
+  [string[]] 候选路径列表（不保证存在）。
+#>
 function Get-AndroidSdkRootCandidate {
   # 候选 SDK 根（按探测优先级返回 string[]）：显式 -PreferredRoot → ANDROID_HOME →
   # ANDROID_SDK_ROOT → 项目约定 C:\DevDisk\DevTools\AndroidSDK → Android Studio 默认。
@@ -488,6 +758,14 @@ function Get-AndroidSdkRootCandidate {
   return $roots
 }
 
+<#
+.SYNOPSIS
+  解析可用的 ANDROID_HOME（存在且可 Resolve-Path）。
+.PARAMETER PreferredRoot
+  优先使用的 SDK 根目录（可为空）。
+.OUTPUTS
+  [string] SDK 根目录；不存在返回 $null。
+#>
 function Resolve-AndroidHome {
   param([string]$PreferredRoot)
   foreach ($p in (Get-AndroidSdkRootCandidate -PreferredRoot $PreferredRoot)) {
@@ -498,6 +776,14 @@ function Resolve-AndroidHome {
   return $null
 }
 
+<#
+.SYNOPSIS
+  在候选 SDK 根目录中查找 sdkmanager.bat。
+.PARAMETER PreferredRoot
+  优先使用的 SDK 根目录（可为空）。
+.OUTPUTS
+  [string] sdkmanager.bat 的绝对路径；未找到返回 $null。
+#>
 function Find-SdkManager {
   param([string]$PreferredRoot)
   foreach ($r in (Get-AndroidSdkRootCandidate -PreferredRoot $PreferredRoot)) {
@@ -508,6 +794,14 @@ function Find-SdkManager {
   return $null
 }
 
+<#
+.SYNOPSIS
+  根据 sdkmanager.bat 的路径反推出 SDK 根目录（ANDROID_HOME）。
+.PARAMETER SdkManagerPath
+  sdkmanager.bat 的绝对路径。
+.OUTPUTS
+  [string] SDK 根目录。
+#>
 function Get-AndroidHomeFromSdkManager([string]$SdkManagerPath) {
   $binDir = Split-Path -Parent $SdkManagerPath
   $latestDir = Split-Path -Parent $binDir
@@ -516,6 +810,14 @@ function Get-AndroidHomeFromSdkManager([string]$SdkManagerPath) {
   return (Resolve-Path -LiteralPath $sdkRoot).Path
 }
 
+<#
+.SYNOPSIS
+  在 ANDROID_HOME 下定位 NDK（优先 ndk/<版本>，其次 ndk-bundle）。
+.PARAMETER AndroidHome
+  Android SDK 根目录。
+.OUTPUTS
+  [hashtable] 包含 Path/Version/Kind；未找到返回 $null。
+#>
 function Resolve-AndroidNdk([string]$AndroidHome) {
   $ndkDir = Join-Path $AndroidHome 'ndk'
   if (Test-Path -LiteralPath $ndkDir) {
@@ -540,6 +842,12 @@ function Resolve-AndroidNdk([string]$AndroidHome) {
   return $null
 }
 
+<#
+.SYNOPSIS
+  获取当前 java 的主版本号（如 17）。
+.OUTPUTS
+  [int] 主版本号；未找到 java 时返回 $null。
+#>
 function Get-JavaMajorVersion {
   if ($null -eq (Get-ExePath 'java.exe')) { return $null }
   $line = (Invoke-NativeText -FilePath 'java' -Arguments @('-version') | Select-Object -First 1)
@@ -549,6 +857,14 @@ function Get-JavaMajorVersion {
   return [int]$m.Groups[1].Value
 }
 
+<#
+.SYNOPSIS
+  断言 Java 版本 >= 17（Android/Tauri 构建所需）。
+.OUTPUTS
+  [bool] 满足返回 $true；不满足会输出失败提示并返回 $false。
+.NOTES
+  本函数只负责校验与输出；是否 exit 由调用脚本决定。
+#>
 function Assert-Java17 {
   # 检查 Java >= 17。OK 时 Write-Ok 并返回 $true；不满足时 Write-Fail 两条提示并返回 $false。
   # 由调用方决定是 exit 1 还是仅累积 $Failed。
@@ -569,6 +885,16 @@ function Assert-Java17 {
 }
 
 # ─── Misc helpers ────────────────────────────────────────────────────────────
+<#
+.SYNOPSIS
+  从类似 properties 的文本行数组里读取 key=value 的 value（自动去引号）。
+.PARAMETER Lines
+  文本行数组。
+.PARAMETER Key
+  键名。
+.OUTPUTS
+  [string] value；不存在返回空字符串。
+#>
 function Get-PropValue {
   param([string[]]$Lines, [string]$Key)
   $line = $Lines | Where-Object { $_ -match ('^' + [regex]::Escape($Key) + '\s*=') } | Select-Object -First 1

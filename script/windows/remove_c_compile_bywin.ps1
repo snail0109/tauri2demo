@@ -1,8 +1,26 @@
+<#
+.SYNOPSIS
+  卸载 Windows 下的 C/C++ 编译工具（MSYS2/MinGW gcc 或 MSVC Build Tools）。
+.DESCRIPTION
+  - 提供菜单选择卸载 MSYS2、卸载 MSVC，或全部卸载
+  - 最后输出残留检测摘要（cl/gcc/msys64）
+.NOTES
+  该脚本会删除系统级开发工具，可能影响其它项目，请谨慎执行。
+#>
 $ErrorActionPreference = 'Stop'
 $Failed = $false
 
 . (Join-Path $PSScriptRoot '_common.ps1')
 
+<#
+.SYNOPSIS
+  卸载 MSYS2（默认安装目录 C:\msys64）。
+.DESCRIPTION
+  - 若 winget 可用，会先尝试 winget uninstall
+  - 若仍残留目录，则尝试直接删除目录
+.NOTES
+  删除 C:\msys64 会移除其中所有已安装包，可能影响 Git Bash/其他工具。
+#>
 function Remove-Msys2 {
   $msysRoot = 'C:\msys64'
   if (-not (Test-Path -LiteralPath $msysRoot)) {
@@ -34,6 +52,13 @@ function Remove-Msys2 {
   }
 }
 
+<#
+.SYNOPSIS
+  尝试卸载 Visual Studio Build Tools（MSVC）。
+.DESCRIPTION
+  - 若 winget 可用，会通过 winget list/uninstall 找到并卸载 BuildTools 包
+  - 若 cl.exe 由完整 Visual Studio 提供，可能需要通过 Visual Studio Installer GUI 手动卸载
+#>
 function Remove-Msvc {
   $hasWinget = Get-ExePath 'winget.exe'
   $hasCl = Get-ExePath 'cl.exe'

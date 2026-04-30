@@ -5,6 +5,14 @@ $ErrorActionPreference = 'Continue'
 . (Join-Path $PSScriptRoot '_common.ps1')
 
 # 2. 定义 Test-RustToolchain（从 install_c_compile_bywin.ps1 复制，但独立运行）
+<#
+.SYNOPSIS
+  自测 rustc 工具链是否可用（用于调试 PATH / rustup 安装问题）。
+.OUTPUTS
+  [bool] 工具链可用返回 $true，否则返回 $false。
+.NOTES
+  会写入 $script:RustcVersion / $script:RustcHost 供下方打印。
+#>
 function Test-RustToolchain {
   $rustc = Get-ExePath 'rustc.exe'
   if (-not $rustc) {

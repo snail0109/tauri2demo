@@ -1,3 +1,11 @@
+<#
+.SYNOPSIS
+  在 Windows 上检测并安装 Rust 工具链（rustup + stable toolchain），并根据 C/C++ 环境选择 GNU/MSVC ABI。
+.DESCRIPTION
+  - 先探测系统可用的 C/C++ 编译器（MSVC cl 或 GNU gcc），用于选择 Rust toolchain ABI
+  - 若 rustup/toolchain 不可用，会尝试自动安装 rustup 并安装 stable-x86_64-pc-windows-(gnu|msvc)
+  - 会写入 Rust 国内镜像（阿里云）以加速下载，并可配置 cargo crates.io 国内源
+#>
 $ErrorActionPreference = 'Stop'
 $Failed = $false
 
@@ -30,6 +38,16 @@ registry = "sparse+https://mirrors.aliyun.com/crates.io-index/"
   }
 }
 
+<#
+.SYNOPSIS
+  检测 rustc/rustup 是否可用，并解析 toolchain host/版本信息。
+.PARAMETER Quiet
+  静默模式：不输出提示日志，仅返回 true/false 并设置脚本变量。
+.OUTPUTS
+  [bool]
+.NOTES
+  会写入 $script:RustcVersion / $script:RustcHost，供后续摘要展示使用。
+#>
 function Test-RustToolchain {
   param([switch]$Quiet)
   $rustc = Get-ExePath 'rustc.exe'
@@ -70,6 +88,14 @@ function Test-RustToolchain {
   return $true
 }
 
+<#
+.SYNOPSIS
+  安装 rustup（Rust 工具链管理器）。
+.OUTPUTS
+  [bool]
+.NOTES
+  通过下载 rustup-init.exe 进行静默安装（默认 toolchain=none，后续步骤再安装具体 toolchain）。
+#>
 function Install-Rustup {
   if (Get-ExePath 'rustup.exe') { return $true }
   Write-Host ""
@@ -121,6 +147,17 @@ function Install-Rustup {
   return $false
 }
 
+<#
+.SYNOPSIS
+  安装指定 ABI 的 stable Windows Rust toolchain，并可选择设为默认。
+.PARAMETER Abi
+  msvc 或 gnu。
+.OUTPUTS
+  [bool]
+.NOTES
+  - 会调用 rustup toolchain install stable-x86_64-pc-windows-<abi>
+  - 会尝试设置为 rustup default（可确认）
+#>
 function Install-RustToolchainAbi {
   param([ValidateSet('msvc', 'gnu')] [string]$Abi)
 
@@ -166,6 +203,14 @@ function Install-RustToolchainAbi {
 
 # ─── 环境摘要 ─────────────────────────────────────────────────────────────────
 
+<#
+.SYNOPSIS
+  输出当前环境摘要（MSVC/GNU/Rust toolchain）。
+.PARAMETER HasMsvc
+  是否检测到 MSVC。
+.PARAMETER HasGnu
+  是否检测到 GNU gcc。
+#>
 function Write-EnvSummary {
   param([bool]$HasMsvc, [bool]$HasGnu)
   Write-StatusLine -Label 'MSVC             ' -Ok:$HasMsvc
@@ -182,6 +227,14 @@ Write-Host ""
 # [1/2] 检测 C/C++ 编译环境，判定 Rust ABI
 Write-Host "[1/2] 检测 C/C++ 编译环境" -ForegroundColor Cyan
 
+<#
+.SYNOPSIS
+  尝试定位 MSVC cl.exe 的绝对路径（包含 vswhere 回退）。
+.OUTPUTS
+  [string] cl.exe 的路径；未找到返回 $null。
+.NOTES
+  cl.exe 可能不在 PATH（例如仅安装了 Build Tools），因此需要通过 vswhere 定位安装目录。
+#>
 function Find-MsvcCl {
   $cl = Get-ExePath 'cl.exe'
   if ($cl) { return $cl }

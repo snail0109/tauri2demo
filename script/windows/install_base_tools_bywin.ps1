@@ -1,4 +1,17 @@
-﻿param(
+<#
+.SYNOPSIS
+  Windows 基础工具管理：按需安装/卸载 winget、Windows Terminal、Microsoft Store。
+.DESCRIPTION
+  - 支持 -AddTools / -RemoveTools 指定工具列表；支持 all 代表全部
+  - 对部分工具提供多种安装来源（GitHub/MS Store/winget），并尽量给出可复现的提示
+.PARAMETER Yes
+  自动确认（静默模式）。
+.PARAMETER AddTools
+  要安装的工具 Id 列表（winget/terminal/store 或 all）。
+.PARAMETER RemoveTools
+  要卸载的工具 Id 列表（terminal 或 all）。
+#>
+param(
   [Alias('y')]
   [switch]$Yes,
 
@@ -25,6 +38,12 @@ $ToolDefs = @(
 # ─── winget ───────────────────────────────────────────────────────────────────
 
 
+<#
+.SYNOPSIS
+  检测 winget 是否可用，并输出路径/版本/大小等信息。
+.OUTPUTS
+  [bool] 可用返回 $true，否则返回 $false。
+#>
 function Test-Winget {
   $winget = Get-ExePath 'winget.exe'
   if (-not $winget) { return $false }
@@ -61,6 +80,15 @@ function Test-Winget {
 }
 
 
+<#
+.SYNOPSIS
+  配置 winget 国内镜像源，并移除易出错的 msstore 源（可选）。
+.DESCRIPTION
+  - 优先配置 USTC 镜像源：https://mirrors.ustc.edu.cn/winget-source
+  - 对 winget 1.8+ 使用 --trust-level trusted 以减少交互与校验问题
+.NOTES
+  本函数不保证一定成功；失败时只输出警告，不中断主流程。
+#>
 function Add-WingetMirrorSource {
   $winget = Get-ExePath 'winget.exe'
   if (-not $winget) { return }
@@ -137,6 +165,14 @@ function Add-WingetMirrorSource {
   }
 }
 
+<#
+.SYNOPSIS
+  安装 winget（Windows 包管理器），并在安装后配置国内镜像源。
+.OUTPUTS
+  [bool] 安装成功返回 $true，否则返回 $false。
+.NOTES
+  优先尝试下载 App Installer 的 msixbundle；失败会给出手动安装提示。
+#>
 function Install-WingetTool {
   Write-Host ""
   Write-Host "═══ 安装 winget ═══" -ForegroundColor Cyan
@@ -224,6 +260,12 @@ function Install-WingetTool {
 
 # ─── Windows 终端 ─────────────────────────────────────────────────────────────
 
+<#
+.SYNOPSIS
+  检测 Windows Terminal（wt.exe）是否可用，并输出路径/版本/大小等信息。
+.OUTPUTS
+  [bool]
+#>
 function Test-WindowsTerminal {
   $wt = Get-ExePath 'wt.exe'
   if (-not $wt) {
@@ -270,6 +312,12 @@ function Test-WindowsTerminal {
   return $true
 }
 
+<#
+.SYNOPSIS
+  安装 Windows Terminal（优先下载 msixbundle，其次 winget，最后引导到 Microsoft Store）。
+.OUTPUTS
+  [bool]
+#>
 function Install-WindowsTerminalTool {
   Write-Host ""
   Write-Host "═══ 安装 Windows 终端 ═══" -ForegroundColor Cyan
@@ -391,6 +439,14 @@ function Install-WindowsTerminalTool {
   return $false
 }
 
+<#
+.SYNOPSIS
+  卸载 Windows Terminal（优先 Remove-AppxPackage，其次 winget，最后引导到 Microsoft Store）。
+.OUTPUTS
+  [bool]
+.NOTES
+  该函数仅对 Windows Terminal 提供卸载流程；其他工具可能需要系统组件方式处理。
+#>
 function Uninstall-WindowsTerminalTool {
   if (-not (Test-WindowsTerminal)) {
     Write-Warn 'Windows 终端 未安装，无需卸载'
@@ -461,6 +517,12 @@ function Uninstall-WindowsTerminalTool {
   return $false
 }
 
+<#
+.SYNOPSIS
+  检测 Microsoft Store 是否已安装（Microsoft.WindowsStore 包）。
+.OUTPUTS
+  [bool]
+#>
 function Test-MicrosoftStore {
   $pkg = $null
   try {
@@ -491,6 +553,14 @@ function Test-MicrosoftStore {
   return $true
 }
 
+<#
+.SYNOPSIS
+  检测 Windows Sandbox 功能是否启用，并输出相关信息。
+.OUTPUTS
+  [bool] 已启用返回 $true，否则返回 $false。
+.NOTES
+  主要用于“装完基础工具后做附加检测”的提示，不作为强依赖。
+#>
 function Test-MicrosoftSandbox {
   $featureState = $null
   try {
@@ -543,6 +613,14 @@ function Test-MicrosoftSandbox {
   return $true
 }
 
+<#
+.SYNOPSIS
+  安装 Microsoft Store（仅在系统缺失时尝试修复/引导安装）。
+.OUTPUTS
+  [bool]
+.NOTES
+  Microsoft Store 属于系统组件，不同 Windows 版本/精简系统可能无法自动补齐。
+#>
 function Install-MicrosoftStoreTool {
   Write-Host ""
   Write-Host "═══ 安装 Microsoft Store ═══" -ForegroundColor Cyan
@@ -616,6 +694,10 @@ $ToolUninstallers = @{
   'terminal' = ${function:Uninstall-WindowsTerminalTool}
 }
 
+<#
+.SYNOPSIS
+  打印脚本用法与可用工具列表。
+#>
 function Write-Usage {
   Write-Host ""
   Write-Banner -Title '基础工具管理（Windows）    ' -Color Cyan

@@ -1,3 +1,16 @@
+<#
+.SYNOPSIS
+  在 Windows 上检查并构建 Tauri Android（dev/build），并做必要的环境自愈与内存参数优化。
+.DESCRIPTION
+  主要流程：
+  - 先做 8 项环境检查（C/C++、Rust、Java 17、Android SDK/NDK、Rust targets、pnpm、keystore.properties）
+  - 准备阶段：pnpm install、修复/重建 gen\android、前端构建、keystore 文件检查/生成
+  - 运行 pnpm tauri android <dev|build>
+.PARAMETER Command
+  dev=开发模式，build=发布构建，check=仅检查环境不构建。
+.PARAMETER Yes
+  自动确认（静默模式）。
+#>
 param(
   [Parameter(Position = 0)]
   [ValidateSet('dev', 'build', 'check')]
@@ -21,6 +34,14 @@ $DefaultKeystoreLines = @(
   'storeFile=./config/release.keystore'
 )
 
+<#
+.SYNOPSIS
+  判断 gen\android 是否为“结构完整”的 Android 工程（避免 tauri init/build 报错）。
+.PARAMETER GenAndroidDir
+  gen\android 目录路径。
+.OUTPUTS
+  [bool]
+#>
 function Test-AndroidProjectComplete([string]$GenAndroidDir) {
   $required = @(
     'settings.gradle.kts',
@@ -36,6 +57,19 @@ function Test-AndroidProjectComplete([string]$GenAndroidDir) {
   return $true
 }
 
+<#
+.SYNOPSIS
+  修复/重建 gen\android 目录：必要时清理残留、重新执行 tauri android init，并恢复签名/权限配置。
+.PARAMETER ProjectRoot
+  项目根目录（用于运行 pnpm tauri android init）。
+.PARAMETER GenAndroidDir
+  gen\android 目录路径。
+.PARAMETER ScriptDir
+  脚本目录路径（用于定位 android-permission-sign 下的覆盖文件）。
+.NOTES
+  - 会尽量停止可能锁定目录的 Gradle Daemon/JVM 进程，降低删除失败概率
+  - 会备份并恢复 keystore.properties，避免重建后丢失签名配置
+#>
 function Restore-AndroidProject {
   param([string]$ProjectRoot, [string]$GenAndroidDir, [string]$ScriptDir)
 
@@ -140,6 +174,18 @@ function Restore-AndroidProject {
   Write-Ok "pnpm tauri android init 完成"
 }
 
+<#
+.SYNOPSIS
+  通过 keytool 生成 Android 签名 keystore 文件（供 release 构建使用）。
+.PARAMETER StoreFile
+  keystore 文件路径（可为绝对路径）。
+.PARAMETER Alias
+  keyAlias。
+.PARAMETER Password
+  store/key 密码（keystore.properties 里通常明文存储）。
+.NOTES
+  若未找到 keytool.exe，会给出手动命令提示。
+#>
 function New-Keystore {
   [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingPlainTextForPassword', 'Password', Justification = 'keystore.properties stores password as plain text by design; this script merely passes it to keytool')]
   param([string]$StoreFile, [string]$Alias, [string]$Password)
