@@ -166,7 +166,7 @@ function Install-Rustup {
 #>
 function Install-RustToolchainAbi {
   param([ValidateSet('msvc', 'gnu')] [string]$Abi)
-  Write-Host "安装 Rust 工具链 $toolchain"
+  Write-Host "安装 Rust 工具链(Install-RustToolchainAbi) $toolchain"
 
   $target = "x86_64-pc-windows-$Abi"
   $toolchain = "stable-$target"
