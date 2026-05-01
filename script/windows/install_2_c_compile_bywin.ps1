@@ -48,7 +48,8 @@ function Set-Msys2ChinaMirror {
     if (-not (Test-Path -LiteralPath $file)) { continue }
     $content = Get-Content -LiteralPath $file -ErrorAction SilentlyContinue
     if ($content -and ($content | Where-Object { $_ -eq $item.Line })) { continue }
-    @($item.Line) + $content | Set-Content -LiteralPath $file -Encoding ASCII
+    $filtered = $content | Where-Object { $_ -notmatch 'mirror\.msys2\.org' }
+    @($item.Line) + $filtered | Set-Content -LiteralPath $file -Encoding ASCII
   }
   New-Item -ItemType File -Force -Path $marker | Out-Null
   Write-Ok "MSYS2 国内镜像源已配置"
