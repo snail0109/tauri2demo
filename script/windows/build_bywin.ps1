@@ -375,21 +375,8 @@ else {
 }
 
 Write-Host "[准备 3/4] 前端构建" -ForegroundColor Cyan
-$tauriConfPath = Join-Path $projectRoot 'backend\src-tauri\tauri.conf.json'
-$originalBeforeBuildCommand = $null
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'frontend\dist')) {
   Write-Ok "frontend\dist 已存在"
-  # 临时清空 beforeBuildCommand，避免 Tauri 再次运行前端构建（在完整构建链中会导致 OOM）
-  if (Test-Path -LiteralPath $tauriConfPath) {
-    $confRaw = Get-Content -LiteralPath $tauriConfPath -Raw
-    $m = [regex]::Match($confRaw, '"beforeBuildCommand"\s*:\s*"([^"]*)"')
-    if ($m.Success) {
-      $originalBeforeBuildCommand = $m.Groups[1].Value
-      $confRaw = $confRaw -replace '"beforeBuildCommand"\s*:\s*"[^"]*"', '"beforeBuildCommand": ""'
-      [System.IO.File]::WriteAllText($tauriConfPath, $confRaw, [System.Text.UTF8Encoding]::new($false))
-      Write-Ok "已临时清空 tauri.conf.json 中的 beforeBuildCommand"
-    }
-  }
 }
 else {
   Write-Warn "frontend\dist 不存在，正在运行前端构建 ..."
@@ -558,12 +545,5 @@ try {
 }
 finally {
   Pop-Location
-  # 恢复 beforeBuildCommand
-  if ($originalBeforeBuildCommand -ne $null -and (Test-Path -LiteralPath $tauriConfPath)) {
-    $confRaw = Get-Content -LiteralPath $tauriConfPath -Raw
-    $confRaw = $confRaw -replace '"beforeBuildCommand"\s*:\s*""', "`"beforeBuildCommand`": `"$originalBeforeBuildCommand`""
-    [System.IO.File]::WriteAllText($tauriConfPath, $confRaw, [System.Text.UTF8Encoding]::new($false))
-    Write-Ok "已恢复 tauri.conf.json 中的 beforeBuildCommand"
-  }
 }
 exit $code
