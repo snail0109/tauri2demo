@@ -91,7 +91,7 @@ function Restore-AndroidProject {
 
   # 删除残留 gen\android（带一次重试，应对偶发文件锁定）
   if (Test-Path -LiteralPath $GenAndroidDir) {
-    Write-Warn "正在删除残缺的 gen\android ... $GenAndroidDir"
+    Write-Warn "清理安卓 gen\android 目录 : $GenAndroidDir"
     Remove-Item -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $GenAndroidDir) {
       Start-Sleep -Milliseconds 200
@@ -115,6 +115,7 @@ function Restore-AndroidProject {
 
   # 调整 gradle.properties：限制内存，避免 ≤7GB RAM 机器上 OOM
   $gradlePropsPath = Join-Path $GenAndroidDir 'gradle.properties'
+  write-host "Gradle配置 (gradle.properties) : $gradlePropsPath"
   if (Test-Path -LiteralPath $gradlePropsPath) {
     $propsContent = Get-Content -LiteralPath $gradlePropsPath -Raw
     $propsContent = $propsContent -replace 'org\.gradle\.jvmargs=-Xmx2048m', 'org.gradle.jvmargs=-Xmx768m -Xss256k -Dfile.encoding=UTF-8'
