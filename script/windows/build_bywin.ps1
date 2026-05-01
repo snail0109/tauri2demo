@@ -368,13 +368,13 @@ $keyAlias = Get-PropValue -Lines $props -Key 'keyAlias'
 $keyPassword = Get-PropValue -Lines $props -Key 'password'
 
 if (-not [string]::IsNullOrWhiteSpace($storeFileRaw)) {
-  # gradle 在 build.gradle.kts 中通过 file() 解析 storeFile，相对路径基准是 gen\android\app
-  $genAndroidDir = Join-Path $scriptDir '..\backend\src-tauri\gen\android'
+  # storeFile 相对路径基准是项目根目录
+  $projectRoot = (Resolve-Path -LiteralPath (Join-Path $scriptDir '..')).Path
   $storeFileResolved = if ([System.IO.Path]::IsPathRooted($storeFileRaw)) {
     $storeFileRaw
   }
   else {
-    [System.IO.Path]::GetFullPath((Join-Path (Join-Path $genAndroidDir 'app') $storeFileRaw))
+    [System.IO.Path]::GetFullPath((Join-Path $projectRoot $storeFileRaw))
   }
 
   if (Test-Path -LiteralPath $storeFileResolved) {
@@ -455,11 +455,10 @@ if (Test-Path -LiteralPath $keystoreProps2) {
   $keyAlias = Get-PropValue -Lines $props -Key 'keyAlias'
   $keyPassword = Get-PropValue -Lines $props -Key 'password'
 
-  # gradle 在 gen\android\app\build.gradle.kts 里通过 file() 解析 storeFile，
-  # 相对路径基准是 gen\android\app。脚本侧对齐这个基准，避免脚本生成的 keystore 跟 gradle 找的不是同一个文件。
+  # storeFile 相对路径基准是项目根目录
   $storeFileResolved = $storeFileRaw
   if (-not [string]::IsNullOrWhiteSpace($storeFileRaw) -and -not [System.IO.Path]::IsPathRooted($storeFileRaw)) {
-    $storeFileResolved = [System.IO.Path]::GetFullPath((Join-Path (Join-Path $genAndroidDir 'app') $storeFileRaw))
+    $storeFileResolved = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $storeFileRaw))
   }
 
   if (-not [string]::IsNullOrWhiteSpace($storeFileRaw) -and (Test-Path -LiteralPath $storeFileResolved)) {
