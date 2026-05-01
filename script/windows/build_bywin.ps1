@@ -350,25 +350,47 @@ Write-Host "检查 keystore.properties" -ForegroundColor Cyan
 $scriptDir = $PSScriptRoot
 $keystoreProps = Join-Path $scriptDir '..\backend\src-tauri\gen\android\keystore.properties'
 
-if (Test-Path -LiteralPath $keystoreProps) {
-  Write-Ok "keystore.properties 已找到：$keystoreProps"
+# 1. 如果 keystore.properties 不存在，通过 $DefaultKeystoreLines 生成默认文件
+if (-not (Test-Path -LiteralPath $keystoreProps)) {
+  Write-Warn "keystore.properties 未找到，正在创建默认文件 ..."
+  New-DirectoryIfMissing (Split-Path -Parent $keystoreProps)
+  [System.IO.File]::WriteAllLines($keystoreProps, $DefaultKeystoreLines, [System.Text.UTF8Encoding]::new($false))
+  Write-Ok "keystore.properties 已创建：$keystoreProps"
 }
 else {
-  Write-Warn "keystore.properties 未找到：$keystoreProps"
-  if (Confirm-Install "创建默认 keystore.properties 文件") {
-    New-DirectoryIfMissing (Split-Path -Parent $keystoreProps)
-    [System.IO.File]::WriteAllLines($keystoreProps, $DefaultKeystoreLines, [System.Text.UTF8Encoding]::new($false))
-    Write-Ok "keystore.properties 已创建：$keystoreProps"
+  Write-Ok "keystore.properties 已找到：$keystoreProps"
+}
+
+# 2. 读取 keystore.properties 中的 storeFile，检查对应的 keystore 文件是否存在
+$props = Get-Content -LiteralPath $keystoreProps -ErrorAction SilentlyContinue
+$storeFileRaw = Get-PropValue -Lines $props -Key 'storeFile'
+$keyAlias = Get-PropValue -Lines $props -Key 'keyAlias'
+$keyPassword = Get-PropValue -Lines $props -Key 'password'
+
+if (-not [string]::IsNullOrWhiteSpace($storeFileRaw)) {
+  # gradle 在 build.gradle.kts 中通过 file() 解析 storeFile，相对路径基准是 gen\android\app
+  $genAndroidDir = Join-Path $scriptDir '..\backend\src-tauri\gen\android'
+  $storeFileResolved = if ([System.IO.Path]::IsPathRooted($storeFileRaw)) {
+    $storeFileRaw
   }
   else {
-    Write-Warn "请手动创建该文件，内容如下："
-    Write-Host "    storeFile=C:\path\to\release.keystore"
-    Write-Host "    storePassword=your_store_password"
-    Write-Host "    keyAlias=your_key_alias"
-    Write-Host "    keyPassword=your_key_password"
-    Write-Warn "生成 keystore："
-    Write-Host "    keytool -genkeypair -v -keystore release.keystore -alias tauri2demo_key --storepass tauri2demo_pass -keypass tauri2demo_pass -keyalg RSA -keysize 2048 -validity 10000 -dname `"CN=Your Name, OU=Your Org, O=Your Company, L=City, S=State, C=CN`""
+    [System.IO.Path]::GetFullPath((Join-Path (Join-Path $genAndroidDir 'app') $storeFileRaw))
   }
+
+  if (Test-Path -LiteralPath $storeFileResolved) {
+    Write-Ok "Keystore 文件已存在：$storeFileResolved"
+  }
+  else {
+    # 3. 如果 storeFile 对应的文件不存在，通过 keytool 生成
+    Write-Warn "Keystore 文件不存在：$storeFileResolved"
+    Write-Warn "正在自动生成 keystore ..."
+    $aliasToUse = if ([string]::IsNullOrWhiteSpace($keyAlias)) { 'tauri2demo_key' } else { $keyAlias }
+    $passwordToUse = if ([string]::IsNullOrWhiteSpace($keyPassword)) { 'tauri2demo_pass' } else { $keyPassword }
+    New-Keystore -StoreFile $storeFileResolved -Alias $aliasToUse -Password $passwordToUse
+  }
+}
+else {
+  Write-Warn "keystore.properties 中未找到 storeFile=，跳过 keystore 文件检查"
 }
 
 Write-Banner -Title '构建准备                                ' -Color Cyan
