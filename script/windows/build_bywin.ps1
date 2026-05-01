@@ -385,11 +385,11 @@ else {
   if ($LASTEXITCODE -ne 0) { Write-Fail "前端构建失败" }
   else { Write-Ok "前端构建完成" }
 }
-Confirm-Step -Desc "$Desc 是否继续？"
+
 Write-Host ""
 Write-Host "  构建准备完成！" -ForegroundColor Green
 Write-Host ""
-
+Confirm-Step -Desc "$Desc 是否继续？"
 Add-PathPrefix (Join-Path $androidHome 'platform-tools')
 
 if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) {
