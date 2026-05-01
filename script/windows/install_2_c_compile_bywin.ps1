@@ -15,11 +15,11 @@ $Failed = $false
 Enable-AutoConfirm
 
 # 引用 _common.ps1 中的共享路径常量（保持本地短名称兼容现有代码）
-$MsysRoot     = $script:MsysRoot
-$MsysBash     = $script:MsysBash
-$MingwBin     = $script:MingwBin
-$MingwGccExe  = $script:MingwGccExe
-$MingwAsExe   = $script:MingwAsExe
+$MsysRoot = $script:MsysRoot
+$MsysBash = $script:MsysBash
+$MingwBin = $script:MingwBin
+$MingwGccExe = $script:MingwGccExe
+$MingwAsExe = $script:MingwAsExe
 
 <#
 .SYNOPSIS
@@ -36,18 +36,20 @@ function Set-Msys2ChinaMirror {
   if (Test-Path -LiteralPath $marker) { return $true }
   Write-Host "  配置 MSYS2 国内镜像源（清华 TUNA）..." -ForegroundColor Cyan
   $map = @(
-    @{ File = 'mirrorlist.mingw32';    Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/i686/' },
-    @{ File = 'mirrorlist.mingw64';    Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/x86_64/' },
-    @{ File = 'mirrorlist.ucrt64';     Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/ucrt64/' },
-    @{ File = 'mirrorlist.clang64';    Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/clang64/' },
+    @{ File = 'mirrorlist.mingw32'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/i686/' },
+    @{ File = 'mirrorlist.mingw64'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/x86_64/' },
+    @{ File = 'mirrorlist.ucrt64'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/ucrt64/' },
+    @{ File = 'mirrorlist.clang64'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/clang64/' },
     @{ File = 'mirrorlist.clangarm64'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/clangarm64/' },
-    @{ File = 'mirrorlist.msys';       Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/msys/$arch/' }
+    @{ File = 'mirrorlist.msys'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/msys/$arch/' }
   )
   foreach ($item in $map) {
     $file = Join-Path $d $item.File
     if (-not (Test-Path -LiteralPath $file)) { continue }
+
     $content = Get-Content -LiteralPath $file -ErrorAction SilentlyContinue
     if ($content -and ($content | Where-Object { $_ -eq $item.Line })) { continue }
+
     $filtered = $content | Where-Object { $_ -notmatch 'mirror\.msys2\.org' }
     @($item.Line) + $filtered | Set-Content -LiteralPath $file -Encoding ASCII
   }
@@ -120,14 +122,16 @@ function Install-Msvc {
   Write-Host "  请在安装器中勾选「使用 C++ 的桌面开发」工作负载" -ForegroundColor Yellow
   try {
     Start-Process -FilePath $installerPath -ArgumentList @('--add', 'Microsoft.VisualStudio.Workload.VCTools', '--includeRecommended', '--passive', '--wait') -Wait -NoNewWindow | Out-Null
-  } catch {}
+  }
+  catch {}
   Remove-Item -LiteralPath $installerPath -Force -ErrorAction SilentlyContinue
 
   Write-Host ""
   Write-Host "  重新检查 MSVC ..." -ForegroundColor Cyan
   if (Test-Msvc) {
     Write-Ok "MSVC 安装成功！"
-  } else {
+  }
+  else {
     Write-Warn "MSVC 安装器已运行，但当前 shell 未检测到 cl.exe"
     Write-Warn "请重新打开终端后再次运行此脚本验证"
   }
@@ -190,7 +194,8 @@ function Install-Gnu {
       return (Confirm-MingwGccReady -SuccessMessage "gcc 已存在于 $MingwBin，已添加到 PATH")
     }
     if (Install-MsysGcc) { return $true }
-  } else {
+  }
+  else {
     $msysInstaller = Join-Path $env:TEMP ("msys2_installer_{0}.exe" -f ([guid]::NewGuid().ToString('N')))
     if (-not (Confirm-Install "通过国内镜像（USTC/清华）安装 MSYS2，然后安装 mingw-w64-x86_64-gcc")) { return $false }
 
@@ -213,9 +218,11 @@ function Install-Gnu {
       Write-Ok "正在静默安装 MSYS2 到 $MsysRoot ..."
       try {
         Start-Process -FilePath $msysInstaller -ArgumentList @('/S', "/D=$MsysRoot") -Wait -NoNewWindow | Out-Null
-      } catch {}
+      }
+      catch {}
       Remove-Item -LiteralPath $msysInstaller -Force -ErrorAction SilentlyContinue
-    } else {
+    }
+    else {
       Remove-Item -LiteralPath $msysInstaller -Force -ErrorAction SilentlyContinue
       # 国内镜像失败，回退到 winget
       if (-not (Get-ExePath 'winget.exe')) {
@@ -235,7 +242,8 @@ function Install-Gnu {
       }
       Write-Warn "MSYS2 已安装但 gcc 安装可能不完整，请手动执行："
       Write-Warn "  $MsysBash -lc 'pacman -S --noconfirm mingw-w64-x86_64-gcc'"
-    } else {
+    }
+    else {
       Write-Warn "MSYS2 安装后未在 $MsysRoot 找到安装目录"
     }
   }
@@ -272,7 +280,9 @@ $hasGnu = Test-Gnu
 if ($hasMsvc -or $hasGnu) {
   Write-Host ""
   Write-Banner -Title 'C/C++ 编译工具已就绪' -Color Green
-
+  if ($hasGnu) {
+    Set-Msys2ChinaMirror | Out-Null
+  }
   Write-Host ""
   Write-Host "[2/2] 环境摘要" -ForegroundColor Cyan
   Write-EnvSummary -HasMsvc $hasMsvc -HasGnu $hasGnu
@@ -313,6 +323,7 @@ Write-EnvSummary -HasMsvc $msvcNow -HasGnu $gnuNow
 Write-Host ""
 if (-not $Failed) {
   Write-Host "  C/C++ 编译工具安装完成！" -ForegroundColor Green
-} else {
+}
+else {
   Write-Host "  安装已完成，但部分步骤可能需要手动处理。" -ForegroundColor Yellow
 }
