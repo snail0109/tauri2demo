@@ -392,42 +392,6 @@ Write-Host ""
 Add-PathPrefix (Join-Path $androidHome 'platform-tools')
 Set-AndroidNdkEnv -AndroidNdkHome $env:ANDROID_NDK_HOME
 
-Write-Host "  查找 dlltool 命令（host: $RustcHost）" -ForegroundColor Cyan
-if ($null -ne (Get-ExePath 'rustup.exe')) {
-  $rustcPath = Invoke-NativeText -FilePath 'rustup' -Arguments @('which', 'rustc') | Select-Object -First 1
-  if (-not [string]::IsNullOrWhiteSpace($rustcPath)) {
-    $toolchainRoot = Split-Path -Parent (Split-Path -Parent $rustcPath.Trim())
-
-    # 根据 host 工具链类型直接选一种 dlltool 路径
-    if ($RustcHost -match 'gnu') {
-      # GNU host：使用 host 目标自带的 self-contained 目录
-      $dlltoolDir = Join-Path $toolchainRoot "lib\rustlib\$RustcHost\bin\self-contained"
-    }
-    elseif ($RustcHost -match 'msvc') {
-      # MSVC host：使用 x86_64-pc-windows-gnu target 自带的 dlltool
-      $dlltoolDir = Join-Path $toolchainRoot 'lib\rustlib\x86_64-pc-windows-gnu\bin\self-contained'
-    }
-    else {
-      $dlltoolDir = $null
-    }
-
-    if ($dlltoolDir -and (Test-Path -LiteralPath (Join-Path $dlltoolDir 'dlltool.exe'))) {
-      Add-PathPrefix $dlltoolDir
-      Write-Ok "Rust dlltool 已加入 PATH：$dlltoolDir"
-    }
-    else {
-      Write-Warn "dlltool 未找到（host: $RustcHost）"
-      if ($RustcHost -match 'msvc') {
-        Write-Host "    Android 交叉编译使用 NDK lld 链接器，通常不需要 dlltool" -ForegroundColor DarkGray
-        Write-Host "    若构建中确有 crate 依赖 dlltool，可执行：rustup target add x86_64-pc-windows-gnu" -ForegroundColor DarkGray
-      }
-      else {
-        Write-Warn "交叉编译 Android 时可能因找不到 dlltool 而失败"
-      }
-    }
-  }
-}
-
 # GNU 工具链链接时需要 MinGW 库目录（crt2.o, libkernel32.a 等）以及 GCC 运行时库目录（libgcc.a, libgcc_eh.a）
 $mingwLibDir = 'C:\msys64\mingw64\lib'
 $gccLibDirs = @(Get-ChildItem -LiteralPath 'C:\msys64\mingw64\lib\gcc\x86_64-w64-mingw32' -Directory -ErrorAction SilentlyContinue |
