@@ -547,12 +547,14 @@ if ($null -ne (Get-ExePath 'rustup.exe')) {
     if (-not $dlltoolFound) {
       Write-Warn "dlltool 未找到（host: $RustcHost）"
       if ($RustcHost -match 'msvc') {
-        Write-Warn "MSVC 工具链不包含 dlltool，可通过以下方式安装："
-        Write-Warn "  1) rustup target add x86_64-pc-windows-gnu"
-        Write-Warn "  2) 安装 MSYS2 的 mingw-w64-x86_64-binutils 包"
+        Write-Host "    Android 交叉编译使用 NDK lld 链接器，通常不需要 dlltool" -ForegroundColor DarkGray
+        Write-Host "    若构建中确有 crate 依赖 dlltool，可通过以下方式安装：" -ForegroundColor DarkGray
+        Write-Host "      1) rustup target add x86_64-pc-windows-gnu" -ForegroundColor DarkGray
+        Write-Host "      2) 安装 MSYS2 的 mingw-w64-x86_64-binutils 包" -ForegroundColor DarkGray
       }
-      Write-Warn "交叉编译 Android 时可能因找不到 dlltool 而失败"
-    }
+      else {
+        Write-Warn "交叉编译 Android 时可能因找不到 dlltool 而失败"
+      }
   }
 }
 
