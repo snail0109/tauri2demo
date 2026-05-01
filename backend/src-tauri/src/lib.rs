@@ -37,11 +37,11 @@ async fn baidu_ocr(image_base64: String) -> Result<String, String> {
     let api_key = std::env::var("BAIDU_OCR_API_KEY")
         .ok()
         .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| env!("BAIDU_OCR_API_KEY").to_string());
+        .unwrap_or_else(|| option_env!("BAIDU_OCR_API_KEY").unwrap_or("").to_string());
     let secret_key = std::env::var("BAIDU_OCR_SECRET_KEY")
         .ok()
         .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| env!("BAIDU_OCR_SECRET_KEY").to_string());
+        .unwrap_or_else(|| option_env!("BAIDU_OCR_SECRET_KEY").unwrap_or("").to_string());
     if api_key.is_empty() || secret_key.is_empty() {
         return Err("BAIDU_OCR_API_KEY / BAIDU_OCR_SECRET_KEY 未配置".to_string());
     }

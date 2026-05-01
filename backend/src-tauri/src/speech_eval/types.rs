@@ -128,15 +128,15 @@ impl XfConfig {
         let app_id = std::env::var("XF_APP_ID")
             .ok()
             .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| env!("XF_APP_ID").to_string());
+            .unwrap_or_else(|| option_env!("XF_APP_ID").unwrap_or("").to_string());
         let api_key = std::env::var("XF_API_KEY")
             .ok()
             .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| env!("XF_API_KEY").to_string());
+            .unwrap_or_else(|| option_env!("XF_API_KEY").unwrap_or("").to_string());
         let api_secret = std::env::var("XF_API_SECRET")
             .ok()
             .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| env!("XF_API_SECRET").to_string());
+            .unwrap_or_else(|| option_env!("XF_API_SECRET").unwrap_or("").to_string());
         Ok(Self { app_id, api_key, api_secret })
     }
 }
@@ -153,11 +153,11 @@ impl XfRtasrConfig {
         let app_id = std::env::var("XF_RTASR_APP_ID")
             .ok()
             .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| env!("XF_RTASR_APP_ID").to_string());
+            .unwrap_or_else(|| option_env!("XF_RTASR_APP_ID").unwrap_or("").to_string());
         let api_key = std::env::var("XF_RTASR_API_KEY")
             .ok()
             .filter(|v| !v.is_empty())
-            .unwrap_or_else(|| env!("XF_RTASR_API_KEY").to_string());
+            .unwrap_or_else(|| option_env!("XF_RTASR_API_KEY").unwrap_or("").to_string());
         Ok(Self { app_id, api_key })
     }
 }
