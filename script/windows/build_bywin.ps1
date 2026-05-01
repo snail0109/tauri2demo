@@ -260,7 +260,12 @@ if (-not $cl) {
     }
   }
 }
-if ($cl) { Write-Ok "MSVC cl.exe：$cl" }
+if ($cl) {
+  Write-Ok "MSVC cl.exe 已安装"
+  Write-Host "    路径：$cl"
+  $clVer = (Invoke-NativeText -FilePath $cl | Select-Object -First 2) -join ' '
+  if (-not [string]::IsNullOrWhiteSpace($clVer)) { Write-Host "    版本：$clVer" }
+}
 $gcc = Get-ExePath 'gcc.exe'
 if (-not $gcc) {
   # MSYS2 MinGW gcc 可能不在 PATH，但安装脚本不会写用户 PATH，主动探测一下
@@ -270,7 +275,12 @@ if (-not $gcc) {
     $gcc = Get-ExePath 'gcc.exe'
   }
 }
-if ($gcc) { Write-Ok "GNU gcc：$gcc" }
+if ($gcc) {
+  Write-Ok "GNU GCC 编译器已安装"
+  Write-Host "    路径：$gcc"
+  $gccVer = (Invoke-NativeText -FilePath 'gcc' -Arguments @('--version') | Select-Object -First 1)
+  if (-not [string]::IsNullOrWhiteSpace($gccVer)) { Write-Host "    版本：$gccVer" }
+}
 if (-not $cl -and -not $gcc) {
   Write-Fail "未检测到 C/C++ 编译器（MSVC 或 GNU gcc）"
   Write-Fail "请运行 .\script\install_c_compile_bywin.ps1 安装"
