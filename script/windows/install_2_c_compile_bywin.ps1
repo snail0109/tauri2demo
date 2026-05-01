@@ -32,8 +32,10 @@ $MingwAsExe = $script:MingwAsExe
 function Set-Msys2ChinaMirror {
   $d = Join-Path $MsysRoot 'etc\pacman.d'
   if (-not (Test-Path -LiteralPath $d)) { return $true }
-  $marker = Join-Path $d '.china_mirrors_added'
-  if (Test-Path -LiteralPath $marker) { return $true }
+
+  #$marker = Join-Path $d '.china_mirrors_added'
+  #if (Test-Path -LiteralPath $marker) { return $true }
+
   Write-Host "  配置 MSYS2 国内镜像源（清华 TUNA）..." -ForegroundColor Cyan
   $map = @(
     @{ File = 'mirrorlist.mingw32'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/i686/' },
@@ -43,6 +45,9 @@ function Set-Msys2ChinaMirror {
     @{ File = 'mirrorlist.clangarm64'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/clangarm64/' },
     @{ File = 'mirrorlist.msys'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/msys/$arch/' }
   )
+  # 逐个处理 MSYS2 的各类 mirrorlist 文件：
+  # - 若文件存在且尚未包含 TUNA 镜像，则把 TUNA Server 行插到文件最前面（提升下载速度/可用性）
+  # - 同时过滤掉默认的 mirror.msys2.org 条目，避免它排在前面导致慢/不通
   foreach ($item in $map) {
     $file = Join-Path $d $item.File
     if (-not (Test-Path -LiteralPath $file)) { continue }
@@ -50,10 +55,14 @@ function Set-Msys2ChinaMirror {
     $content = Get-Content -LiteralPath $file -ErrorAction SilentlyContinue
     if ($content -and ($content | Where-Object { $_ -eq $item.Line })) { continue }
 
+    # 去掉官方默认源（mirror.msys2.org），再把 TUNA 行作为第一行写回
     $filtered = $content | Where-Object { $_ -notmatch 'mirror\.msys2\.org' }
+
     @($item.Line) + $filtered | Set-Content -LiteralPath $file -Encoding ASCII
   }
-  New-Item -ItemType File -Force -Path $marker | Out-Null
+
+  #New-Item -ItemType File -Force -Path $marker | Out-Null
+
   Write-Ok "MSYS2 国内镜像源已配置"
   return $true
 }
