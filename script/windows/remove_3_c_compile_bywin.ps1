@@ -97,33 +97,9 @@ function Remove-Msvc {
 Write-Host ""
 Write-Banner -Title 'C/C++ 编译工具卸载（Windows）          ' -Color Red
 Write-Host ""
-Write-Warn "本脚本会卸载系统级开发工具，可能影响其它项目。请确认你了解每一步。"
-Write-Host ""
 
-$selected = Select-MenuOption -Prompt '请选择要卸载的内容：' -Options @(
-  '卸载 MSYS2 + MinGW gcc',
-  '卸载 Visual Studio Build Tools (MSVC)',
-  '全部卸载（MSYS2 + MSVC）'
-)
-
-switch ($selected) {
-  1 {
-    Enable-AutoConfirm
-    Remove-Msys2
-  }
-  2 {
-    Enable-AutoConfirm
-    Remove-Msvc
-  }
-  3 {
-    Enable-AutoConfirm
-    Remove-Msys2
-    Remove-Msvc
-  }
-  0 {
-    Exit-NoOp "已退出，未卸载任何内容。"
-  }
-}
+Remove-Msys2
+Remove-Msvc
 
 Write-Host ""
 Write-Banner -Title '卸载结束摘要                            ' -Color Cyan
