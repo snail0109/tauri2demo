@@ -555,6 +555,7 @@ if ($null -ne (Get-ExePath 'rustup.exe')) {
       else {
         Write-Warn "交叉编译 Android 时可能因找不到 dlltool 而失败"
       }
+    }
   }
 }
 
