@@ -373,7 +373,7 @@ else {
   Restore-AndroidProject -ProjectRoot $projectRoot -GenAndroidDir $genAndroidDir
   if ($Failed) { exit 1 }
 }
-Confirm-Step -Desc "$Desc 是否继续？"
+
 Write-Host "[准备 3/4] 前端构建" -ForegroundColor Cyan
 $tauriConfPath = Join-Path $projectRoot 'backend\src-tauri\tauri.conf.json'
 $originalBeforeBuildCommand = $null
@@ -398,7 +398,7 @@ else {
   if ($LASTEXITCODE -ne 0) { Write-Fail "前端构建失败" }
   else { Write-Ok "前端构建完成" }
 }
-
+Confirm-Step -Desc "$Desc 是否继续？"
 Write-Host "[准备 4/4] Keystore 签名文件" -ForegroundColor Cyan
 $keystoreProps2 = Join-Path $genAndroidDir 'keystore.properties'
 if (Test-Path -LiteralPath $keystoreProps2) {
