@@ -54,12 +54,17 @@ function Set-Msys2ChinaMirror {
 
     Write-Host "    处理 $file" -ForegroundColor Cyan
     $content = Get-Content -LiteralPath $file -ErrorAction SilentlyContinue
-    # 去掉官方默认源（mirror.msys2.org）
-    $filtered = $content | Where-Object { $_ -notmatch 'mirror\.msys2\.org' }
-    # 已含 TUNA 行且无官方源残留 → 无需写入
-    if ($filtered -and ($filtered | Where-Object { $_ -eq $item.Line })) { continue }
-
-    @($item.Line) + $filtered | Set-Content -LiteralPath $file -Encoding ASCII
+    # 去掉官方默认源（mirror.msys2.org），用 :// 精确匹配域名避免误杀其他镜像
+    $filtered = $content | Where-Object { $_ -notmatch '://mirror\.msys2\.org/' }
+    $hasTuna = $filtered -and ($filtered | Where-Object { $_ -eq $item.Line })
+    if ($hasTuna) {
+      # TUNA 已存在，检查是否还有官方源被过滤掉
+      if (@($content).Count -eq @($filtered).Count) { continue }
+      # 有官方源残留，写回清理后的版本（不再重复添加 TUNA）
+      $filtered | Set-Content -LiteralPath $file -Encoding ASCII
+    } else {
+      @($item.Line) + $filtered | Set-Content -LiteralPath $file -Encoding ASCII
+    }
   }
 
   #New-Item -ItemType File -Force -Path $marker | Out-Null
