@@ -97,7 +97,7 @@ function Restore-AndroidProject {
     }
   }
 
-  Write-Warn "正在删除不完整的 gen\android 目录 ..."
+  Write-Warn "正在删除不完整的 gen\android 目录 ... $GenAndroidDir"
   if (Test-Path -LiteralPath $GenAndroidDir) {
     Remove-Item -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue
     # Windows 上 Remove-Item 偶尔会有残留，确认清理
@@ -106,7 +106,7 @@ function Restore-AndroidProject {
       Remove-Item -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue
     }
     if (Test-Path -LiteralPath $GenAndroidDir) {
-      Write-Warn "Remove-Item 未能完全删除 gen\android，尝试强制清理 ..."
+      Write-Warn "未能完全删除 gen\android，尝试强制清理 ..."
       Get-ChildItem -LiteralPath $GenAndroidDir -Recurse -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
       Remove-Item -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue
     }
@@ -118,7 +118,7 @@ function Restore-AndroidProject {
     New-Item -ItemType Directory -Path $pkgDir -Force | Out-Null
   }
 
-  Write-Warn "正在运行 pnpm tauri android init ..."
+  write-host "  运行命令：pnpm tauri android init" -ForegroundColor Cyan
   Invoke-NativeStreamIn -Path $ProjectRoot -Block { & pnpm tauri android init }
   if ($LASTEXITCODE -ne 0) {
     Write-Fail "pnpm tauri android init 失败（exit code $LASTEXITCODE）"
