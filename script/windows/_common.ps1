@@ -814,7 +814,6 @@ function Test-GnuAssembler {
 .NOTES
   - 优先从 PATH 查找 gcc，若 MSYS2 已安装但未加入 PATH 会自动探测
   - 同时检查 g++ 和 as.exe，缺失时给出警告（不会自动安装）
-  - install_2_c_compile_bywin.ps1 中通过 Install-GnuAssembler 补齐汇编器
 #>
 function Test-Gnu {
   $gcc = Get-ExePath 'gcc.exe'

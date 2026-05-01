@@ -267,7 +267,6 @@ Write-Host ""
 Write-Host "[1/2] 检查 C/C++ 编译器" -ForegroundColor Cyan
 $hasMsvc = Test-Msvc
 $hasGnu = Test-Gnu
-if ($hasGnu) { Install-GnuAssembler | Out-Null }  # 补齐汇编器（_common.ps1 的 Test-Gnu 仅检测不安装）
 
 if ($hasMsvc -or $hasGnu) {
   Write-Host ""
