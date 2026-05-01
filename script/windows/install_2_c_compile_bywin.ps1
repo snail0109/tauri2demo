@@ -52,6 +52,7 @@ function Set-Msys2ChinaMirror {
     $file = Join-Path $d $item.File
     if (-not (Test-Path -LiteralPath $file)) { continue }
 
+    Write-Host "    处理 $file" -ForegroundColor Cyan
     $content = Get-Content -LiteralPath $file -ErrorAction SilentlyContinue
     if ($content -and ($content | Where-Object { $_ -eq $item.Line })) { continue }
 
