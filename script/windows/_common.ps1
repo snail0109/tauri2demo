@@ -992,6 +992,46 @@ function Resolve-AndroidNdk([string]$AndroidHome) {
 
 <#
 .SYNOPSIS
+  为每个 Rust Android 目标设置 CC/CXX/AR 环境变量，指向 Android NDK 的 LLVM 工具链。
+.DESCRIPTION
+  Rust 交叉编译时，cc-rs 通过 CC_<target>/CXX_<target>/AR_<target> 找编译器。
+  不设置的话会回退到 host 端 gcc，编译 Android 目标必然失败。
+  注：故意不把 NDK toolchain bin 加进 PATH，避免覆盖 host 链接器。
+.PARAMETER AndroidNdkHome
+  Android NDK 根目录（含 toolchains\llvm\prebuilt\windows-x86_64\bin）。
+.PARAMETER ApiLevel
+  Android API 级别（决定 clang 文件名后缀，如 21 → aarch64-linux-android21-clang.cmd）。默认 21。
+#>
+function Set-AndroidNdkEnv {
+  param(
+    [Parameter(Mandatory)] [string]$AndroidNdkHome,
+    [int]$ApiLevel = 21
+  )
+
+  if ([string]::IsNullOrWhiteSpace($AndroidNdkHome)) {
+    Write-Warn "ANDROID_NDK_HOME 为空，跳过 NDK 环境变量配置"
+    return
+  }
+
+  $toolchainBin = Join-Path $AndroidNdkHome 'toolchains\llvm\prebuilt\windows-x86_64\bin'
+  if (-not (Test-Path -LiteralPath $toolchainBin)) {
+    Write-Warn "NDK toolchain 目录未找到：$toolchainBin"
+    Write-Warn "将使用系统默认编译器"
+    return
+  }
+
+  $llvmAr = Join-Path $toolchainBin 'llvm-ar.exe'
+  foreach ($t in (Get-AndroidRustTarget)) {
+    $underscore = $t -replace '-', '_'
+    Set-Item -Path "env:CC_$underscore"  -Value (Join-Path $toolchainBin "${t}${ApiLevel}-clang.cmd")
+    Set-Item -Path "env:CXX_$underscore" -Value (Join-Path $toolchainBin "${t}${ApiLevel}-clang++.cmd")
+    Set-Item -Path "env:AR_$underscore"  -Value $llvmAr
+  }
+  Write-Ok "NDK clang/clang++/llvm-ar 已配置（CC/CXX/AR_<target>）：$toolchainBin"
+}
+
+<#
+.SYNOPSIS
   获取当前 java 的主版本号（如 17）。
 .OUTPUTS
   [int] 主版本号；未找到 java 时返回 $null。
