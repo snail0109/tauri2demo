@@ -191,7 +191,7 @@ function New-Keystore {
   param([string]$StoreFile, [string]$Alias, [string]$Password)
   if ($null -eq (Get-ExePath 'keytool.exe')) {
     Write-Fail "keytool 未找到，无法自动生成 keystore"
-    Write-Fail "请手动运行：keytool -genkeypair -v -keystore `"$StoreFile`" -alias $Alias -keyalg RSA -keysize 2048 -validity 10000"
+    Write-Fail "请手动运行：keytool -genkeypair -v -keystore `"$StoreFile`" -alias $Alias --storepass $Password -keypass $Password -keyalg RSA -keysize 2048 -validity 10000 -dname `"CN=Alex, OU=NJ, O=YjSoft, L=City, S=State, C=CN`""
     return
   }
   $storeDir = Split-Path -Parent $StoreFile
@@ -212,7 +212,7 @@ function New-Keystore {
   }
   else {
     Write-Fail "keytool 生成 keystore 失败"
-    Write-Fail "请手动运行：keytool -genkeypair -v -keystore `"$StoreFile`" -alias $Alias -keyalg RSA -keysize 2048 -validity 10000"
+    Write-Fail "请手动运行：keytool -genkeypair -v -keystore `"$StoreFile`" -alias $Alias --storepass $Password -keypass $Password -keyalg RSA -keysize 2048 -validity 10000 -dname `"CN=Alex, OU=NJ, O=YjSoft, L=City, S=State, C=CN`""
   }
 }
 
@@ -334,21 +334,9 @@ else {
     }
 }
 
-Write-Host ""
-if ($Failed) {
-  Write-Banner -Title '环境检查未通过，请修复以上问题后重试。' -Color Cyan -TitleColor Red
-  exit 1
-}
-
-if ($Command -eq 'check') {
-  Write-Banner -Title '所有检查通过！' -Color Cyan -TitleColor Green
-  Write-Host ""
-  exit 0
-}
-
-Write-Host "检查 keystore.properties" -ForegroundColor Cyan
+Write-Host "[8/8] 检查 keystore.properties" -ForegroundColor Cyan
 $scriptDir = $PSScriptRoot
-$keystoreProps = Join-Path $scriptDir '..\backend\src-tauri\gen\android\keystore.properties'
+$keystoreProps = Join-Path $scriptDir '..\..\backend\src-tauri\gen\android\keystore.properties'
 
 # 1. 如果 keystore.properties 不存在，通过 $DefaultKeystoreLines 生成默认文件
 if (-not (Test-Path -LiteralPath $keystoreProps)) {
@@ -369,7 +357,7 @@ $keyPassword = Get-PropValue -Lines $props -Key 'password'
 
 if (-not [string]::IsNullOrWhiteSpace($storeFileRaw)) {
   # storeFile 相对路径基准是项目根目录
-  $projectRoot = (Resolve-Path -LiteralPath (Join-Path $scriptDir '..')).Path
+  $projectRoot = (Resolve-Path -LiteralPath (Join-Path $scriptDir '..\..')).Path
   $storeFileResolved = if ([System.IO.Path]::IsPathRooted($storeFileRaw)) {
     $storeFileRaw
   }
@@ -391,6 +379,18 @@ if (-not [string]::IsNullOrWhiteSpace($storeFileRaw)) {
 }
 else {
   Write-Warn "keystore.properties 中未找到 storeFile=，跳过 keystore 文件检查"
+}
+
+Write-Host ""
+if ($Failed) {
+  Write-Banner -Title '环境检查未通过，请修复以上问题后重试。' -Color Cyan -TitleColor Red
+  exit 1
+}
+
+if ($Command -eq 'check') {
+  Write-Banner -Title '所有检查通过！' -Color Cyan -TitleColor Green
+  Write-Host ""
+  exit 0
 }
 
 Write-Banner -Title '构建准备                                ' -Color Cyan
