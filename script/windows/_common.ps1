@@ -727,6 +727,87 @@ function Save-WebFile {
   return $true
 }
 
+# ─── C/C++ compiler detection ─────────────────────────────────────────────────
+# MSYS2/MinGW 路径常量（Test-GnuCompiler / Test-Gnu 等共享使用）
+$script:MsysRoot    = 'C:\msys64'
+$script:MsysBash    = Join-Path $script:MsysRoot 'usr\bin\bash.exe'
+$script:MingwBin     = Join-Path $script:MsysRoot 'mingw64\bin'
+$script:MingwGccExe  = Join-Path $script:MingwBin 'gcc.exe'
+$script:MingwAsExe   = Join-Path $script:MingwBin 'as.exe'
+
+<#
+.SYNOPSIS
+  检测 MSVC cl.exe 是否可用（包含 vswhere 回退定位），找到后自动加入当前 PATH。
+.OUTPUTS
+  [bool]
+.NOTES
+  cl.exe 可能不在 PATH（例如仅装了 Build Tools），因此需要通过 vswhere 定位安装目录。
+  检测到后会自动将所在目录加入当前进程 PATH，确保后续构建步骤可用。
+#>
+function Test-Msvc {
+  $cl = Get-ExePath 'cl.exe'
+  if (-not $cl) {
+    # cl.exe 不在 PATH 中时，用 vswhere 定位 VS 安装
+    $vswhere = Get-ExePath 'vswhere.exe'
+    if (-not $vswhere) {
+      $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+      if (-not (Test-Path -LiteralPath $vswhere)) {
+        $vswhere = Join-Path $env:ProgramFiles 'Microsoft Visual Studio\Installer\vswhere.exe'
+        if (-not (Test-Path -LiteralPath $vswhere)) { $vswhere = $null }
+      }
+    }
+    if ($vswhere) {
+      $installPath = (Invoke-NativeText -FilePath $vswhere -Arguments @('-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath') | Select-Object -First 1)
+      if ($installPath) {
+        $msvcDir = Join-Path $installPath 'VC\Tools\MSVC'
+        if (Test-Path -LiteralPath $msvcDir) {
+          $clItem = Get-ChildItem -LiteralPath $msvcDir -Recurse -Filter 'cl.exe' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Directory.Name -eq 'x64' } |
+            Sort-Object FullName -Descending |
+            Select-Object -First 1
+          if ($clItem) {
+            $cl = $clItem.FullName
+            Add-PathPrefix $clItem.Directory.FullName
+          }
+        }
+      }
+    }
+  }
+  if (-not $cl) { return $false }
+  $info = (Invoke-NativeText -FilePath $cl | Select-Object -First 2) -join ' '
+  Write-Ok "MSVC cl.exe 已安装"
+  Write-Host "    路径：$cl"
+  if (-not [string]::IsNullOrWhiteSpace($info)) { Write-Host "    版本：$info" }
+  return $true
+}
+
+<#
+.SYNOPSIS
+  检测 GNU GCC 编译器（gcc.exe）是否可用，显示路径和版本信息。
+.OUTPUTS
+  [bool]
+.NOTES
+  - 优先从 PATH 查找
+  - 若 MSYS2 已安装但未加入 PATH，会自动探测 C:\msys64\mingw64\bin 并加入当前进程 PATH
+  - 与 install_2_c_compile_bywin.ps1 的 Test-Gnu 不同：本函数仅做检测报告，不触发安装
+#>
+function Test-GnuCompiler {
+  $gcc = Get-ExePath 'gcc.exe'
+  if (-not $gcc) {
+    if (Test-Path -LiteralPath $script:MingwGccExe) {
+      Add-PathPrefix $script:MingwBin
+      $gcc = $script:MingwGccExe
+    }
+  }
+  if (-not $gcc) { return $false }
+  $info = (Invoke-NativeText -FilePath 'gcc' -Arguments @('--version') | Select-Object -First 1)
+  Write-Ok "GNU GCC 编译器已安装"
+  Write-Host "    路径：$gcc"
+  if (-not [string]::IsNullOrWhiteSpace($info)) { Write-Host "    版本：$info" }
+  if (-not (Get-ExePath 'g++.exe')) { Write-Warn "GCC 已找到但 G++ 未找到，部分 C++ 依赖可能编译失败" }
+  return $true
+}
+
 # ─── Android SDK / NDK discovery ─────────────────────────────────────────────
 <#
 .SYNOPSIS

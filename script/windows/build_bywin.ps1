@@ -231,59 +231,11 @@ Write-Banner -Title 'Android 构建环境检查（Windows PowerShell）' -Color 
 Write-Host ""
 
 Write-Host "[1/8] C/C++ 编译工具" -ForegroundColor Cyan
-$cl = Get-ExePath 'cl.exe'
-if (-not $cl) {
-  # cl.exe 不在 PATH 时，通过 vswhere 定位 VS 安装目录（MSVC Build Tools 默认不把 cl.exe 加入 PATH）
-  $vswhere = Get-ExePath 'vswhere.exe'
-  if (-not $vswhere) {
-    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-    if (-not (Test-Path -LiteralPath $vswhere)) {
-      $vswhere = Join-Path $env:ProgramFiles 'Microsoft Visual Studio\Installer\vswhere.exe'
-      if (-not (Test-Path -LiteralPath $vswhere)) { $vswhere = $null }
-    }
-  }
-  if ($vswhere) {
-    $installPath = (Invoke-NativeText -FilePath $vswhere -Arguments @('-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath') | Select-Object -First 1)
-    if ($installPath) {
-      $msvcDir = Join-Path $installPath 'VC\Tools\MSVC'
-      if (Test-Path -LiteralPath $msvcDir) {
-        $clItem = Get-ChildItem -LiteralPath $msvcDir -Recurse -Filter 'cl.exe' -ErrorAction SilentlyContinue |
-          Where-Object { $_.Directory.Name -eq 'x64' } |
-          Sort-Object FullName -Descending |
-          Select-Object -First 1
-        if ($clItem) {
-          $clBinDir = $clItem.Directory.FullName
-          Add-PathPrefix $clBinDir
-          $cl = Get-ExePath 'cl.exe'
-        }
-      }
-    }
-  }
-}
-if ($cl) {
-  Write-Ok "MSVC cl.exe 已安装"
-  Write-Host "    路径：$cl"
-  $clVer = (Invoke-NativeText -FilePath $cl | Select-Object -First 2) -join ' '
-  if (-not [string]::IsNullOrWhiteSpace($clVer)) { Write-Host "    版本：$clVer" }
-}
-$gcc = Get-ExePath 'gcc.exe'
-if (-not $gcc) {
-  # MSYS2 MinGW gcc 可能不在 PATH，但安装脚本不会写用户 PATH，主动探测一下
-  $msysGcc = 'C:\msys64\mingw64\bin\gcc.exe'
-  if (Test-Path -LiteralPath $msysGcc) {
-    Add-PathPrefix (Split-Path -Parent $msysGcc)
-    $gcc = Get-ExePath 'gcc.exe'
-  }
-}
-if ($gcc) {
-  Write-Ok "GNU GCC 编译器已安装"
-  Write-Host "    路径：$gcc"
-  $gccVer = (Invoke-NativeText -FilePath 'gcc' -Arguments @('--version') | Select-Object -First 1)
-  if (-not [string]::IsNullOrWhiteSpace($gccVer)) { Write-Host "    版本：$gccVer" }
-}
-if (-not $cl -and -not $gcc) {
+$hasMsvc = Test-Msvc
+$hasGnu   = Test-GnuCompiler
+if (-not $hasMsvc -and -not $hasGnu) {
   Write-Fail "未检测到 C/C++ 编译器（MSVC 或 GNU gcc）"
-  Write-Fail "请运行 .\script\install_c_compile_bywin.ps1 安装"
+  Write-Fail "请运行 .\script\install_2_c_compile_bywin.ps1 安装"
 }
 
 Write-Host "[2/8] Rust" -ForegroundColor Cyan

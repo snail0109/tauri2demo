@@ -14,54 +14,12 @@ $Failed = $false
 
 Enable-AutoConfirm
 
-$MsysRoot     = 'C:\msys64'
-$MsysBash     = Join-Path $MsysRoot 'usr\bin\bash.exe'
-$MingwBin     = Join-Path $MsysRoot 'mingw64\bin'
-$MingwGccExe  = Join-Path $MingwBin 'gcc.exe'
-$MingwAsExe   = Join-Path $MingwBin 'as.exe'
-
-<#
-.SYNOPSIS
-  检测 MSVC cl.exe 是否可用（包含 vswhere 回退定位）。
-.OUTPUTS
-  [bool]
-.NOTES
-  cl.exe 可能不在 PATH（例如仅装了 Build Tools），因此需要通过 vswhere 定位安装目录。
-#>
-function Test-Msvc {
-  $cl = Get-ExePath 'cl.exe'
-  if (-not $cl) {
-    # cl.exe 不在 PATH 中时，用 vswhere 定位 VS 安装
-    $vswhere = Get-ExePath 'vswhere.exe'
-    if (-not $vswhere) {
-      $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-      if (-not (Test-Path -LiteralPath $vswhere)) {
-        $vswhere = Join-Path $env:ProgramFiles 'Microsoft Visual Studio\Installer\vswhere.exe'
-        if (-not (Test-Path -LiteralPath $vswhere)) { $vswhere = $null }
-      }
-    }
-    if ($vswhere) {
-      $installPath = (Invoke-NativeText -FilePath $vswhere -Arguments @('-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64', '-property', 'installationPath') | Select-Object -First 1)
-      if ($installPath) {
-        # 在 VC\Tools\MSVC 下找最新版本的 cl.exe
-        $msvcDir = Join-Path $installPath 'VC\Tools\MSVC'
-        if (Test-Path -LiteralPath $msvcDir) {
-          $cl = Get-ChildItem -LiteralPath $msvcDir -Recurse -Filter 'cl.exe' -ErrorAction SilentlyContinue |
-            Where-Object { $_.Directory.Name -eq 'x64' } |
-            Sort-Object FullName -Descending |
-            Select-Object -First 1
-          if ($cl) { $cl = $cl.FullName }
-        }
-      }
-    }
-  }
-  if (-not $cl) { return $false }
-  $info = (Invoke-NativeText -FilePath $cl | Select-Object -First 2) -join ' '
-  Write-Ok "MSVC cl.exe 已安装"
-  Write-Host "    路径：$cl"
-  if (-not [string]::IsNullOrWhiteSpace($info)) { Write-Host "    版本：$info" }
-  return $true
-}
+# 引用 _common.ps1 中的共享路径常量（保持本地短名称兼容现有代码）
+$MsysRoot     = $script:MsysRoot
+$MsysBash     = $script:MsysBash
+$MingwBin     = $script:MingwBin
+$MingwGccExe  = $script:MingwGccExe
+$MingwAsExe   = $script:MingwAsExe
 
 <#
 .SYNOPSIS
@@ -320,18 +278,7 @@ function Install-Gnu {
   [bool]
 #>
 function Test-Gnu {
-  $gcc = Get-ExePath 'gcc.exe'
-  if (-not $gcc) {
-    if (Test-Path -LiteralPath $MingwGccExe) { Add-PathPrefix $MingwBin; $gcc = $MingwGccExe }
-  }
-  if (-not $gcc) { return $false }
-  $info = (Invoke-NativeText -FilePath 'gcc' -Arguments @('--version') | Select-Object -First 1)
-  Write-Ok "GNU GCC 编译器已安装"
-  Write-Host "    路径：$gcc"
-  if (-not [string]::IsNullOrWhiteSpace($info)) { Write-Host "    版本：$info" }
-
-  if (-not (Get-ExePath 'g++.exe')) { Write-Warn "GCC 已找到但 G++ 未找到，部分 C++ 依赖可能编译失败" }
-
+  if (-not (Test-GnuCompiler)) { return $false }
   if (-not (Test-GnuAssembler)) { Install-GnuAssembler | Out-Null }
   return $true
 }
