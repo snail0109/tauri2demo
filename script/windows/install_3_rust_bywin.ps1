@@ -43,50 +43,6 @@ registry = "sparse+https://mirrors.aliyun.com/crates.io-index/"
 
 <#
 .SYNOPSIS
-  检测 rustc/rustup 是否可用，并解析 toolchain host/版本信息。
-.PARAMETER Quiet
-  静默模式：不输出提示日志，仅返回 true/false 并设置脚本变量。
-.OUTPUTS
-  [bool]
-.NOTES
-  会写入 $script:RustcVersion / $script:RustcHost，供后续摘要展示使用。
-#>
-function Test-RustToolchain {
-  param([switch]$Quiet)
-  $rustc = Get-ExePath 'rustc.exe'
-  if (-not $rustc) { return $false }
-
-  $versionOutput = Invoke-NativeText -FilePath 'rustc' -Arguments @('--version')
-  $script:RustcVersion = ($versionOutput | Select-Object -First 1)
-  # 校验输出版本号格式（如 "rustc 1.85.0 (...)"），排除 error/warning 等异常输出
-  if ([string]::IsNullOrWhiteSpace($script:RustcVersion) -or $script:RustcVersion -notmatch '^rustc \d+\.\d+\.\d+') {
-    if (-not $Quiet) { Write-Warn "rustc 已找到但输出异常（toolchain 可能不完整）：$script:RustcVersion" }
-    $script:RustcVersion = $null
-    $script:RustcHost = $null
-    return $false
-  }
-  $hostLine = Invoke-NativeText -FilePath 'rustc' -Arguments @('-vV') |
-    Where-Object { $_ -match '^host:\s*' } |
-    Select-Object -First 1
-  if ($hostLine) { $script:RustcHost = ($hostLine -replace '^host:\s*', '').Trim() }
-
-  $rustupVersion = ''
-  $rustup = Get-ExePath 'rustup.exe'
-  if ($rustup) {
-    $rustupVersion = (Invoke-NativeText -FilePath 'rustup' -Arguments @('--version') | Select-Object -First 1)
-  }
-
-  if (-not $Quiet) {
-    Write-Ok "Rust 工具链已安装"
-    if ($rustupVersion) { Write-Host "    rustup：$rustupVersion" }
-    if (-not [string]::IsNullOrWhiteSpace($script:RustcVersion)) { Write-Host "    rustc：$($script:RustcVersion)" }
-    if (-not [string]::IsNullOrWhiteSpace($script:RustcHost)) { Write-Host "    toolchain：$($script:RustcHost)" }
-  }
-  return $true
-}
-
-<#
-.SYNOPSIS
   安装 rustup（Rust 工具链管理器）。
 .OUTPUTS
   [bool]

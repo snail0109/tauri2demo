@@ -30,7 +30,7 @@ if ($Yes) { Enable-AutoConfirm }
 
 $DefaultKeystoreLines = @(
   'keyAlias=tauri2demo_key',
-  'password=abc009988',
+  'password=tauri2demo_pass',
   'storeFile=./config/release.keystore'
 )
 
@@ -240,8 +240,7 @@ if (-not $hasMsvc -and -not $hasGnu) {
 
 Write-Host "[2/8] Rust" -ForegroundColor Cyan
 if ($null -ne (Get-ExePath 'rustc.exe')) {
-  $ver = (Invoke-NativeText -FilePath 'rustc' -Arguments @('--version') | Select-Object -First 1)
-  Write-Ok "Rust 已安装：$ver"
+Test-RustToolchain | Out-Null
 }
 else {
   Write-Fail "未检测到 rustc/rustup"
@@ -335,7 +334,19 @@ else {
     }
 }
 
-Write-Host "[8/8] keystore.properties" -ForegroundColor Cyan
+Write-Host ""
+if ($Failed) {
+  Write-Banner -Title '环境检查未通过，请修复以上问题后重试。' -Color Cyan -TitleColor Red
+  exit 1
+}
+
+if ($Command -eq 'check') {
+  Write-Banner -Title '所有检查通过！' -Color Cyan -TitleColor Green
+  Write-Host ""
+  exit 0
+}
+
+Write-Host "检查 keystore.properties" -ForegroundColor Cyan
 $scriptDir = $PSScriptRoot
 $keystoreProps = Join-Path $scriptDir '..\backend\src-tauri\gen\android\keystore.properties'
 
@@ -356,20 +367,8 @@ else {
     Write-Host "    keyAlias=your_key_alias"
     Write-Host "    keyPassword=your_key_password"
     Write-Warn "生成 keystore："
-    Write-Host "    keytool -genkeypair -v -keystore release.keystore -alias tauri2demo-key -keyalg RSA -keysize 2048 -validity 10000"
+    Write-Host "    keytool -genkeypair -v -keystore release.keystore -alias tauri2demo_key --storepass tauri2demo_pass -keypass tauri2demo_pass -keyalg RSA -keysize 2048 -validity 10000 -dname `"CN=Your Name, OU=Your Org, O=Your Company, L=City, S=State, C=CN`""
   }
-}
-
-Write-Host ""
-if ($Failed) {
-  Write-Banner -Title '环境检查未通过，请修复以上问题后重试。' -Color Cyan -TitleColor Red
-  exit 1
-}
-
-if ($Command -eq 'check') {
-  Write-Banner -Title '所有检查通过！' -Color Cyan -TitleColor Green
-  Write-Host ""
-  exit 0
 }
 
 Write-Banner -Title '构建准备                                ' -Color Cyan
