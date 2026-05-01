@@ -507,6 +507,7 @@ if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) {
   }
 }
 
+write-host "  查找 dlltool 命令" -ForegroundColor Cyan
 if ($null -ne (Get-ExePath 'rustup.exe')) {
   $rustcPath = Invoke-NativeText -FilePath 'rustup' -Arguments @('which', 'rustc') | Select-Object -First 1
   if (-not [string]::IsNullOrWhiteSpace($rustcPath)) {
