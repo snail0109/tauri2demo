@@ -4,7 +4,7 @@
 .DESCRIPTION
   主要流程：
   - 先做 8 项环境检查（C/C++、Rust、Java 17、Android SDK/NDK、Rust targets、pnpm、keystore.properties）
-  - 准备阶段：pnpm install、修复/重建 gen\android、前端构建、keystore 文件检查/生成
+  - 准备阶段：pnpm install、修复/重建 gen\android、前端构建
   - 运行 pnpm tauri android <dev|build>
 .PARAMETER Command
   dev=开发模式，build=发布构建，check=仅检查环境不构建。
@@ -350,7 +350,7 @@ if ($Command -eq 'check') {
 Write-Banner -Title '构建准备                                ' -Color Cyan
 Write-Host ""
 
-Write-Host "[准备 1/4] npm 依赖" -ForegroundColor Cyan
+Write-Host "[准备 1/3] npm 依赖" -ForegroundColor Cyan
 $tauriBin = Join-Path $projectRoot 'node_modules\.bin\tauri.cmd'
 if ((Test-Path -LiteralPath (Join-Path $projectRoot 'node_modules')) -and (Test-Path -LiteralPath $tauriBin)) {
   Write-Ok "node_modules 已存在且 tauri CLI 可用"
@@ -364,7 +364,7 @@ else {
 }
 
 
-Write-Host "[准备 2/4] Tauri Android 项目" -ForegroundColor Cyan
+Write-Host "[准备 2/3] Tauri Android 项目" -ForegroundColor Cyan
 $genAndroidDir = Join-Path $projectRoot 'backend\src-tauri\gen\android'
 if (Test-AndroidProjectComplete $genAndroidDir) {
   Write-Ok "gen\android 项目完整"
@@ -374,7 +374,7 @@ else {
   if ($Failed) { exit 1 }
 }
 
-Write-Host "[准备 3/4] 前端构建" -ForegroundColor Cyan
+Write-Host "[准备 3/3] 前端构建" -ForegroundColor Cyan
 if (Test-Path -LiteralPath (Join-Path $projectRoot 'frontend\dist')) {
   Write-Ok "frontend\dist 已存在"
 }
@@ -386,38 +386,6 @@ else {
   else { Write-Ok "前端构建完成" }
 }
 Confirm-Step -Desc "$Desc 是否继续？"
-Write-Host "[准备 4/4] Keystore 签名文件" -ForegroundColor Cyan
-$keystoreProps2 = Join-Path $genAndroidDir 'keystore.properties'
-if (Test-Path -LiteralPath $keystoreProps2) {
-  $props = Get-Content -LiteralPath $keystoreProps2 -ErrorAction SilentlyContinue
-  $storeFileRaw = Get-PropValue -Lines $props -Key 'storeFile'
-  $keyAlias = Get-PropValue -Lines $props -Key 'keyAlias'
-  $keyPassword = Get-PropValue -Lines $props -Key 'password'
-
-  # storeFile 相对路径基准是项目根目录
-  $storeFileResolved = $storeFileRaw
-  if (-not [string]::IsNullOrWhiteSpace($storeFileRaw) -and -not [System.IO.Path]::IsPathRooted($storeFileRaw)) {
-    $storeFileResolved = [System.IO.Path]::GetFullPath((Join-Path $projectRoot $storeFileRaw))
-  }
-
-  if (-not [string]::IsNullOrWhiteSpace($storeFileRaw) -and (Test-Path -LiteralPath $storeFileResolved)) {
-    Write-Ok "Keystore 文件已存在：$storeFileResolved"
-  }
-  elseif (-not [string]::IsNullOrWhiteSpace($storeFileRaw)) {
-    Write-Warn "Keystore 文件不存在：$storeFileResolved"
-    Write-Warn "正在自动生成 keystore ..."
-    $aliasToUse = if ([string]::IsNullOrWhiteSpace($keyAlias)) { 'tauri2demo_key' } else { $keyAlias }
-    $passwordToUse = if ([string]::IsNullOrWhiteSpace($keyPassword)) { 'changeit' } else { $keyPassword }
-    New-Keystore -StoreFile $storeFileResolved -Alias $aliasToUse -Password $passwordToUse
-  }
-  else {
-    Write-Warn "keystore.properties 中未找到 storeFile=，跳过 keystore 文件检查"
-  }
-}
-else {
-  Write-Warn "keystore.properties 不存在，跳过 keystore 文件检查"
-}
-
 Write-Host ""
 Write-Host "  构建准备完成！" -ForegroundColor Green
 Write-Host ""
