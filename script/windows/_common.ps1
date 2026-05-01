@@ -575,7 +575,7 @@ function Save-WebFileSingle {
     $sec = [Math]::Max($sw.Elapsed.TotalSeconds, 0.001)
     $avgKB = ($read / $sec) / 1KB
     Write-Ok ("下载完成（{0:N0} KB，{1:N0} KB/s）" -f ($read/1KB), $avgKB)
-
+    Write-Host "  下载完成：$OutFile" -ForegroundColor Cyan
     return $true
   } catch {
     Write-Warn "下载失败：$($_.Exception.Message)"

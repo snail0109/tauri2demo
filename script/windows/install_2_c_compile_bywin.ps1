@@ -231,7 +231,7 @@ function Install-Gnu {
         Start-Process -FilePath $msysInstaller -ArgumentList @('/S', "/D=$MsysRoot") -Wait -NoNewWindow | Out-Null
       }
       catch {}
-      Remove-Item -LiteralPath $msysInstaller -Force -ErrorAction SilentlyContinue
+      #Remove-Item -LiteralPath $msysInstaller -Force -ErrorAction SilentlyContinue
     }
     else {
       Remove-Item -LiteralPath $msysInstaller -Force -ErrorAction SilentlyContinue
