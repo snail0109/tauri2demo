@@ -111,7 +111,6 @@ function Restore-AndroidProject {
       Remove-Item -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue
     }
   }
-  # Confirm-Step -Desc "$Desc 是否继续？"
 
   write-host "  运行命令：pnpm tauri android init" -ForegroundColor Cyan
   Invoke-NativeStreamIn -Path $ProjectRoot -Block { & pnpm tauri android init }
@@ -352,15 +351,14 @@ $props = Get-Content -LiteralPath $keystoreProps -ErrorAction SilentlyContinue
 $storeFileRaw = Get-PropValue -Lines $props -Key 'storeFile'
 $keyAlias = Get-PropValue -Lines $props -Key 'keyAlias'
 $keyPassword = Get-PropValue -Lines $props -Key 'password'
-Write-Host "storeFileRaw: $storeFileRaw"
 
 if (-not [string]::IsNullOrWhiteSpace($storeFileRaw)) {
-  # storeFile 相对路径基准是项目根目录
+  # 获取 storeFile 路径
   $storeFileResolved = if ([System.IO.Path]::IsPathRooted($storeFileRaw)) {
-    $storeFileRaw
+    $storeFileRaw # 绝对路径，直接使用
   }
   else {
-    [System.IO.Path]::GetFullPath((Join-Path $projectRoot $storeFileRaw))
+    [System.IO.Path]::GetFullPath((Join-Path $projectRoot $storeFileRaw)) # 相对路径，转换为绝对路径
   }
 
   if (Test-Path -LiteralPath $storeFileResolved) {
@@ -378,7 +376,7 @@ if (-not [string]::IsNullOrWhiteSpace($storeFileRaw)) {
 else {
   Write-Warn "keystore.properties 中未找到 storeFile=，跳过 keystore 文件检查"
 }
-Confirm-Step -Desc "$Desc 是否继续？"
+
 Write-Host ""
 if ($Failed) {
   Write-Banner -Title '环境检查未通过，请修复以上问题后重试。' -Color Cyan -TitleColor Red
@@ -394,9 +392,6 @@ if ($Command -eq 'check') {
 Write-Banner -Title '构建准备                                ' -Color Cyan
 Write-Host ""
 
-$projectRoot = (Resolve-Path -LiteralPath (Join-Path $scriptDir '..')).Path
-$genAndroidDir = Join-Path $projectRoot 'backend\src-tauri\gen\android'
-
 Write-Host "[准备 1/4] npm 依赖" -ForegroundColor Cyan
 $tauriBin = Join-Path $projectRoot 'node_modules\.bin\tauri.cmd'
 if ((Test-Path -LiteralPath (Join-Path $projectRoot 'node_modules')) -and (Test-Path -LiteralPath $tauriBin)) {
@@ -410,7 +405,9 @@ else {
   else { Write-Ok "pnpm install 完成" }
 }
 
+
 Write-Host "[准备 2/4] Tauri Android 项目" -ForegroundColor Cyan
+$genAndroidDir = Join-Path $projectRoot 'backend\src-tauri\gen\android'
 if (Test-AndroidProjectComplete $genAndroidDir) {
   Write-Ok "gen\android 项目完整"
 }
@@ -421,7 +418,7 @@ else {
     exit 1
   }
 }
-
+Confirm-Step -Desc "$Desc 是否继续？"
 Write-Host "[准备 3/4] 前端构建" -ForegroundColor Cyan
 $tauriConfPath = Join-Path $projectRoot 'backend\src-tauri\tauri.conf.json'
 $originalBeforeBuildCommand = $null
