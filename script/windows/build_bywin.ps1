@@ -393,50 +393,34 @@ Confirm-Step -Desc "$Desc 是否继续？"
 Add-PathPrefix (Join-Path $androidHome 'platform-tools')
 Set-AndroidNdkEnv -AndroidNdkHome $env:ANDROID_NDK_HOME
 
-write-host "  查找 dlltool 命令（host: $RustcHost）" -ForegroundColor Cyan
+Write-Host "  查找 dlltool 命令（host: $RustcHost）" -ForegroundColor Cyan
 if ($null -ne (Get-ExePath 'rustup.exe')) {
   $rustcPath = Invoke-NativeText -FilePath 'rustup' -Arguments @('which', 'rustc') | Select-Object -First 1
   if (-not [string]::IsNullOrWhiteSpace($rustcPath)) {
     $toolchainRoot = Split-Path -Parent (Split-Path -Parent $rustcPath.Trim())
-    $dlltoolFound = $false
 
-    # 1. 先尝试 host 目标对应的 self-contained 目录（GNU toolchain 直接可用）
-    if (-not [string]::IsNullOrWhiteSpace($RustcHost)) {
-      $hostSelfContained = Join-Path $toolchainRoot "lib\rustlib\$RustcHost\bin\self-contained"
-      if (Test-Path -LiteralPath (Join-Path $hostSelfContained 'dlltool.exe')) {
-        Add-PathPrefix $hostSelfContained
-        Write-Ok "Rust dlltool 已加入 PATH：$hostSelfContained"
-        $dlltoolFound = $true
-      }
+    # 根据 host 工具链类型直接选一种 dlltool 路径
+    if ($RustcHost -match 'gnu') {
+      # GNU host：使用 host 目标自带的 self-contained 目录
+      $dlltoolDir = Join-Path $toolchainRoot "lib\rustlib\$RustcHost\bin\self-contained"
+    }
+    elseif ($RustcHost -match 'msvc') {
+      # MSVC host：使用 x86_64-pc-windows-gnu target 自带的 dlltool
+      $dlltoolDir = Join-Path $toolchainRoot 'lib\rustlib\x86_64-pc-windows-gnu\bin\self-contained'
+    }
+    else {
+      $dlltoolDir = $null
     }
 
-    # 2. MSVC host 回退：尝试 x86_64-pc-windows-gnu target 自带的 dlltool
-    if (-not $dlltoolFound) {
-      $gnuSelfContained = Join-Path $toolchainRoot 'lib\rustlib\x86_64-pc-windows-gnu\bin\self-contained'
-      if (Test-Path -LiteralPath (Join-Path $gnuSelfContained 'dlltool.exe')) {
-        Add-PathPrefix $gnuSelfContained
-        Write-Ok "Rust dlltool (GNU target) 已加入 PATH：$gnuSelfContained"
-        $dlltoolFound = $true
-      }
+    if ($dlltoolDir -and (Test-Path -LiteralPath (Join-Path $dlltoolDir 'dlltool.exe'))) {
+      Add-PathPrefix $dlltoolDir
+      Write-Ok "Rust dlltool 已加入 PATH：$dlltoolDir"
     }
-
-    # 3. MSYS2 MinGW 回退
-    if (-not $dlltoolFound) {
-      $msys2Dlltool = Join-Path $script:MingwBin 'dlltool.exe'
-      if (Test-Path -LiteralPath $msys2Dlltool) {
-        Add-PathPrefix $script:MingwBin
-        Write-Ok "MSYS2 dlltool 已加入 PATH：$script:MingwBin"
-        $dlltoolFound = $true
-      }
-    }
-
-    if (-not $dlltoolFound) {
+    else {
       Write-Warn "dlltool 未找到（host: $RustcHost）"
       if ($RustcHost -match 'msvc') {
         Write-Host "    Android 交叉编译使用 NDK lld 链接器，通常不需要 dlltool" -ForegroundColor DarkGray
-        Write-Host "    若构建中确有 crate 依赖 dlltool，可通过以下方式安装：" -ForegroundColor DarkGray
-        Write-Host "      1) rustup target add x86_64-pc-windows-gnu" -ForegroundColor DarkGray
-        Write-Host "      2) 安装 MSYS2 的 mingw-w64-x86_64-binutils 包" -ForegroundColor DarkGray
+        Write-Host "    若构建中确有 crate 依赖 dlltool，可执行：rustup target add x86_64-pc-windows-gnu" -ForegroundColor DarkGray
       }
       else {
         Write-Warn "交叉编译 Android 时可能因找不到 dlltool 而失败"
