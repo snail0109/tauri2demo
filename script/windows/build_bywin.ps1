@@ -406,7 +406,8 @@ if ((Test-Path -LiteralPath (Join-Path $projectRoot 'node_modules')) -and (Test-
 }
 else {
   Write-Warn "正在运行 pnpm install ..."
-  Invoke-NativeStreamIn -Path $projectRoot -Block { & pnpm install }
+  write-host "  运行命令：pnpm install --config.node-linker=hoisted" -ForegroundColor Cyan
+  Invoke-NativeStreamIn -Path $projectRoot -Block { & pnpm install --config.node-linker=hoisted }
   if ($LASTEXITCODE -ne 0) { Write-Fail "pnpm install 失败" }
   else { Write-Ok "pnpm install 完成" }
 }
