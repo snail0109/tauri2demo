@@ -507,18 +507,50 @@ if (-not [string]::IsNullOrWhiteSpace($env:ANDROID_NDK_HOME)) {
   }
 }
 
-write-host "  查找 dlltool 命令" -ForegroundColor Cyan
+write-host "  查找 dlltool 命令（host: $RustcHost）" -ForegroundColor Cyan
 if ($null -ne (Get-ExePath 'rustup.exe')) {
   $rustcPath = Invoke-NativeText -FilePath 'rustup' -Arguments @('which', 'rustc') | Select-Object -First 1
   if (-not [string]::IsNullOrWhiteSpace($rustcPath)) {
     $toolchainRoot = Split-Path -Parent (Split-Path -Parent $rustcPath.Trim())
-    $selfContained = Join-Path $toolchainRoot 'lib\rustlib\x86_64-pc-windows-gnu\bin\self-contained'
-    if (Test-Path -LiteralPath (Join-Path $selfContained 'dlltool.exe')) {
-      Add-PathPrefix $selfContained
-      Write-Ok "Rust dlltool 已加入 PATH：$selfContained"
+    $dlltoolFound = $false
+
+    # 1. 先尝试 host 目标对应的 self-contained 目录（GNU toolchain 直接可用）
+    if (-not [string]::IsNullOrWhiteSpace($RustcHost)) {
+      $hostSelfContained = Join-Path $toolchainRoot "lib\rustlib\$RustcHost\bin\self-contained"
+      if (Test-Path -LiteralPath (Join-Path $hostSelfContained 'dlltool.exe')) {
+        Add-PathPrefix $hostSelfContained
+        Write-Ok "Rust dlltool 已加入 PATH：$hostSelfContained"
+        $dlltoolFound = $true
+      }
     }
-    else {
-      Write-Warn "Rust GNU 工具链 self-contained 目录未找到：$selfContained"
+
+    # 2. MSVC host 回退：尝试 x86_64-pc-windows-gnu target 自带的 dlltool
+    if (-not $dlltoolFound) {
+      $gnuSelfContained = Join-Path $toolchainRoot 'lib\rustlib\x86_64-pc-windows-gnu\bin\self-contained'
+      if (Test-Path -LiteralPath (Join-Path $gnuSelfContained 'dlltool.exe')) {
+        Add-PathPrefix $gnuSelfContained
+        Write-Ok "Rust dlltool (GNU target) 已加入 PATH：$gnuSelfContained"
+        $dlltoolFound = $true
+      }
+    }
+
+    # 3. MSYS2 MinGW 回退
+    if (-not $dlltoolFound) {
+      $msys2Dlltool = Join-Path $script:MingwBin 'dlltool.exe'
+      if (Test-Path -LiteralPath $msys2Dlltool) {
+        Add-PathPrefix $script:MingwBin
+        Write-Ok "MSYS2 dlltool 已加入 PATH：$script:MingwBin"
+        $dlltoolFound = $true
+      }
+    }
+
+    if (-not $dlltoolFound) {
+      Write-Warn "dlltool 未找到（host: $RustcHost）"
+      if ($RustcHost -match 'msvc') {
+        Write-Warn "MSVC 工具链不包含 dlltool，可通过以下方式安装："
+        Write-Warn "  1) rustup target add x86_64-pc-windows-gnu"
+        Write-Warn "  2) 安装 MSYS2 的 mingw-w64-x86_64-binutils 包"
+      }
       Write-Warn "交叉编译 Android 时可能因找不到 dlltool 而失败"
     }
   }
@@ -529,7 +561,7 @@ $mingwLibDir = 'C:\msys64\mingw64\lib'
 $gccLibDirs = @(Get-ChildItem -LiteralPath 'C:\msys64\mingw64\lib\gcc\x86_64-w64-mingw32' -Directory -ErrorAction SilentlyContinue |
   Sort-Object { [version]$_.Name } -Descending |
   Select-Object -First 1 | ForEach-Object { $_.FullName })
-if ((Test-Path -LiteralPath $mingwLibDir) -and $gcc) {
+if ((Test-Path -LiteralPath $mingwLibDir) -and ((Get-ExePath 'gcc.exe') -or (Test-Path -LiteralPath $script:MingwGccExe))) {
   $libPaths = @($mingwLibDir) + $gccLibDirs
   $env:LIBRARY_PATH = ($libPaths + $(if ($env:LIBRARY_PATH) { $env:LIBRARY_PATH -split ';' } else { @() })) -join ';'
   foreach ($p in $libPaths) { Write-Ok "LIBRARY_PATH 已追加：$p" }
