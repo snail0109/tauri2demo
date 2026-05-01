@@ -728,7 +728,7 @@ function Save-WebFile {
 }
 
 # ─── C/C++ compiler detection ─────────────────────────────────────────────────
-# MSYS2/MinGW 路径常量（Test-GnuCompiler / Test-Gnu 等共享使用）
+# MSYS2/MinGW 路径常量（Test-Gnu / Test-GnuAssembler 等共享使用）
 $script:MsysRoot    = 'C:\msys64'
 $script:MsysBash    = Join-Path $script:MsysRoot 'usr\bin\bash.exe'
 $script:MingwBin     = Join-Path $script:MsysRoot 'mingw64\bin'
@@ -783,15 +783,40 @@ function Test-Msvc {
 
 <#
 .SYNOPSIS
-  检测 GNU GCC 编译器（gcc.exe）是否可用，显示路径和版本信息。
+  检测 GNU 汇编器 as.exe（Rust GNU toolchain 的 dlltool/import lib 可能依赖）。
 .OUTPUTS
   [bool]
 .NOTES
-  - 优先从 PATH 查找
-  - 若 MSYS2 已安装但未加入 PATH，会自动探测 C:\msys64\mingw64\bin 并加入当前进程 PATH
-  - 与 install_2_c_compile_bywin.ps1 的 Test-Gnu 不同：本函数仅做检测报告，不触发安装
+  - 优先从 PATH 找 as.exe
+  - 若 MSYS2 已安装且 mingw64\bin\as.exe 存在，会临时加入 PATH
 #>
-function Test-GnuCompiler {
+function Test-GnuAssembler {
+  $as = Get-ExePath 'as.exe'
+  if ($as) {
+    Write-Ok "GNU 汇编器 as 已安装"
+    Write-Host "    路径：$as"
+    return $true
+  }
+  if (Test-Path -LiteralPath $script:MingwAsExe) {
+    Add-PathPrefix $script:MingwBin
+    Write-Ok "GNU 汇编器 as 已安装（已添加到 PATH）"
+    Write-Host "    路径：$($script:MingwAsExe)"
+    return $true
+  }
+  return $false
+}
+
+<#
+.SYNOPSIS
+  检测 GNU GCC 编译器（gcc.exe）及汇编器 as.exe 是否可用。
+.OUTPUTS
+  [bool]
+.NOTES
+  - 优先从 PATH 查找 gcc，若 MSYS2 已安装但未加入 PATH 会自动探测
+  - 同时检查 g++ 和 as.exe，缺失时给出警告（不会自动安装）
+  - install_2_c_compile_bywin.ps1 中通过 Install-GnuAssembler 补齐汇编器
+#>
+function Test-Gnu {
   $gcc = Get-ExePath 'gcc.exe'
   if (-not $gcc) {
     if (Test-Path -LiteralPath $script:MingwGccExe) {
@@ -805,6 +830,7 @@ function Test-GnuCompiler {
   Write-Host "    路径：$gcc"
   if (-not [string]::IsNullOrWhiteSpace($info)) { Write-Host "    版本：$info" }
   if (-not (Get-ExePath 'g++.exe')) { Write-Warn "GCC 已找到但 G++ 未找到，部分 C++ 依赖可能编译失败" }
+  if (-not (Test-GnuAssembler)) { Write-Warn "GNU 汇编器 as.exe 未找到，Rust dlltool 可能失败" }
   return $true
 }
 

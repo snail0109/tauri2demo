@@ -23,31 +23,6 @@ $MingwAsExe   = $script:MingwAsExe
 
 <#
 .SYNOPSIS
-  检测 GNU 汇编器 as.exe（Rust GNU toolchain 的 dlltool/import lib 可能依赖）。
-.OUTPUTS
-  [bool]
-.NOTES
-  - 优先从 PATH 找 as.exe
-  - 若 MSYS2 已安装且 mingw64\bin\as.exe 存在，会临时加入 PATH
-#>
-function Test-GnuAssembler {
-  $as = Get-ExePath 'as.exe'
-  if ($as) {
-    Write-Ok "GNU 汇编器 as 已安装"
-    Write-Host "    路径：$as"
-    return $true
-  }
-  if (Test-Path -LiteralPath $MingwAsExe) {
-    Add-PathPrefix $MingwBin
-    Write-Ok "GNU 汇编器 as 已安装（已添加到 PATH）"
-    Write-Host "    路径：$MingwAsExe"
-    return $true
-  }
-  return $false
-}
-
-<#
-.SYNOPSIS
   为 MSYS2 pacman 配置国内镜像源（清华 TUNA）。
 .OUTPUTS
   [bool] 已配置或无需配置返回 $true。
@@ -273,18 +248,6 @@ function Install-Gnu {
 
 <#
 .SYNOPSIS
-  检测 GNU gcc/g++ 是否可用，并确保 as.exe 可用。
-.OUTPUTS
-  [bool]
-#>
-function Test-Gnu {
-  if (-not (Test-GnuCompiler)) { return $false }
-  if (-not (Test-GnuAssembler)) { Install-GnuAssembler | Out-Null }
-  return $true
-}
-
-<#
-.SYNOPSIS
   输出 C/C++ 编译环境摘要（MSVC 与 GNU）。
 .PARAMETER HasMsvc
   是否检测到 MSVC。
@@ -304,6 +267,7 @@ Write-Host ""
 Write-Host "[1/2] 检查 C/C++ 编译器" -ForegroundColor Cyan
 $hasMsvc = Test-Msvc
 $hasGnu = Test-Gnu
+if ($hasGnu) { Install-GnuAssembler | Out-Null }  # 补齐汇编器（_common.ps1 的 Test-Gnu 仅检测不安装）
 
 if ($hasMsvc -or $hasGnu) {
   Write-Host ""

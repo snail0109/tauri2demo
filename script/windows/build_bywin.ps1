@@ -232,7 +232,7 @@ Write-Host ""
 
 Write-Host "[1/8] C/C++ 编译工具" -ForegroundColor Cyan
 $hasMsvc = Test-Msvc
-$hasGnu   = Test-GnuCompiler
+$hasGnu   = Test-Gnu
 if (-not $hasMsvc -and -not $hasGnu) {
   Write-Fail "未检测到 C/C++ 编译器（MSVC 或 GNU gcc）"
   Write-Fail "请运行 .\script\install_2_c_compile_bywin.ps1 安装"
