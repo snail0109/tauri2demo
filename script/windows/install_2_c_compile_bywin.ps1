@@ -297,6 +297,7 @@ switch ($selected) {
   }
   2 {
     Install-Gnu | Out-Null
+    Install-GnuAssembler | Out-Null
   }
   0 {
     Exit-NoOp "已退出，未安装任何工具链。" -Code 1
