@@ -54,10 +54,10 @@ function Set-Msys2ChinaMirror {
 
     Write-Host "    处理 $file" -ForegroundColor Cyan
     $content = Get-Content -LiteralPath $file -ErrorAction SilentlyContinue
-    if ($content -and ($content | Where-Object { $_ -eq $item.Line })) { continue }
-
-    # 去掉官方默认源（mirror.msys2.org），再把 TUNA 行作为第一行写回
+    # 去掉官方默认源（mirror.msys2.org）
     $filtered = $content | Where-Object { $_ -notmatch 'mirror\.msys2\.org' }
+    # 已含 TUNA 行且无官方源残留 → 无需写入
+    if ($filtered -and ($filtered | Where-Object { $_ -eq $item.Line })) { continue }
 
     @($item.Line) + $filtered | Set-Content -LiteralPath $file -Encoding ASCII
   }
