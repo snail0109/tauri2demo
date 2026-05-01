@@ -59,36 +59,28 @@ function Test-AndroidProjectComplete([string]$GenAndroidDir) {
 
 <#
 .SYNOPSIS
-  修复/重建 gen\android 目录：必要时清理残留、重新执行 tauri android init，并恢复签名/权限配置。
+  重建 gen\android 工程：清残留 → pnpm tauri android init → 调优 gradle.properties。
 .PARAMETER ProjectRoot
   项目根目录（用于运行 pnpm tauri android init）。
 .PARAMETER GenAndroidDir
   gen\android 目录路径。
-.PARAMETER ScriptDir
-  脚本目录路径（用于定位 android-permission-sign 下的覆盖文件）。
 .NOTES
-  - 会尽量停止可能锁定目录的 Gradle Daemon/JVM 进程，降低删除失败概率
-  - 会备份并恢复 keystore.properties，避免重建后丢失签名配置
+  - 会停止可能锁定目录的 Gradle/Kotlin Daemon，降低 Windows 删除失败概率
+  - keystore.properties 已统一放在 config\，不再在 gen\android 下管理
 #>
 function Restore-AndroidProject {
-  param([string]$ProjectRoot, [string]$GenAndroidDir, [string]$ScriptDir)
+  param(
+    [Parameter(Mandatory)] [string]$ProjectRoot,
+    [Parameter(Mandatory)] [string]$GenAndroidDir
+  )
 
-  $keystorePropsInGen = Join-Path $GenAndroidDir 'keystore.properties'
-  $keystoreBackup = $null
-  if (Test-Path -LiteralPath $keystorePropsInGen) {
-    $keystoreBackup = [System.IO.Path]::GetTempFileName()
-    Copy-Item -LiteralPath $keystorePropsInGen -Destination $keystoreBackup -Force
-    Write-Warn "已备份 keystore.properties"
-  }
-
-  # 停止可能锁定 gen\android 的 Gradle Daemon，否则删除会失败
-  $jpsExe = Get-Command 'jps' -ErrorAction SilentlyContinue
-  if ($jpsExe) {
-    $gradleProcs = (& jps) | Where-Object { $_ -match 'GradleDaemon|GradleServer|KotlinCompileDaemon' }
-    if ($gradleProcs) {
-      Write-Warn "检测到 Gradle Daemon 进程，正在停止 ..."
-      foreach ($proc in $gradleProcs) {
-        $procId = ($proc -split '\s+')[0]
+  # 停止可能锁定 gen\android 的 Gradle/Kotlin Daemon，否则 Windows 上删不动
+  if (Get-Command 'jps' -ErrorAction SilentlyContinue) {
+    $procs = (& jps) | Where-Object { $_ -match 'GradleDaemon|GradleServer|KotlinCompileDaemon' }
+    if ($procs) {
+      Write-Warn "检测到 Gradle/Kotlin Daemon，正在停止 ..."
+      foreach ($p in $procs) {
+        $procId = ($p -split '\s+')[0]
         if ($procId -match '^\d+$') {
           Stop-Process -Id $procId -Force -ErrorAction SilentlyContinue
         }
@@ -97,69 +89,34 @@ function Restore-AndroidProject {
     }
   }
 
-  Write-Warn "正在删除不完整的 gen\android 目录 ... $GenAndroidDir"
+  # 删除残留 gen\android（带一次重试，应对偶发文件锁定）
   if (Test-Path -LiteralPath $GenAndroidDir) {
+    Write-Warn "正在删除残缺的 gen\android ... $GenAndroidDir"
     Remove-Item -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue
-    # Windows 上 Remove-Item 偶尔会有残留，确认清理
     if (Test-Path -LiteralPath $GenAndroidDir) {
       Start-Sleep -Milliseconds 200
+      Get-ChildItem -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue |
+        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
       Remove-Item -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue
     }
     if (Test-Path -LiteralPath $GenAndroidDir) {
-      Write-Warn "未能完全删除 gen\android，尝试强制清理 ..."
-      Get-ChildItem -LiteralPath $GenAndroidDir -Recurse -Force | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
-      Remove-Item -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue
+      Write-Fail "gen\android 删除失败，请手动删除后重试"
+      return
     }
   }
 
-  write-host "  运行命令：pnpm tauri android init" -ForegroundColor Cyan
+  # 重新初始化 Android 工程
+  Write-Host "  运行命令：pnpm tauri android init" -ForegroundColor Cyan
   Invoke-NativeStreamIn -Path $ProjectRoot -Block { & pnpm tauri android init }
   if ($LASTEXITCODE -ne 0) {
     Write-Fail "pnpm tauri android init 失败（exit code $LASTEXITCODE）"
-    if ($keystoreBackup -and (Test-Path -LiteralPath $keystoreBackup)) {
-      Remove-Item -LiteralPath $keystoreBackup -Force -ErrorAction SilentlyContinue
-    }
     return
   }
 
-  Write-Host "  keystore.properties => $keystorePropsInGen" -ForegroundColor Cyan
-  Write-Host "  keystore.properties (备份) => $keystoreBackup" -ForegroundColor Cyan
-  if ($keystoreBackup -and (Test-Path -LiteralPath $keystoreBackup) -and (Test-Path -LiteralPath $GenAndroidDir)) {
-    Copy-Item -LiteralPath $keystoreBackup -Destination $keystorePropsInGen -Force
-    Remove-Item -LiteralPath $keystoreBackup -Force -ErrorAction SilentlyContinue
-    Write-Ok "keystore.properties 已恢复"
-  }
-  elseif (-not (Test-Path -LiteralPath $keystorePropsInGen) -and (Test-Path -LiteralPath $GenAndroidDir)) {
-    Write-Warn "正在写入 keystore.properties ..."
-    New-DirectoryIfMissing (Split-Path -Parent $keystorePropsInGen)
-    [System.IO.File]::WriteAllLines($keystorePropsInGen, $DefaultKeystoreLines, [System.Text.UTF8Encoding]::new($false))
-    Write-Ok "keystore.properties 已写入"
-  }
-
-  $genAndroidApp = Join-Path $GenAndroidDir 'app'
-  Write-Host "  替换 Android 签名和权限文件" -ForegroundColor Cyan
-
-  $copies = @(
-    @{ Src = Join-Path $ScriptDir 'android-permission-sign\build.gradle.kts'; Dst = Join-Path $genAndroidApp 'build.gradle.kts'; Label = 'build.gradle.kts' },
-    @{ Src = Join-Path $ScriptDir 'android-permission-sign\AndroidManifest.xml'; Dst = Join-Path $genAndroidApp 'src\main\AndroidManifest.xml'; Label = 'AndroidManifest.xml' }
-  )
-  foreach ($c in $copies) {
-    if (Test-Path -LiteralPath $c.Src) {
-      New-DirectoryIfMissing (Split-Path -Parent $c.Dst)
-      Copy-Item -LiteralPath $c.Src -Destination $c.Dst -Force
-      Write-Ok "$($c.Label) 已替换"
-    }
-    else {
-      Write-Warn "$($c.Label) 源文件不存在，跳过替换"
-    }
-  }
-
-  # 降低 Gradle Daemon 内存限制7GB 内7GB 内存系统上崩溃
+  # 调整 gradle.properties：限制内存，避免 ≤7GB RAM 机器上 OOM
   $gradlePropsPath = Join-Path $GenAndroidDir 'gradle.properties'
-  write-host "  降低 Gradle Daemon 内存限制7GB 内7GB 内存系统上崩溃 ($gradlePropsPath)" -ForegroundColor Cyan
   if (Test-Path -LiteralPath $gradlePropsPath) {
     $propsContent = Get-Content -LiteralPath $gradlePropsPath -Raw
-    # 禁用 Daemon + 降低堆内存 + 降低线程栈大小
     $propsContent = $propsContent -replace 'org\.gradle\.jvmargs=-Xmx2048m', 'org.gradle.jvmargs=-Xmx768m -Xss256k -Dfile.encoding=UTF-8'
     if ($propsContent -notmatch 'org\.gradle\.daemon=') {
       $propsContent += "`norg.gradle.daemon=false"
@@ -168,7 +125,7 @@ function Restore-AndroidProject {
     Write-Ok "gradle.properties 已调整：禁用 Daemon、-Xmx768m、-Xss256k"
   }
 
-  Write-Ok "pnpm tauri android init 完成"
+  Write-Ok "gen\android 已重建"
 }
 
 <#
@@ -412,11 +369,8 @@ if (Test-AndroidProjectComplete $genAndroidDir) {
   Write-Ok "gen\android 项目完整"
 }
 else {
-  Restore-AndroidProject -ProjectRoot $projectRoot -GenAndroidDir $genAndroidDir -ScriptDir $scriptDir
-  if ($Failed) {
-    Write-Fail "gen\android 项目初始化失败，无法继续"
-    exit 1
-  }
+  Restore-AndroidProject -ProjectRoot $projectRoot -GenAndroidDir $genAndroidDir
+  if ($Failed) { exit 1 }
 }
 Confirm-Step -Desc "$Desc 是否继续？"
 Write-Host "[准备 3/4] 前端构建" -ForegroundColor Cyan
