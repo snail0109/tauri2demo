@@ -333,8 +333,8 @@ else {
 }
 
 Write-Host "[8/8] 检查 keystore.properties" -ForegroundColor Cyan
-$scriptDir = $PSScriptRoot
-$keystoreProps = Join-Path $scriptDir '..\..\backend\src-tauri\gen\android\keystore.properties'
+$projectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
+$keystoreProps = Join-Path $projectRoot 'config\keystore.properties'
 
 # 1. 如果 keystore.properties 不存在，通过 $DefaultKeystoreLines 生成默认文件
 if (-not (Test-Path -LiteralPath $keystoreProps)) {
@@ -352,10 +352,10 @@ $props = Get-Content -LiteralPath $keystoreProps -ErrorAction SilentlyContinue
 $storeFileRaw = Get-PropValue -Lines $props -Key 'storeFile'
 $keyAlias = Get-PropValue -Lines $props -Key 'keyAlias'
 $keyPassword = Get-PropValue -Lines $props -Key 'password'
+Write-Host "storeFileRaw: $storeFileRaw"
 
 if (-not [string]::IsNullOrWhiteSpace($storeFileRaw)) {
   # storeFile 相对路径基准是项目根目录
-  $projectRoot = (Resolve-Path -LiteralPath (Join-Path $scriptDir '..\..')).Path
   $storeFileResolved = if ([System.IO.Path]::IsPathRooted($storeFileRaw)) {
     $storeFileRaw
   }
@@ -378,7 +378,7 @@ if (-not [string]::IsNullOrWhiteSpace($storeFileRaw)) {
 else {
   Write-Warn "keystore.properties 中未找到 storeFile=，跳过 keystore 文件检查"
 }
-
+Confirm-Step -Desc "$Desc 是否继续？"
 Write-Host ""
 if ($Failed) {
   Write-Banner -Title '环境检查未通过，请修复以上问题后重试。' -Color Cyan -TitleColor Red
