@@ -111,12 +111,7 @@ function Restore-AndroidProject {
       Remove-Item -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue
     }
   }
-
-  # Tauri init 要求 gen/android 若存在则必须包含 app/src/main/java/<identifier> 目录，否则报错
-  $pkgDir = Join-Path $GenAndroidDir 'app\src\main\java\com\spanishassistant\app'
-  if (-not (Test-Path -LiteralPath $pkgDir)) {
-    New-Item -ItemType Directory -Path $pkgDir -Force | Out-Null
-  }
+  # Confirm-Step -Desc "$Desc 是否继续？"
 
   write-host "  运行命令：pnpm tauri android init" -ForegroundColor Cyan
   Invoke-NativeStreamIn -Path $ProjectRoot -Block { & pnpm tauri android init }
@@ -128,6 +123,8 @@ function Restore-AndroidProject {
     return
   }
 
+  Write-Host "  keystore.properties => $keystorePropsInGen" -ForegroundColor Cyan
+  Write-Host "  keystore.properties (备份) => $keystoreBackup" -ForegroundColor Cyan
   if ($keystoreBackup -and (Test-Path -LiteralPath $keystoreBackup) -and (Test-Path -LiteralPath $GenAndroidDir)) {
     Copy-Item -LiteralPath $keystoreBackup -Destination $keystorePropsInGen -Force
     Remove-Item -LiteralPath $keystoreBackup -Force -ErrorAction SilentlyContinue
@@ -158,8 +155,9 @@ function Restore-AndroidProject {
     }
   }
 
-  # 降低 Gradle Daemon 内存限制，避免在 7GB 内存系统上崩溃
+  # 降低 Gradle Daemon 内存限制7GB 内7GB 内存系统上崩溃
   $gradlePropsPath = Join-Path $GenAndroidDir 'gradle.properties'
+  write-host "  降低 Gradle Daemon 内存限制7GB 内7GB 内存系统上崩溃 ($gradlePropsPath)" -ForegroundColor Cyan
   if (Test-Path -LiteralPath $gradlePropsPath) {
     $propsContent = Get-Content -LiteralPath $gradlePropsPath -Raw
     # 禁用 Daemon + 降低堆内存 + 降低线程栈大小
@@ -443,6 +441,7 @@ if (Test-Path -LiteralPath (Join-Path $projectRoot 'frontend\dist')) {
 }
 else {
   Write-Warn "frontend\dist 不存在，正在运行前端构建 ..."
+  write-host "  运行命令：pnpm build" -ForegroundColor Cyan
   Invoke-NativeStreamIn -Path $projectRoot -Block { & pnpm build }
   if ($LASTEXITCODE -ne 0) { Write-Fail "前端构建失败" }
   else { Write-Ok "前端构建完成" }
