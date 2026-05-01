@@ -38,11 +38,7 @@ function Set-Msys2ChinaMirror {
 
   Write-Host "  配置 MSYS2 国内镜像源（清华 TUNA）..." -ForegroundColor Cyan
   $map = @(
-    @{ File = 'mirrorlist.mingw32'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/i686/' },
-    @{ File = 'mirrorlist.mingw64'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/x86_64/' },
-    @{ File = 'mirrorlist.ucrt64'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/ucrt64/' },
-    @{ File = 'mirrorlist.clang64'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/clang64/' },
-    @{ File = 'mirrorlist.clangarm64'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/clangarm64/' },
+    @{ File = 'mirrorlist.mingw'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/mingw/$repo/' },
     @{ File = 'mirrorlist.msys'; Line = 'Server = https://mirrors.tuna.tsinghua.edu.cn/msys2/msys/$arch/' }
   )
   # 逐个处理 MSYS2 的各类 mirrorlist 文件：
