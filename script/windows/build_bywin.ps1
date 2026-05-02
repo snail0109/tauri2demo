@@ -445,7 +445,7 @@ $env:NODE_OPTIONS = '--max-old-space-size=8192 --max-semi-space-size=512'
 Write-Host "  CARGO_BUILD_JOBS=1, Gradle workers=1, NODE_OPTIONS=--max-old-space-size=8192（避免内存溢出）" -ForegroundColor Yellow
 Write-Host ""
 
-Write-Host "执行：pnpm tauri android $Command" -ForegroundColor Cyan
+Write-Host "  运行命令：pnpm tauri android $Command" -ForegroundColor Cyan
 Write-Host ""
 
 $code = 1
