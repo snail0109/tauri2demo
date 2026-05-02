@@ -1047,9 +1047,9 @@ function Set-GradleWrapperMirror {
   $content = Get-Content -LiteralPath $wrapperProps -Raw
   if ($content -match 'mirrors\.cloud\.tencent\.com') { return }
 
-  $content = $content -replace 'https\\://services\.gradle\.org', 'https\://mirrors.cloud.tencent.com/gradle'
+  $content = $content -replace 'https\\://services\.gradle\.org/distributions/', 'https\://mirrors.cloud.tencent.com/gradle/'
   [System.IO.File]::WriteAllText($wrapperProps, $content, [System.Text.UTF8Encoding]::new($false))
-  Write-Ok "gradle-wrapper.properties 已切换为腾讯云镜像"
+  Write-Ok "gradle-wrapper.properties 已切换为腾讯云镜像 ($wrapperProps)"
 }
 
 <#

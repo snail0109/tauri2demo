@@ -96,7 +96,7 @@ function Restore-AndroidProject {
     if (Test-Path -LiteralPath $GenAndroidDir) {
       Start-Sleep -Milliseconds 200
       Get-ChildItem -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue |
-        Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+      Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
       Remove-Item -LiteralPath $GenAndroidDir -Recurse -Force -ErrorAction SilentlyContinue
     }
     if (Test-Path -LiteralPath $GenAndroidDir) {
@@ -189,7 +189,7 @@ Write-Host ""
 
 Write-Host "[1/8] C/C++ 编译工具" -ForegroundColor Cyan
 $hasMsvc = Test-Msvc
-$hasGnu   = Test-Gnu
+$hasGnu = Test-Gnu
 if (-not $hasMsvc -and -not $hasGnu) {
   Write-Fail "未检测到 C/C++ 编译器（MSVC 或 GNU gcc）"
   Write-Fail "请运行 .\script\install_2_c_compile_bywin.ps1 安装"
@@ -197,7 +197,7 @@ if (-not $hasMsvc -and -not $hasGnu) {
 
 Write-Host "[2/8] Rust" -ForegroundColor Cyan
 if ($null -ne (Get-ExePath 'rustc.exe')) {
-Test-RustToolchain | Out-Null
+  Test-RustToolchain | Out-Null
 }
 else {
   Write-Fail "未检测到 rustc/rustup"
@@ -272,23 +272,24 @@ if ($pnpmExe) {
 }
 else {
   Write-Warn "未找到 pnpm，准备自动安装 ..."
-    $npm = Get-ExePath 'npm.cmd'
-    if (-not $npm) { $npm = Get-ExePath 'npm.exe' }
-    if (-not $npm) {
-      Write-Fail "未找到 npm，无法自动安装 pnpm"
-      Write-Fail "请先安装 Node.js，然后重试"
+  $npm = Get-ExePath 'npm.cmd'
+  if (-not $npm) { $npm = Get-ExePath 'npm.exe' }
+  if (-not $npm) {
+    Write-Fail "未找到 npm，无法自动安装 pnpm"
+    Write-Fail "请先安装 Node.js，然后重试"
+  }
+  else {
+    Write-Host "  运行命令：npm install -g pnpm" -ForegroundColor Cyan
+    Invoke-NativeStream -Block { & npm install -g pnpm }
+    $pnpmExe = Get-PnpmExe
+    if ($pnpmExe) {
+      $v = (Invoke-NativeText -FilePath $pnpmExe -Arguments @('--version') | Select-Object -First 1)
+      Write-Ok "pnpm $v 安装成功"
     }
     else {
-      Write-Host "  运行命令：npm install -g pnpm" -ForegroundColor Cyan
-      Invoke-NativeStream -Block { & npm install -g pnpm }
-      $pnpmExe = Get-PnpmExe
-      if ($pnpmExe) {
-        $v = (Invoke-NativeText -FilePath $pnpmExe -Arguments @('--version') | Select-Object -First 1)
-        Write-Ok "pnpm $v 安装成功"
-      } else {
-        Write-Fail "pnpm 自动安装失败，请手动安装：npm install -g pnpm"
-      }
+      Write-Fail "pnpm 自动安装失败，请手动安装：npm install -g pnpm"
     }
+  }
 }
 
 Write-Host "[8/8] 检查 keystore.properties" -ForegroundColor Cyan
@@ -353,18 +354,11 @@ Write-Banner -Title '构建准备                                ' -Color Cyan
 Write-Host ""
 
 Write-Host "[准备 1/3] npm 依赖" -ForegroundColor Cyan
-$tauriBin = Join-Path $projectRoot 'node_modules\.bin\tauri.cmd'
-if ((Test-Path -LiteralPath (Join-Path $projectRoot 'node_modules')) -and (Test-Path -LiteralPath $tauriBin)) {
-  Write-Ok "node_modules 已存在且 tauri CLI 可用"
-}
-else {
-  Write-Warn "正在运行 pnpm install ..."
-  write-host "  运行命令：pnpm install --config.node-linker=hoisted" -ForegroundColor Cyan
-  Invoke-NativeStreamIn -Path $projectRoot -Block { & pnpm install --config.node-linker=hoisted }
-  if ($LASTEXITCODE -ne 0) { Write-Fail "pnpm install 失败" }
-  else { Write-Ok "pnpm install 完成" }
-}
-
+Write-Warn "正在运行 pnpm install ..."
+write-host "  运行命令：pnpm install --config.node-linker=hoisted" -ForegroundColor Cyan
+Invoke-NativeStreamIn -Path $projectRoot -Block { & pnpm install --config.node-linker=hoisted }
+if ($LASTEXITCODE -ne 0) { Write-Fail "pnpm install 失败" }
+else { Write-Ok "pnpm install 完成" }
 
 Write-Host "[准备 2/3] Tauri Android 项目" -ForegroundColor Cyan
 $genAndroidDir = Join-Path $projectRoot 'backend\src-tauri\gen\android'
@@ -378,16 +372,11 @@ else {
 }
 
 Write-Host "[准备 3/3] 前端构建" -ForegroundColor Cyan
-if (Test-Path -LiteralPath (Join-Path $projectRoot 'frontend\dist')) {
-  Write-Ok "frontend\dist 已存在"
-}
-else {
-  Write-Warn "frontend\dist 不存在，正在运行前端构建 ..."
-  write-host "  运行命令：pnpm build" -ForegroundColor Cyan
-  Invoke-NativeStreamIn -Path $projectRoot -Block { & pnpm build }
-  if ($LASTEXITCODE -ne 0) { Write-Fail "前端构建失败" }
-  else { Write-Ok "前端构建完成" }
-}
+Write-Warn "frontend\dist 不存在，正在运行前端构建 ..."
+write-host "  运行命令：pnpm build" -ForegroundColor Cyan
+Invoke-NativeStreamIn -Path $projectRoot -Block { & pnpm build }
+if ($LASTEXITCODE -ne 0) { Write-Fail "前端构建失败" }
+else { Write-Ok "前端构建完成" }
 
 Write-Host ""
 Write-Host "  构建准备完成！" -ForegroundColor Green
