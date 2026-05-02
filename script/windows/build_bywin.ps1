@@ -442,7 +442,14 @@ if (Test-Path -LiteralPath $envFile) {
 $env:CARGO_BUILD_JOBS = '1'
 $env:GRADLE_OPTS = '-Dorg.gradle.workers.max=1'
 $env:NODE_OPTIONS = '--max-old-space-size=8192 --max-semi-space-size=512'
-Write-Ok "  CARGO_BUILD_JOBS=1, Gradle workers=1, NODE_OPTIONS=--max-old-space-size=8192（避免内存溢出）" -ForegroundColor Yellow
+
+# 将 GRADLE_USER_HOME 设到非 Users 目录，避免 Windows 安全策略阻止 daemon fork 子进程
+$gradleHome = 'C:\GradleHome'
+if (-not (Test-Path -LiteralPath $gradleHome)) { New-Item -ItemType Directory -Force -Path $gradleHome | Out-Null }
+$env:GRADLE_USER_HOME = $gradleHome
+
+Write-Ok "  CARGO_BUILD_JOBS=1, Gradle workers=1, NODE_OPTIONS=--max-old-space-size=8192（避免内存溢出）"
+Write-Ok "  GRADLE_USER_HOME=$gradleHome（避免 Users 目录下 daemon fork 被安全策略拦截）"
 Write-Host ""
 
 Write-Host "  运行命令：pnpm tauri android $Command" -ForegroundColor Cyan
