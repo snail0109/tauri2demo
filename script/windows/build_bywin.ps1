@@ -118,12 +118,15 @@ function Restore-AndroidProject {
   write-host "Gradle配置 (gradle.properties) : $gradlePropsPath"
   if (Test-Path -LiteralPath $gradlePropsPath) {
     $propsContent = Get-Content -LiteralPath $gradlePropsPath -Raw
-    $propsContent = $propsContent -replace 'org\.gradle\.jvmargs=-Xmx2048m', 'org.gradle.jvmargs=-Xmx768m -Xss256k -Dfile.encoding=UTF-8'
+    $propsContent = $propsContent -replace 'org\.gradle\.jvmargs=.*', 'org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8'
     if ($propsContent -notmatch 'org\.gradle\.daemon=') {
-      $propsContent += "`norg.gradle.daemon=false"
+      $propsContent += "`norg.gradle.daemon=true"
+    }
+    else {
+      $propsContent = $propsContent -replace 'org\.gradle\.daemon=false', 'org.gradle.daemon=true'
     }
     [System.IO.File]::WriteAllText($gradlePropsPath, $propsContent, [System.Text.UTF8Encoding]::new($false))
-    Write-Ok "gradle.properties 已调整：禁用 Daemon、-Xmx768m、-Xss256k"
+    Write-Ok "gradle.properties 已调整：启用 Daemon、-Xmx2048m"
   }
 
   Set-GradleWrapperMirror $GenAndroidDir
