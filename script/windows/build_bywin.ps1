@@ -425,6 +425,7 @@ if ($RustcHost -match 'gnu') {
 
 # 加载 .env 文件中的环境变量（env!() 宏在编译时需要）
 $envFile = Join-Path $projectRoot '.env'
+Write-Ok "  加载环境变量文件：$envFile"
 if (Test-Path -LiteralPath $envFile) {
   $loaded = 0
   foreach ($line in (Get-Content -LiteralPath $envFile -ErrorAction SilentlyContinue)) {
@@ -445,7 +446,7 @@ if (Test-Path -LiteralPath $envFile) {
 $env:CARGO_BUILD_JOBS = '1'
 $env:GRADLE_OPTS = '-Dorg.gradle.workers.max=1'
 $env:NODE_OPTIONS = '--max-old-space-size=8192 --max-semi-space-size=512'
-Write-Host "  CARGO_BUILD_JOBS=1, Gradle workers=1, NODE_OPTIONS=--max-old-space-size=8192（避免内存溢出）" -ForegroundColor Yellow
+Write-Ok "  CARGO_BUILD_JOBS=1, Gradle workers=1, NODE_OPTIONS=--max-old-space-size=8192（避免内存溢出）" -ForegroundColor Yellow
 Write-Host ""
 
 Write-Host "  运行命令：pnpm tauri android $Command" -ForegroundColor Cyan
