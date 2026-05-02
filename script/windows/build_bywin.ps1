@@ -454,9 +454,9 @@ if (Test-Path -LiteralPath $envFile) {
 }
 
 $env:CARGO_BUILD_JOBS = '1'
-$env:GRADLE_OPTS = '-Dorg.gradle.workers.max=1'
+$env:GRADLE_OPTS = '-Dorg.gradle.workers.max=2'
 $env:NODE_OPTIONS = '--max-old-space-size=8192 --max-semi-space-size=512'
-Write-Ok "  CARGO_BUILD_JOBS=1, Gradle workers=1, NODE_OPTIONS=--max-old-space-size=8192（避免内存溢出）"
+Write-Ok "  Set CARGO_BUILD_JOBS=1, Gradle workers=2, NODE_OPTIONS=--max-old-space-size=8192（避免内存溢出）"
 Write-Host ""
 
 Write-Host "  运行命令：pnpm tauri android $Command" -ForegroundColor Cyan
