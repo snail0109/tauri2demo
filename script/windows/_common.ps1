@@ -1032,6 +1032,28 @@ function Set-AndroidNdkEnv {
 
 <#
 .SYNOPSIS
+  将 gradle-wrapper.properties 的 distributionUrl 替换为国内镜像源。
+.PARAMETER GenAndroidDir
+  gen\android 目录路径。
+.NOTES
+  每次 pnpm tauri android init 会重置为官方 URL，需在 init 之后调用。
+#>
+function Set-GradleWrapperMirror {
+  param([Parameter(Mandatory)][string]$GenAndroidDir)
+
+  $wrapperProps = Join-Path $GenAndroidDir 'gradle\wrapper\gradle-wrapper.properties'
+  if (-not (Test-Path -LiteralPath $wrapperProps)) { return }
+
+  $content = Get-Content -LiteralPath $wrapperProps -Raw
+  if ($content -match 'mirrors\.cloud\.tencent\.com') { return }
+
+  $content = $content -replace 'https\\://services\.gradle\.org', 'https\://mirrors.cloud.tencent.com/gradle'
+  [System.IO.File]::WriteAllText($wrapperProps, $content, [System.Text.UTF8Encoding]::new($false))
+  Write-Ok "gradle-wrapper.properties 已切换为腾讯云镜像"
+}
+
+<#
+.SYNOPSIS
   获取当前 java 的主版本号（如 17）。
 .OUTPUTS
   [int] 主版本号；未找到 java 时返回 $null。

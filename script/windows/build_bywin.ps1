@@ -126,6 +126,8 @@ function Restore-AndroidProject {
     Write-Ok "gradle.properties 已调整：禁用 Daemon、-Xmx768m、-Xss256k"
   }
 
+  Set-GradleWrapperMirror $GenAndroidDir
+
   Write-Ok "gen\android 已重建"
 }
 
@@ -368,6 +370,7 @@ Write-Host "[准备 2/3] Tauri Android 项目" -ForegroundColor Cyan
 $genAndroidDir = Join-Path $projectRoot 'backend\src-tauri\gen\android'
 if (Test-AndroidProjectComplete $genAndroidDir) {
   Write-Ok "gen\android 项目完整"
+  Set-GradleWrapperMirror $genAndroidDir
 }
 else {
   Restore-AndroidProject -ProjectRoot $projectRoot -GenAndroidDir $genAndroidDir
