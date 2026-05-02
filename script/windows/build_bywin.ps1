@@ -372,7 +372,7 @@ else {
 }
 
 Write-Host "[准备 3/3] 前端构建" -ForegroundColor Cyan
-Write-Warn "frontend\dist 不存在，正在运行前端构建 ..."
+Write-Warn "正在运行前端构建 ..."
 write-host "  运行命令：pnpm build" -ForegroundColor Cyan
 Invoke-NativeStreamIn -Path $projectRoot -Block { & pnpm build }
 if ($LASTEXITCODE -ne 0) { Write-Fail "前端构建失败" }
