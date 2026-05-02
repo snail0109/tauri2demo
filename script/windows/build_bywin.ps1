@@ -392,15 +392,32 @@ Write-Host ""
 Add-PathPrefix (Join-Path $androidHome 'platform-tools')
 Set-AndroidNdkEnv -AndroidNdkHome $env:ANDROID_NDK_HOME
 
-# GNU 工具链链接时需要 MinGW 库目录（crt2.o, libkernel32.a 等）以及 GCC 运行时库目录（libgcc.a, libgcc_eh.a）
-$mingwLibDir = 'C:\msys64\mingw64\lib'
-$gccLibDirs = @(Get-ChildItem -LiteralPath 'C:\msys64\mingw64\lib\gcc\x86_64-w64-mingw32' -Directory -ErrorAction SilentlyContinue |
-  Sort-Object { [version]$_.Name } -Descending |
-  Select-Object -First 1 | ForEach-Object { $_.FullName })
-if ((Test-Path -LiteralPath $mingwLibDir) -and ((Get-ExePath 'gcc.exe') -or (Test-Path -LiteralPath $script:MingwGccExe))) {
-  $libPaths = @($mingwLibDir) + $gccLibDirs
-  $env:LIBRARY_PATH = ($libPaths + $(if ($env:LIBRARY_PATH) { $env:LIBRARY_PATH -split ';' } else { @() })) -join ';'
-  foreach ($p in $libPaths) { Write-Ok "LIBRARY_PATH 已追加：$p" }
+# ── GNU 工具链专用配置（dlltool + MinGW 库目录） ──
+if ($RustcHost -match 'gnu') {
+  Write-Host "  GNU 工具链：查找 dlltool" -ForegroundColor Cyan
+  $rustcPath = Invoke-NativeText -FilePath 'rustup' -Arguments @('which', 'rustc') | Select-Object -First 1
+  if (-not [string]::IsNullOrWhiteSpace($rustcPath)) {
+    $toolchainRoot = Split-Path -Parent (Split-Path -Parent $rustcPath.Trim())
+    $dlltoolDir = Join-Path $toolchainRoot "lib\rustlib\$RustcHost\bin\self-contained"
+    if (Test-Path -LiteralPath (Join-Path $dlltoolDir 'dlltool.exe')) {
+      Add-PathPrefix $dlltoolDir
+      Write-Ok "Rust dlltool 已加入 PATH：$dlltoolDir"
+    }
+    else {
+      Write-Warn "dlltool 未找到（GNU host: $RustcHost）"
+    }
+  }
+
+  # MinGW 库目录（crt2.o, libkernel32.a 等）以及 GCC 运行时库目录（libgcc.a, libgcc_eh.a）
+  $mingwLibDir = 'C:\msys64\mingw64\lib'
+  $gccLibDirs = @(Get-ChildItem -LiteralPath 'C:\msys64\mingw64\lib\gcc\x86_64-w64-mingw32' -Directory -ErrorAction SilentlyContinue |
+    Sort-Object { [version]$_.Name } -Descending |
+    Select-Object -First 1 | ForEach-Object { $_.FullName })
+  if ((Test-Path -LiteralPath $mingwLibDir) -and ((Get-ExePath 'gcc.exe') -or (Test-Path -LiteralPath $script:MingwGccExe))) {
+    $libPaths = @($mingwLibDir) + $gccLibDirs
+    $env:LIBRARY_PATH = ($libPaths + $(if ($env:LIBRARY_PATH) { $env:LIBRARY_PATH -split ';' } else { @() })) -join ';'
+    foreach ($p in $libPaths) { Write-Ok "LIBRARY_PATH 已追加：$p" }
+  }
 }
 
 # 加载 .env 文件中的环境变量（env!() 宏在编译时需要）
