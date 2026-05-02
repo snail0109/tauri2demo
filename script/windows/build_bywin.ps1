@@ -364,9 +364,20 @@ if ($LASTEXITCODE -ne 0) { Write-Fail "pnpm install 失败" }
 else { Write-Ok "pnpm install 完成" }
 
 Write-Host "[准备 2/3] Tauri Android 项目" -ForegroundColor Cyan
-# 确保 Gradle user home 目录存在（gradle.properties 中 org.gradle.user.home 引用）
-$gradleHome = 'C:\GradleHome'
+# GRADLE_USER_HOME：避免 Users 目录下 Windows 安全策略阻止 daemon fork 子进程
+# 若用户级环境变量已有值则沿用，否则写入默认值 C:\GradleHome
+$userGradleHome = [Environment]::GetEnvironmentVariable('GRADLE_USER_HOME', 'User')
+if (-not [string]::IsNullOrWhiteSpace($userGradleHome)) {
+  $gradleHome = $userGradleHome
+  Write-Ok "GRADLE_USER_HOME 已存在（用户级）：$gradleHome"
+}
+else {
+  $gradleHome = 'C:\GradleHome'
+  [Environment]::SetEnvironmentVariable('GRADLE_USER_HOME', $gradleHome, 'User')
+  Write-Ok "GRADLE_USER_HOME 已写入用户环境变量：$gradleHome"
+}
 if (-not (Test-Path -LiteralPath $gradleHome)) { New-Item -ItemType Directory -Force -Path $gradleHome | Out-Null }
+$env:GRADLE_USER_HOME = $gradleHome
 $genAndroidDir = Join-Path $projectRoot 'backend\src-tauri\gen\android'
 if (Test-AndroidProjectComplete $genAndroidDir) {
   Write-Ok "gen\android 项目完整"
@@ -445,10 +456,7 @@ if (Test-Path -LiteralPath $envFile) {
 $env:CARGO_BUILD_JOBS = '1'
 $env:GRADLE_OPTS = '-Dorg.gradle.workers.max=1'
 $env:NODE_OPTIONS = '--max-old-space-size=8192 --max-semi-space-size=512'
-# 将 GRADLE_USER_HOME 设到非 Users 目录，避免 Windows 安全策略阻止 daemon fork 子进程
-$env:GRADLE_USER_HOME = $gradleHome
 Write-Ok "  CARGO_BUILD_JOBS=1, Gradle workers=1, NODE_OPTIONS=--max-old-space-size=8192（避免内存溢出）"
-Write-Ok "  GRADLE_USER_HOME=$gradleHome（避免 Users 目录下 daemon fork 被安全策略拦截）"
 Write-Host ""
 
 Write-Host "  运行命令：pnpm tauri android $Command" -ForegroundColor Cyan
