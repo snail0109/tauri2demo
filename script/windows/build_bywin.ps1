@@ -368,6 +368,16 @@ $genAndroidDir = Join-Path $projectRoot 'backend\src-tauri\gen\android'
 if (Test-AndroidProjectComplete $genAndroidDir) {
   Write-Ok "gen\android 项目完整"
   Set-GradleWrapperMirror $genAndroidDir
+  # 修复 gradle.properties（tauri init 生成的默认值会导致 Windows 上 daemon 启动失败）
+  $gp = Join-Path $genAndroidDir 'gradle.properties'
+  if (Test-Path -LiteralPath $gp) {
+    $pc = Get-Content -LiteralPath $gp -Raw
+    $pc = $pc -replace 'org\.gradle\.jvmargs=.*', 'org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8'
+    if ($pc -notmatch 'org\.gradle\.daemon=') { $pc += "`norg.gradle.daemon=true" }
+    else { $pc = $pc -replace 'org\.gradle\.daemon=false', 'org.gradle.daemon=true' }
+    [System.IO.File]::WriteAllText($gp, $pc, [System.Text.UTF8Encoding]::new($false))
+    Write-Ok "gradle.properties 已检查：Daemon=true、-Xmx2048m"
+  }
 }
 else {
   Restore-AndroidProject -ProjectRoot $projectRoot -GenAndroidDir $genAndroidDir
